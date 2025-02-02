@@ -19,12 +19,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 type ProfileFormValues = {
   email: string;
   password: string;
   confirmPassword: string;
+  username: string;
 };
 
 type Script = {
@@ -44,6 +45,7 @@ export default function Profile() {
       email: "",
       password: "",
       confirmPassword: "",
+      username: "",
     },
   });
 
@@ -56,7 +58,16 @@ export default function Profile() {
         return;
       }
 
-      form.setValue("email", user.email || "");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email, username")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        form.setValue("email", profile.email);
+        form.setValue("username", profile.username);
+      }
       
       const { data: userScripts } = await supabase
         .from("scripts")
@@ -85,12 +96,26 @@ export default function Profile() {
         return;
       }
 
-      const { error } = await supabase.auth.updateUser({
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Update username in profiles table
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ 
+          username: data.username 
+        })
+        .eq("id", user.id);
+
+      if (profileError) throw profileError;
+
+      // Update email/password if changed
+      const { error: authError } = await supabase.auth.updateUser({
         email: data.email,
         password: data.password || undefined,
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
 
       toast({
         title: "Success",
@@ -149,12 +174,25 @@ export default function Profile() {
         <CardHeader>
           <CardTitle>Profile Settings</CardTitle>
           <CardDescription>
-            Update your email and password
+            Update your profile information
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="email"
