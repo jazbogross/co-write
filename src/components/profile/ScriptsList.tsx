@@ -52,6 +52,7 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
             title: newTitle,
             admin_id: user.id,
             is_private: false,
+            content: "", // Add default empty content
           },
         ])
         .select()
@@ -69,6 +70,7 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
         });
       }
     } catch (error) {
+      console.error("Script creation error:", error);
       toast({
         title: "Error",
         description: "Failed to create script",
