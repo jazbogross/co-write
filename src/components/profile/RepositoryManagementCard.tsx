@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { FolderPlus, Github, Lock, LockOpen, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { RepositoryPermissionsDialog } from "./RepositoryPermissionsDialog";
 
 interface Repository {
   id: string;
@@ -179,6 +180,12 @@ export function RepositoryManagementCard() {
                       <LockOpen className="h-4 w-4 text-muted-foreground" />
                     )}
                   </Button>
+                  {repo.is_private && (
+                    <RepositoryPermissionsDialog
+                      repositoryId={repo.id}
+                      repositoryName={repo.name}
+                    />
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
