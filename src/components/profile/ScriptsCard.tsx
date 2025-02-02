@@ -5,6 +5,7 @@ interface Script {
   id: string;
   title: string;
   created_at: string;
+  is_private: boolean;
 }
 
 interface ScriptsCardProps {
