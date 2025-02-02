@@ -4,6 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Pencil, Trash2 } from "lucide-react";
 
 type Script = {
   id: string;
@@ -15,8 +24,21 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
   const navigate = useNavigate();
   const { toast } = useToast();
   const [scripts, setScripts] = useState<Script[]>(initialScripts);
+  const [isNewScriptDialogOpen, setIsNewScriptDialogOpen] = useState(false);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [selectedScript, setSelectedScript] = useState<Script | null>(null);
+  const [newTitle, setNewTitle] = useState("");
 
   const createNewScript = async () => {
+    if (!newTitle.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a script title",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -25,7 +47,7 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
         .from("scripts")
         .insert([
           {
-            title: "New Script",
+            title: newTitle,
             admin_id: user.id,
           },
         ])
@@ -36,6 +58,8 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
 
       if (data) {
         setScripts([data, ...scripts]);
+        setNewTitle("");
+        setIsNewScriptDialogOpen(false);
         toast({
           title: "Success",
           description: "New script created",
@@ -50,10 +74,80 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
     }
   };
 
+  const handleRename = async () => {
+    if (!selectedScript || !newTitle.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a script title",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("scripts")
+        .update({ title: newTitle })
+        .eq("id", selectedScript.id);
+
+      if (error) throw error;
+
+      setScripts(scripts.map(script => 
+        script.id === selectedScript.id 
+          ? { ...script, title: newTitle }
+          : script
+      ));
+      
+      setIsRenameDialogOpen(false);
+      setSelectedScript(null);
+      setNewTitle("");
+      
+      toast({
+        title: "Success",
+        description: "Script renamed successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to rename script",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (scriptId: string) => {
+    try {
+      const { error } = await supabase
+        .from("scripts")
+        .delete()
+        .eq("id", scriptId);
+
+      if (error) throw error;
+
+      setScripts(scripts.filter(script => script.id !== scriptId));
+      
+      toast({
+        title: "Success",
+        description: "Script deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete script",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="mb-4">
-        <Button onClick={createNewScript}>Create New Script</Button>
+        <Button onClick={() => {
+          setNewTitle("");
+          setIsNewScriptDialogOpen(true);
+        }}>
+          Create New Script
+        </Button>
       </div>
       <div className="space-y-4">
         {scripts.map((script) => (
@@ -65,12 +159,32 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
                   Created: {new Date(script.created_at).toLocaleDateString()}
                 </p>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => navigate(`/scripts/${script.id}`)}
-              >
-                Edit
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    setSelectedScript(script);
+                    setNewTitle(script.title);
+                    setIsRenameDialogOpen(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleDelete(script.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/scripts/${script.id}`)}
+                >
+                  Edit
+                </Button>
+              </div>
             </div>
           </Card>
         ))}
@@ -80,6 +194,50 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
           </p>
         )}
       </div>
+
+      {/* New Script Dialog */}
+      <Dialog open={isNewScriptDialogOpen} onOpenChange={setIsNewScriptDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Script</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Enter script title"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNewScriptDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createNewScript}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Dialog */}
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Script</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Enter new title"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRename}>Rename</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
