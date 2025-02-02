@@ -10,6 +10,7 @@ type Script = {
   id: string;
   title: string;
   created_at: string;
+  is_private: boolean;
 };
 
 export default function Profile() {
@@ -44,7 +45,7 @@ export default function Profile() {
       
       const { data: userScripts } = await supabase
         .from("scripts")
-        .select("id, title, created_at")
+        .select("id, title, created_at, is_private")
         .eq("admin_id", user.id)
         .order("created_at", { ascending: false });
 
