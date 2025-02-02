@@ -4,11 +4,7 @@ import { Github } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-interface GitHubConnectionCardProps {
-  isGithubConnected: boolean;
-}
-
-export function GitHubConnectionCard({ isGithubConnected }: GitHubConnectionCardProps) {
+export function GitHubConnectionCard() {
   const { toast } = useToast();
 
   const handleGithubConnect = async () => {
@@ -46,21 +42,14 @@ export function GitHubConnectionCard({ isGithubConnected }: GitHubConnectionCard
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isGithubConnected ? (
-          <div className="flex items-center gap-2">
-            <Github className="h-5 w-5" />
-            <span className="text-sm text-muted-foreground">GitHub account connected</span>
-          </div>
-        ) : (
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto"
-            onClick={handleGithubConnect}
-          >
-            <Github className="mr-2 h-4 w-4" />
-            Connect GitHub Account
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="w-full sm:w-auto"
+          onClick={handleGithubConnect}
+        >
+          <Github className="mr-2 h-4 w-4" />
+          Connect GitHub Account
+        </Button>
       </CardContent>
     </Card>
   );

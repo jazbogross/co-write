@@ -65,7 +65,7 @@ export default function Profile() {
   return (
     <div className="container max-w-2xl py-10">
       <UserProfileCard profileData={profileData} />
-      {!isGithubConnected && <GitHubConnectionCard isGithubConnected={isGithubConnected} />}
+      {!isGithubConnected && <GitHubConnectionCard />}
       {isGithubConnected && <RepositoryManagementCard />}
       <ScriptsCard scripts={scripts} />
     </div>
