@@ -36,12 +36,95 @@ export type Database = {
         }
         Relationships: []
       }
+      script_content: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          line_number: number
+          metadata: Json
+          script_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          line_number: number
+          metadata?: Json
+          script_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          line_number?: number
+          metadata?: Json
+          script_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_content_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      script_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          permission_type: string
+          script_id: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission_type: string
+          script_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission_type?: string
+          script_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_permissions_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "script_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scripts: {
         Row: {
           admin_id: string
           content: string
           created_at: string
+          github_owner: string | null
+          github_repo: string | null
           id: string
+          is_private: boolean | null
           title: string
           updated_at: string
         }
@@ -49,7 +132,10 @@ export type Database = {
           admin_id: string
           content?: string
           created_at?: string
+          github_owner?: string | null
+          github_repo?: string | null
           id?: string
+          is_private?: boolean | null
           title: string
           updated_at?: string
         }
@@ -57,7 +143,10 @@ export type Database = {
           admin_id?: string
           content?: string
           created_at?: string
+          github_owner?: string | null
+          github_repo?: string | null
           id?: string
+          is_private?: boolean | null
           title?: string
           updated_at?: string
         }
