@@ -38,8 +38,8 @@ export default function Profile() {
       }
 
       // Check if user has GitHub connected
-      const { data: { provider } } = await supabase.auth.getSession();
-      setIsGithubConnected(provider === 'github');
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsGithubConnected(session?.user?.app_metadata?.provider === 'github');
 
       const { data: profile } = await supabase
         .from("profiles")
