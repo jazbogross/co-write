@@ -39,11 +39,14 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       <Textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        className="min-h-[300px] font-mono text-sm"
+        className="min-h-[200px] md:min-h-[300px] font-mono text-sm"
         placeholder="Enter your text here..."
       />
       <div className="flex justify-end">
-        <Button onClick={handleSubmit}>
+        <Button 
+          onClick={handleSubmit}
+          className="w-full md:w-auto"
+        >
           {isAdmin ? "Save Changes" : "Suggest Changes"}
         </Button>
       </div>

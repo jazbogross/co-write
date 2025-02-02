@@ -35,22 +35,22 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
   };
 
   return (
-    <ScrollArea className="h-[400px] rounded-md border p-4">
+    <ScrollArea className="h-[300px] md:h-[400px] rounded-md border p-2 md:p-4">
       <div className="space-y-4">
         {suggestions.map((suggestion) => (
           <div
             key={suggestion.id}
-            className={`rounded-lg p-4 ${getStatusColor(suggestion.status)}`}
+            className={`rounded-lg p-3 md:p-4 ${getStatusColor(suggestion.status)}`}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-2 gap-2">
               <span className="font-medium">{suggestion.author}</span>
               {isAdmin && suggestion.status === 'pending' && (
-                <div className="space-x-2">
+                <div className="flex gap-2 w-full md:w-auto">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => onApprove(suggestion.id)}
-                    className="bg-white"
+                    className="flex-1 md:flex-none bg-white"
                   >
                     <Check className="w-4 h-4 mr-1" />
                     Approve
@@ -59,7 +59,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
                     size="sm"
                     variant="outline"
                     onClick={() => onReject(suggestion.id)}
-                    className="bg-white"
+                    className="flex-1 md:flex-none bg-white"
                   >
                     <X className="w-4 h-4 mr-1" />
                     Reject
@@ -72,7 +72,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({
                 </span>
               )}
             </div>
-            <pre className="whitespace-pre-wrap font-mono text-sm bg-white bg-opacity-50 p-2 rounded">
+            <pre className="whitespace-pre-wrap font-mono text-sm bg-white bg-opacity-50 p-2 rounded overflow-x-auto">
               {suggestion.content}
             </pre>
           </div>

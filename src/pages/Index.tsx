@@ -28,7 +28,6 @@ const Index = () => {
       return;
     }
 
-    // Get user profile to check role
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -71,14 +70,14 @@ const Index = () => {
   };
 
   return (
-    <div className="container py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">GitHub Text Editor</h1>
+    <div className="container px-4 py-6 md:py-8">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold">GitHub Text Editor</h1>
         <Button variant="outline" onClick={handleSignOut}>
           Sign Out
         </Button>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
         <div>
           <h2 className="text-xl font-semibold mb-4">Editor</h2>
           <TextEditor
