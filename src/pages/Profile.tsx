@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { UserProfileCard } from "@/components/profile/UserProfileCard";
 import { GitHubConnectionCard } from "@/components/profile/GitHubConnectionCard";
 import { ScriptsCard } from "@/components/profile/ScriptsCard";
+import { RepositoryManagementCard } from "@/components/profile/RepositoryManagementCard";
 
 type Script = {
   id: string;
@@ -27,9 +28,9 @@ export default function Profile() {
         return;
       }
 
-      // Check if user has GitHub connected
       const { data: { session } } = await supabase.auth.getSession();
-      setIsGithubConnected(session?.user?.app_metadata?.provider === 'github');
+      const provider = session?.user?.app_metadata?.provider;
+      setIsGithubConnected(provider === 'github');
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -65,6 +66,7 @@ export default function Profile() {
     <div className="container max-w-2xl py-10">
       <UserProfileCard profileData={profileData} />
       <GitHubConnectionCard isGithubConnected={isGithubConnected} />
+      {isGithubConnected && <RepositoryManagementCard />}
       <ScriptsCard scripts={scripts} />
     </div>
   );
