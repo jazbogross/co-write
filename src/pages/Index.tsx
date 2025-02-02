@@ -1,26 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TextEditor } from '@/components/TextEditor';
 import { SuggestionList } from '@/components/SuggestionList';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+
+interface Suggestion {
+  id: string;
+  content: string;
+  author: string;
+  status: 'pending' | 'approved' | 'rejected';
+}
 
 const Index = () => {
-  const [isAdmin] = useState(true); // In real app, this would come from auth
-  const [suggestions, setSuggestions] = useState([
-    {
-      id: '1',
-      content: 'This is a sample suggestion',
-      author: 'Editor1',
-      status: 'pending',
-    } as const,
-  ]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      navigate('/auth');
+      return;
+    }
+
+    // Get user profile to check role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+
+    setIsAdmin(profile?.role === 'admin');
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/auth');
+  };
 
   const handleSuggestChange = (content: string) => {
-    const newSuggestion = {
+    const newSuggestion: Suggestion = {
       id: Date.now().toString(),
       content,
       author: isAdmin ? 'Admin' : 'Editor',
       status: isAdmin ? 'approved' : 'pending',
-    } as const;
+    };
     
     setSuggestions([newSuggestion, ...suggestions]);
   };
@@ -28,7 +57,7 @@ const Index = () => {
   const handleApprove = (id: string) => {
     setSuggestions(
       suggestions.map((s) =>
-        s.id === id ? { ...s, status: 'approved' as const } : s
+        s.id === id ? { ...s, status: 'approved' } : s
       )
     );
   };
@@ -36,14 +65,19 @@ const Index = () => {
   const handleReject = (id: string) => {
     setSuggestions(
       suggestions.map((s) =>
-        s.id === id ? { ...s, status: 'rejected' as const } : s
+        s.id === id ? { ...s, status: 'rejected' } : s
       )
     );
   };
 
   return (
     <div className="container py-8">
-      <h1 className="text-3xl font-bold mb-8">GitHub Text Editor</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">GitHub Text Editor</h1>
+        <Button variant="outline" onClick={handleSignOut}>
+          Sign Out
+        </Button>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div>
           <h2 className="text-xl font-semibold mb-4">Editor</h2>
