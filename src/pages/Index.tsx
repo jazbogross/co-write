@@ -9,9 +9,9 @@ interface Script {
   title: string;
   created_at: string;
   admin_id: string;
-  profiles: {
+  profiles?: {
     username: string;
-  };
+  } | null;
 }
 
 const Index = () => {
@@ -111,7 +111,7 @@ const Index = () => {
                       <div>
                         <h3 className="font-medium">{script.title}</h3>
                         <p className="text-sm text-muted-foreground">
-                          Created by {script.profiles.username} on{' '}
+                          Created by {script.profiles?.username || 'Unknown user'} on{' '}
                           {new Date(script.created_at).toLocaleDateString()}
                         </p>
                       </div>
@@ -146,7 +146,7 @@ const Index = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-medium">
-                          {suggestion.scripts.title}
+                          {suggestion.scripts?.title || 'Untitled Script'}
                         </h3>
                         <p className="text-sm text-muted-foreground">
                           Status: <span className="capitalize">{suggestion.status}</span>
@@ -158,7 +158,7 @@ const Index = () => {
                       </div>
                       <Button
                         variant="outline"
-                        onClick={() => navigate(`/scripts/${suggestion.scripts.id}`)}
+                        onClick={() => navigate(`/scripts/${suggestion.scripts?.id}`)}
                       >
                         View
                       </Button>
