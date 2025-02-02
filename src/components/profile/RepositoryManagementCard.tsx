@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FolderPlus, Github, Lock, LockOpen } from "lucide-react";
+import { FolderPlus, Github, Lock, LockOpen, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,10 +14,34 @@ interface Repository {
 
 export function RepositoryManagementCard() {
   const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    loadRepositories();
+  }, []);
+
+  const loadRepositories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('github_repositories')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setRepositories(data || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load repositories",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleCreateRepository = async () => {
     try {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -35,7 +59,7 @@ export function RepositoryManagementCard() {
       if (error) throw error;
 
       if (data) {
-        setRepositories([...repositories, data]);
+        setRepositories([data, ...repositories]);
         toast({
           title: "Success",
           description: "Repository created successfully",
@@ -47,6 +71,66 @@ export function RepositoryManagementCard() {
         description: "Failed to create repository",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTogglePrivacy = async (repo: Repository) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('github_repositories')
+        .update({ is_private: !repo.is_private })
+        .eq('id', repo.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setRepositories(repositories.map(r => 
+          r.id === repo.id ? data : r
+        ));
+        toast({
+          title: "Success",
+          description: `Repository is now ${data.is_private ? 'private' : 'public'}`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update repository privacy",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteRepository = async (id: string) => {
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('github_repositories')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setRepositories(repositories.filter(repo => repo.id !== id));
+      toast({
+        title: "Success",
+        description: "Repository deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete repository",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -64,6 +148,7 @@ export function RepositoryManagementCard() {
             <Button
               variant="outline"
               onClick={handleCreateRepository}
+              disabled={loading}
               className="w-full sm:w-auto"
             >
               <FolderPlus className="mr-2 h-4 w-4" />
@@ -82,11 +167,26 @@ export function RepositoryManagementCard() {
                   <span>{repo.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {repo.is_private ? (
-                    <Lock className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <LockOpen className="h-4 w-4 text-muted-foreground" />
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleTogglePrivacy(repo)}
+                    disabled={loading}
+                  >
+                    {repo.is_private ? (
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <LockOpen className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteRepository(repo.id)}
+                    disabled={loading}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
               </div>
             ))}
