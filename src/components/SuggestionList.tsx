@@ -44,7 +44,14 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setSuggestions(data || []);
+      
+      // Type assertion to ensure status is one of the allowed values
+      const typedData = (data || []).map(item => ({
+        ...item,
+        status: item.status as 'pending' | 'approved' | 'rejected'
+      }));
+      
+      setSuggestions(typedData);
     } catch (error) {
       console.error('Error loading suggestions:', error);
       toast({
