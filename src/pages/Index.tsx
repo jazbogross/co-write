@@ -3,18 +3,21 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Github } from 'lucide-react';
 
 interface Script {
   id: string;
   title: string;
   created_at: string;
   admin_id: string;
+  github_repo: string | null;
+  github_owner: string | null;
   profiles?: {
     username: string;
   } | null;
 }
 
-const Index = () => {
+export default function Index() {
   const [publicScripts, setPublicScripts] = useState<Script[]>([]);
   const [userSuggestions, setUserSuggestions] = useState<any[]>([]);
   const navigate = useNavigate();
@@ -34,6 +37,8 @@ const Index = () => {
           title,
           created_at,
           admin_id,
+          github_repo,
+          github_owner,
           profiles (
             username
           )
@@ -114,6 +119,17 @@ const Index = () => {
                           Created by {script.profiles?.username || 'Unknown user'} on{' '}
                           {new Date(script.created_at).toLocaleDateString()}
                         </p>
+                        {script.github_owner && script.github_repo && (
+                          <a
+                            href={`https://github.com/${script.github_owner}/${script.github_repo}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-sm text-blue-500 hover:text-blue-600 mt-1"
+                          >
+                            <Github className="h-4 w-4" />
+                            View on GitHub
+                          </a>
+                        )}
                       </div>
                       <Button
                         variant="outline"
@@ -177,6 +193,4 @@ const Index = () => {
       </div>
     </div>
   );
-};
-
-export default Index;
+}
