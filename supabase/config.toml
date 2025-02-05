@@ -1,1 +1,4 @@
 project_id = "rvcjjrthsktrkrdcujna"
+
+[functions.create-github-repo]
+verify_jwt = true
