@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
+// CORS headers to allow cross-origin requests.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -11,100 +12,109 @@ interface RequestBody {
   oldTitle: string;
 }
 
-export default serve(async (req) => {
-  // Handle CORS preflight requests
+serve(async (req) => {
+  // Handle CORS preflight requests.
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { scriptId, newTitle, oldTitle } = await req.json() as RequestBody;
-    console.log("Renaming script:", { scriptId, newTitle, oldTitle });
+    // Parse and log the incoming request body.
+    const body = await req.json();
+    console.log("Renaming script:", body);
+    const { scriptId, newTitle, oldTitle } = body as RequestBody;
 
-    // Get the GitHub token
+    // Get the GitHub token.
     const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
     if (!githubToken) {
       throw new Error('GitHub token not configured');
     }
 
-    // Get script details from database
+    // Get Supabase credentials.
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Supabase credentials not configured');
     }
 
-    // Fetch script details
-    const scriptResponse = await fetch(`${supabaseUrl}/rest/v1/scripts?id=eq.${scriptId}&select=github_repo,github_owner`, {
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-      },
-    });
-
+    // Fetch script details from your database.
+    const scriptResponse = await fetch(
+      `${supabaseUrl}/rest/v1/scripts?id=eq.${scriptId}&select=github_repo,github_owner`,
+      {
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+        },
+      }
+    );
     if (!scriptResponse.ok) {
       throw new Error('Failed to fetch script details');
     }
-
     const scripts = await scriptResponse.json();
     if (!scripts.length) {
       throw new Error('Script not found');
     }
-
     const { github_repo, github_owner } = scripts[0];
     if (!github_repo || !github_owner) {
       throw new Error('GitHub repository details not found');
     }
 
-    // Generate the old and new folder names (using the same UUID pattern)
-    const oldFolderName = `${oldTitle}_`;
-    const newFolderName = `${newTitle}_`;
+    // Generate the folder names.
+    // (Your folder names follow the pattern: <title>_<uuid>.)
+    const oldFolderPrefix = `${oldTitle}_`;
 
-    // First, get the repository contents to find the folder
-    const contentsResponse = await fetch(`https://api.github.com/repos/${github_owner}/${github_repo}/contents`, {
-      headers: {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${githubToken}`,
-        'X-GitHub-Api-Version': '2022-11-28'
+    // Fetch the repository contents so we can find the old folder.
+    const contentsResponse = await fetch(
+      `https://api.github.com/repos/${github_owner}/${github_repo}/contents`,
+      {
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': `Bearer ${githubToken}`,
+          'X-GitHub-Api-Version': '2022-11-28'
+        }
       }
-    });
-
+    );
     if (!contentsResponse.ok) {
       throw new Error('Failed to fetch repository contents');
     }
-
     const contents = await contentsResponse.json();
-    const oldFolder = contents.find((item: any) => item.name.startsWith(oldFolderName));
-    
+
+    // Find the folder whose name starts with the old title prefix.
+    const oldFolder = contents.find((item: any) => item.name.startsWith(oldFolderPrefix));
     if (!oldFolder) {
       throw new Error('Original script folder not found');
     }
 
-    // Get the UUID part from the old folder name
-    const uuid = oldFolder.name.split('_')[1];
+    // Extract the UUID from the old folder name and build the new folder name.
+    // (For example, if old folder is "OldTitle_1234-5678", then new folder becomes "NewTitle_1234-5678".)
+    const parts = oldFolder.name.split('_');
+    if (parts.length < 2) {
+      throw new Error('Invalid folder naming format');
+    }
+    const uuid = parts.slice(1).join('_'); // in case the uuid contains dashes
     const exactNewFolderName = `${newTitle}_${uuid}`;
 
-    // Get the contents of the old folder
-    const folderContentsResponse = await fetch(`https://api.github.com/repos/${github_owner}/${github_repo}/contents/${oldFolder.name}`, {
-      headers: {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${githubToken}`,
-        'X-GitHub-Api-Version': '2022-11-28'
+    // Get the contents of the old folder.
+    const folderContentsResponse = await fetch(
+      `https://api.github.com/repos/${github_owner}/${github_repo}/contents/${oldFolder.name}`,
+      {
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': `Bearer ${githubToken}`,
+          'X-GitHub-Api-Version': '2022-11-28'
+        }
       }
-    });
-
+    );
     if (!folderContentsResponse.ok) {
       throw new Error('Failed to fetch folder contents');
     }
-
     const folderContents = await folderContentsResponse.json();
     const scriptFile = folderContents.find((file: any) => file.name.endsWith('.json'));
-    
     if (!scriptFile) {
       throw new Error('Script file not found in folder');
     }
 
-    // Get the current file content
+    // Retrieve the current file content.
     const fileResponse = await fetch(scriptFile.url, {
       headers: {
         'Accept': 'application/vnd.github+json',
@@ -112,22 +122,20 @@ export default serve(async (req) => {
         'X-GitHub-Api-Version': '2022-11-28'
       }
     });
-
     if (!fileResponse.ok) {
       throw new Error('Failed to fetch file content');
     }
-
     const fileData = await fileResponse.json();
     const content = JSON.parse(atob(fileData.content));
 
-    // Update the script name in the content
+    // Update the script metadata with the new title.
     content.metadata.scriptName = newTitle;
 
-    // Create new file with updated name
+    // Use the new title for the JSON file name.
     const newFileName = `${newTitle}.json`;
     const encodedContent = btoa(JSON.stringify(content, null, 2));
 
-    // Create the new file in the new location
+    // Create the new file in the new folder.
     const createResponse = await fetch(
       `https://api.github.com/repos/${github_owner}/${github_repo}/contents/${exactNewFolderName}/${newFileName}`,
       {
@@ -144,12 +152,11 @@ export default serve(async (req) => {
         }),
       }
     );
-
     if (!createResponse.ok) {
       throw new Error('Failed to create new file');
     }
 
-    // Delete the old file
+    // Delete the old file.
     const deleteResponse = await fetch(
       `https://api.github.com/repos/${github_owner}/${github_repo}/contents/${oldFolder.name}/${scriptFile.name}`,
       {
@@ -166,12 +173,13 @@ export default serve(async (req) => {
         }),
       }
     );
-
     if (!deleteResponse.ok) {
       throw new Error('Failed to delete old file');
     }
 
-    // Delete the old folder if it's empty
+    // (Optional) Attempt to delete the old folder.
+    // Note: GitHub folders are virtual (they exist only if files exist inside them),
+    // so deleting a folder might not work as expected. Use with caution.
     const deleteOldFolderResponse = await fetch(
       `https://api.github.com/repos/${github_owner}/${github_repo}/contents/${oldFolder.name}`,
       {
@@ -188,13 +196,12 @@ export default serve(async (req) => {
         }),
       }
     );
-
     if (!deleteOldFolderResponse.ok) {
       throw new Error('Failed to delete old folder');
     }
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         newFolder: exactNewFolderName,
         newFile: newFileName
@@ -204,9 +211,8 @@ export default serve(async (req) => {
         status: 200,
       }
     );
-
   } catch (error: any) {
-    console.error('Error:', error);
+    console.error('Error:', error.message || error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
