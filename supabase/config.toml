@@ -1,4 +1,8 @@
 project_id = "rvcjjrthsktrkrdcujna"
 
-[functions.create-github-repo]
+[functions]
+[functions.commit-script-changes]
+verify_jwt = true
+
+[functions.create-change-suggestion]
 verify_jwt = true

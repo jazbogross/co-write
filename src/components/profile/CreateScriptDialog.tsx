@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -23,14 +23,38 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   const [newTitle, setNewTitle] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchUsername = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          setUsername(profile.username);
+        }
+      } catch (error) {
+        console.error('Error fetching username:', error);
+      }
+    };
+
+    fetchUsername();
+  }, []);
 
   const createGitHubRepository = async (scriptTitle: string) => {
     try {
       const { data: response, error } = await supabase.functions.invoke('create-github-repo', {
         body: {
           scriptName: scriptTitle.toLowerCase().replace(/\s+/g, '-'),
-          originalCreator: 'user',
+          originalCreator: username || 'user',
           coAuthors: [],
           isPrivate: isPrivate
         }
