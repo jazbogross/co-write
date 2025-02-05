@@ -294,6 +294,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "editor"
+      suggestion_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
