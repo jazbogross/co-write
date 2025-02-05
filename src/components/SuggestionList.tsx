@@ -1,17 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Check, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { SuggestionItem } from './suggestions/SuggestionItem';
+import { RejectionDialog } from './suggestions/RejectionDialog';
 
 interface Suggestion {
   id: string;
@@ -134,17 +126,6 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
     }
   };
 
-  const getStatusColor = (status: Suggestion['status']) => {
-    switch (status) {
-      case 'approved':
-        return 'bg-green-100';
-      case 'rejected':
-        return 'bg-red-100';
-      default:
-        return 'bg-yellow-50';
-    }
-  };
-
   if (isLoading) {
     return <div className="text-center py-4">Loading suggestions...</div>;
   }
@@ -158,80 +139,27 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
             <p className="text-center text-muted-foreground">No suggestions yet</p>
           ) : (
             suggestions.map((suggestion) => (
-              <div
+              <SuggestionItem
                 key={suggestion.id}
-                className={`rounded-lg p-4 ${getStatusColor(suggestion.status)}`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <span className="font-medium">
-                      {suggestion.profiles.username}
-                    </span>
-                    <span className="ml-2 text-sm text-muted-foreground capitalize">
-                      {suggestion.status}
-                    </span>
-                  </div>
-                  {suggestion.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleApprove(suggestion.id)}
-                      >
-                        <Check className="w-4 h-4 mr-1" />
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedSuggestionId(suggestion.id);
-                          setIsRejectionDialogOpen(true);
-                        }}
-                      >
-                        <X className="w-4 h-4 mr-1" />
-                        Reject
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <pre className="whitespace-pre-wrap font-mono text-sm bg-white bg-opacity-50 p-2 rounded">
-                  {suggestion.content}
-                </pre>
-                {suggestion.rejection_reason && (
-                  <div className="mt-2 text-sm text-red-600">
-                    <strong>Rejection reason:</strong> {suggestion.rejection_reason}
-                  </div>
-                )}
-              </div>
+                suggestion={suggestion}
+                onApprove={handleApprove}
+                onReject={(id) => {
+                  setSelectedSuggestionId(id);
+                  setIsRejectionDialogOpen(true);
+                }}
+              />
             ))
           )}
         </div>
       </ScrollArea>
 
-      <Dialog open={isRejectionDialogOpen} onOpenChange={setIsRejectionDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Suggestion</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Textarea
-              placeholder="Please provide a reason for rejection..."
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              className="min-h-[100px]"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRejectionDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleReject} disabled={!rejectionReason.trim()}>
-              Confirm Rejection
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RejectionDialog
+        open={isRejectionDialogOpen}
+        onOpenChange={setIsRejectionDialogOpen}
+        rejectionReason={rejectionReason}
+        onReasonChange={setRejectionReason}
+        onConfirm={handleReject}
+      />
     </div>
   );
 };

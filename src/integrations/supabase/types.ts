@@ -201,6 +201,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          rejection_reason: string | null
           script_id: string
           status: string
           updated_at: string
@@ -210,6 +211,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          rejection_reason?: string | null
           script_id: string
           status?: string
           updated_at?: string
@@ -219,6 +221,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          rejection_reason?: string | null
           script_id?: string
           status?: string
           updated_at?: string
