@@ -1,9 +1,5 @@
 project_id = "rvcjjrthsktrkrdcujna"
 
-[api]
-enabled = true
-url = "https://rvcjjrthsktrkrdcujna.supabase.co"
-
 [functions]
 [functions.commit-script-changes]
 verify_jwt = true
