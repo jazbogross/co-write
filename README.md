@@ -1,69 +1,152 @@
-# Welcome to your Lovable project
+# Text Editor Application
 
-## Project info
+A collaborative text editing application that allows users to suggest changes to text files with GitHub integration.
 
-**URL**: https://lovable.dev/projects/fab83bae-3d08-42a4-a02c-820241046a96
+## Project Structure
 
-## How can I edit this code?
+```
+src/
+├── components/         # Reusable UI components
+│   ├── profile/       # Profile-related components
+│   │   ├── CreateRepositoryButton.tsx    # Button for creating new GitHub repos
+│   │   ├── GitHubConnectionCard.tsx      # Card for managing GitHub connection
+│   │   ├── RepositoryListItem.tsx        # Individual repository list item
+│   │   ├── RepositoryManagementCard.tsx  # Card for managing repositories
+│   │   ├── RepositoryPermissionsDialog.tsx # Dialog for repository permissions
+│   │   ├── ScriptsCard.tsx              # Card displaying user's scripts
+│   │   ├── ScriptsList.tsx              # List of scripts
+│   │   └── UserProfileCard.tsx          # User profile information card
+│   ├── TextEditor.tsx                   # Main text editor component
+│   ├── SuggestionList.tsx              # List of text suggestions
+│   └── ui/                             # shadcn/ui components
+│
+├── hooks/             # Custom React hooks
+│   ├── use-mobile.tsx  # Hook for responsive design
+│   └── use-toast.ts    # Toast notification hook
+│
+├── integrations/      # External service integrations
+│   └── supabase/     # Supabase integration
+│       ├── client.ts   # Supabase client configuration
+│       └── types.ts    # TypeScript types for Supabase
+│
+├── lib/              # Utility functions and helpers
+│   └── utils.ts      # General utility functions
+│
+└── pages/            # Application pages/routes
+    ├── Auth.tsx      # Authentication page
+    ├── Index.tsx     # Landing page
+    ├── NotFound.tsx  # 404 page
+    ├── Profile.tsx   # User profile page
+    └── ScriptEdit.tsx # Script editing page
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/fab83bae-3d08-42a4-a02c-820241046a96) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Key Features
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. **Authentication**
+   - Email/password authentication
+   - GitHub OAuth integration
+   - User profile management
 
-**Use GitHub Codespaces**
+2. **Text Editor**
+   - Real-time text editing
+   - Change suggestion system
+   - Version control integration
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+3. **GitHub Integration**
+   - Repository management
+   - Public/private repository support
+   - Permission management
+   - Version control
 
-## What technologies are used for this project?
+4. **User Management**
+   - User roles (Admin/Editor)
+   - Profile customization
+   - Permission management
 
-This project is built with .
+## Database Structure
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+The application uses Supabase as its backend with the following main tables:
 
-## How can I deploy this project?
+1. **profiles**
+   - Stores user profile information
+   - Links to Supabase auth users
 
-Simply open [Lovable](https://lovable.dev/projects/fab83bae-3d08-42a4-a02c-820241046a96) and click on Share -> Publish.
+2. **scripts**
+   - Stores text documents
+   - Manages public/private access
 
-## I want to use a custom domain - is that possible?
+3. **script_suggestions**
+   - Stores suggested changes
+   - Tracks suggestion status
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+4. **github_repositories**
+   - Manages GitHub repository connections
+   - Handles repository metadata
+
+5. **repository_permissions**
+   - Manages repository access
+   - Controls user permissions
+
+## Getting Started
+
+1. **Prerequisites**
+   - Node.js & npm installed
+   - GitHub account for repository integration
+   - Supabase account for backend services
+
+2. **Installation**
+   ```bash
+   # Clone the repository
+   git clone <repository-url>
+
+   # Install dependencies
+   npm install
+
+   # Start development server
+   npm run dev
+   ```
+
+3. **Environment Setup**
+   - Configure Supabase connection
+   - Set up GitHub OAuth credentials
+   - Configure authentication redirects
+
+## Development Guidelines
+
+1. **Component Structure**
+   - Components are organized by feature
+   - UI components use shadcn/ui library
+   - Responsive design using Tailwind CSS
+
+2. **State Management**
+   - React Query for server state
+   - React hooks for local state
+   - Supabase real-time subscriptions
+
+3. **TypeScript**
+   - Strict type checking enabled
+   - Interface definitions in types.ts
+   - Type-safe database operations
+
+## Deployment
+
+The application can be deployed using various platforms:
+
+1. **Using Lovable**
+   - Visit [Lovable](https://lovable.dev/projects/fab83bae-3d08-42a4-a02c-820241046a96)
+   - Click on Share -> Publish
+
+2. **Custom Domain**
+   - Follow [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/) guide
+   - Deploy using Netlify or similar services
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
