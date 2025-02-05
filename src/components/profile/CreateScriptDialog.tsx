@@ -29,7 +29,9 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
     try {
       const { data: response, error } = await supabase.functions.invoke('create-github-repo', {
         body: {
-          repoName: scriptTitle.toLowerCase().replace(/\s+/g, '-'),
+          scriptName: scriptTitle.toLowerCase().replace(/\s+/g, '-'),
+          originalCreator: 'user',
+          coAuthors: [],
           isPrivate: isPrivate
         }
       });
