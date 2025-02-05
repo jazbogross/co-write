@@ -198,6 +198,7 @@ export type Database = {
       }
       script_suggestions: {
         Row: {
+          branch_name: string | null
           content: string
           created_at: string
           id: string
@@ -208,6 +209,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          branch_name?: string | null
           content: string
           created_at?: string
           id?: string
@@ -218,6 +220,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          branch_name?: string | null
           content?: string
           created_at?: string
           id?: string

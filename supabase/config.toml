@@ -1,4 +1,9 @@
 project_id = "rvcjjrthsktrkrdcujna"
 
-[functions.create-github-repo]
+[api]
+enabled = true
+url = "https://rvcjjrthsktrkrdcujna.supabase.co"
+
+[functions]
+[functions.commit-script-changes]
 verify_jwt = true
