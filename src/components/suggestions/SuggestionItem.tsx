@@ -44,6 +44,7 @@ export const SuggestionItem = ({ suggestion, onApprove, onReject }: SuggestionIt
             <Button
               size="sm"
               variant="outline"
+              className="bg-green-50 hover:bg-green-100"
               onClick={() => onApprove(suggestion.id)}
             >
               <Check className="w-4 h-4 mr-1" />
@@ -52,6 +53,7 @@ export const SuggestionItem = ({ suggestion, onApprove, onReject }: SuggestionIt
             <Button
               size="sm"
               variant="outline"
+              className="bg-red-50 hover:bg-red-100"
               onClick={() => onReject(suggestion.id)}
             >
               <X className="w-4 h-4 mr-1" />
