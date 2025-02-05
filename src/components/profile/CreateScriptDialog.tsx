@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface CreateScriptDialogProps {
   open: boolean;
@@ -19,24 +21,21 @@ interface CreateScriptDialogProps {
 
 export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: CreateScriptDialogProps) {
   const [newTitle, setNewTitle] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
 
-  const createGitHubRepository = async (scriptTitle: string, userId: string) => {
+  const createGitHubRepository = async (scriptTitle: string) => {
     try {
-      const { data: repo, error } = await supabase
-        .from("github_repositories")
-        .insert([{
-          name: scriptTitle,
-          owner: userId,
-          is_private: false,
-          user_id: userId
-        }])
-        .select()
-        .single();
+      const { data: response, error } = await supabase.functions.invoke('create-github-repo', {
+        body: {
+          repoName: scriptTitle.toLowerCase().replace(/\s+/g, '-'),
+          isPrivate: isPrivate
+        }
+      });
 
       if (error) throw error;
-      return repo;
+      return response;
     } catch (error) {
       console.error("Error creating GitHub repository:", error);
       throw error;
@@ -59,7 +58,7 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       if (!user) throw new Error("No user found");
 
       // Create GitHub repository first
-      const repo = await createGitHubRepository(newTitle, user.id);
+      const repo = await createGitHubRepository(newTitle);
 
       // Then create the script
       const { data: script, error: scriptError } = await supabase
@@ -67,7 +66,7 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         .insert([{
           title: newTitle,
           admin_id: user.id,
-          is_private: false,
+          is_private: isPrivate,
           content: "",
           github_repo: repo.name,
           github_owner: repo.owner
@@ -75,14 +74,7 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         .select()
         .single();
 
-      if (scriptError) {
-        // If script creation fails, attempt to delete the repository
-        await supabase
-          .from("github_repositories")
-          .delete()
-          .eq("id", repo.id);
-        throw scriptError;
-      }
+      if (scriptError) throw scriptError;
 
       if (script) {
         onScriptCreated(script);
@@ -111,12 +103,24 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         <DialogHeader>
           <DialogTitle>Create New Script</DialogTitle>
         </DialogHeader>
-        <div className="py-4">
-          <Input
-            placeholder="Enter script title"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-          />
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="title">Script Title</Label>
+            <Input
+              id="title"
+              placeholder="Enter script title"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="private"
+              checked={isPrivate}
+              onCheckedChange={setIsPrivate}
+            />
+            <Label htmlFor="private">Private Repository</Label>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
