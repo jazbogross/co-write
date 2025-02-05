@@ -94,7 +94,7 @@ const ScriptEdit = () => {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
-  if (!script) {
+  if (!script || !id) {
     return null;
   }
 
@@ -111,6 +111,7 @@ const ScriptEdit = () => {
           <TextEditor
             isAdmin={isAdmin}
             originalContent={script.content}
+            scriptId={id}
             onSuggestChange={handleSuggestChange}
           />
         </CardContent>
