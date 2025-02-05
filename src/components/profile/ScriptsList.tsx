@@ -13,7 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Github } from "lucide-react";
 
 type Script = {
   id: string;
@@ -30,6 +30,30 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [selectedScript, setSelectedScript] = useState<Script | null>(null);
   const [newTitle, setNewTitle] = useState("");
+  const [isCreatingRepo, setIsCreatingRepo] = useState(false);
+
+  const createGitHubRepository = async (scriptTitle: string, userId: string) => {
+    try {
+      const { data: repo, error } = await supabase
+        .from("github_repositories")
+        .insert([
+          {
+            name: scriptTitle,
+            owner: userId,
+            is_private: false,
+            user_id: userId
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return repo;
+    } catch (error) {
+      console.error("Error creating GitHub repository:", error);
+      throw error;
+    }
+  };
 
   const createNewScript = async () => {
     if (!newTitle.trim()) {
@@ -42,9 +66,14 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
     }
 
     try {
+      setIsCreatingRepo(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Create GitHub repository first
+      const repo = await createGitHubRepository(newTitle, user.id);
+
+      // Then create the script
       const { data, error } = await supabase
         .from("scripts")
         .insert([
@@ -52,8 +81,10 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
             title: newTitle,
             admin_id: user.id,
             is_private: false,
-            content: "", // Add default empty content
-          },
+            content: "",
+            github_repo: repo.name,
+            github_owner: repo.owner
+          }
         ])
         .select()
         .single();
@@ -66,16 +97,18 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
         setIsNewScriptDialogOpen(false);
         toast({
           title: "Success",
-          description: "New script created",
+          description: "New script and GitHub repository created",
         });
       }
     } catch (error) {
       console.error("Script creation error:", error);
       toast({
         title: "Error",
-        description: "Failed to create script",
+        description: "Failed to create script and repository",
         variant: "destructive",
       });
+    } finally {
+      setIsCreatingRepo(false);
     }
   };
 
@@ -256,7 +289,12 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
             <Button variant="outline" onClick={() => setIsNewScriptDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={createNewScript}>Create</Button>
+            <Button 
+              onClick={createNewScript}
+              disabled={isCreatingRepo}
+            >
+              {isCreatingRepo ? 'Creating...' : 'Create'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
