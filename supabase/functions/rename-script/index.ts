@@ -11,7 +11,7 @@ interface RequestBody {
   oldTitle: string;
 }
 
-serve(async (req) => {
+export default serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
