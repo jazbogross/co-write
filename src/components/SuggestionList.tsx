@@ -22,6 +22,7 @@ interface SuggestionListProps {
 export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [selectedSuggestionId, setSelectedSuggestionId] = useState<string | null>(null);
@@ -45,7 +46,6 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
 
       if (error) throw error;
       
-      // Type assertion to ensure status is one of the allowed values
       const typedData = (data || []).map(item => ({
         ...item,
         status: item.status as 'pending' | 'approved' | 'rejected'
@@ -69,13 +69,16 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
   }, [scriptId]);
 
   const handleApprove = async (id: string) => {
+    setIsProcessing(true);
     try {
-      const { error } = await supabase
-        .from('script_suggestions')
-        .update({ status: 'approved' })
-        .eq('id', id);
+      const response = await supabase.functions.invoke('handle-suggestion-status', {
+        body: {
+          suggestionId: id,
+          status: 'approved'
+        }
+      });
 
-      if (error) throw error;
+      if (response.error) throw response.error;
 
       setSuggestions(suggestions.map(suggestion =>
         suggestion.id === id ? { ...suggestion, status: 'approved' } : suggestion
@@ -83,7 +86,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
 
       toast({
         title: "Success",
-        description: "Suggestion approved",
+        description: "Suggestion approved and changes merged",
       });
     } catch (error) {
       console.error('Error approving suggestion:', error);
@@ -92,22 +95,25 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
         description: "Failed to approve suggestion",
         variant: "destructive",
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleReject = async () => {
     if (!selectedSuggestionId || !rejectionReason.trim()) return;
 
+    setIsProcessing(true);
     try {
-      const { error } = await supabase
-        .from('script_suggestions')
-        .update({
+      const response = await supabase.functions.invoke('handle-suggestion-status', {
+        body: {
+          suggestionId: selectedSuggestionId,
           status: 'rejected',
-          rejection_reason: rejectionReason
-        })
-        .eq('id', selectedSuggestionId);
+          rejectionReason: rejectionReason
+        }
+      });
 
-      if (error) throw error;
+      if (response.error) throw response.error;
 
       setSuggestions(suggestions.map(suggestion =>
         suggestion.id === selectedSuggestionId
@@ -130,6 +136,8 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
         description: "Failed to reject suggestion",
         variant: "destructive",
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 

@@ -45,12 +45,24 @@ export function RenameScriptDialog({
 
     setIsRenaming(true);
     try {
-      const { error } = await supabase
+      // First update the script title in the database
+      const { error: dbError } = await supabase
         .from("scripts")
         .update({ title: newTitle })
         .eq("id", script.id);
 
-      if (error) throw error;
+      if (dbError) throw dbError;
+
+      // Then update the GitHub repository structure
+      const { error: functionError } = await supabase.functions.invoke('rename-script', {
+        body: {
+          scriptId: script.id,
+          oldTitle: script.title,
+          newTitle: newTitle,
+        }
+      });
+
+      if (functionError) throw functionError;
 
       onScriptRenamed(script.id, newTitle);
       onOpenChange(false);
@@ -59,10 +71,11 @@ export function RenameScriptDialog({
         title: "Success",
         description: "Script renamed successfully",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error renaming script:', error);
       toast({
         title: "Error",
-        description: "Failed to rename script",
+        description: error.message || "Failed to rename script",
         variant: "destructive",
       });
     } finally {

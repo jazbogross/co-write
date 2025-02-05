@@ -19,6 +19,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   onSuggestChange,
 }) => {
   const [content, setContent] = useState(originalContent);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const handleSubmit = async () => {
@@ -31,26 +32,37 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       return;
     }
 
-    if (isAdmin) {
-      onSuggestChange(content);
-      toast({
-        title: "Changes saved",
-        description: "Your changes have been saved successfully",
-      });
-    } else {
-      try {
+    setIsSubmitting(true);
+    try {
+      if (isAdmin) {
+        // Call the commit-script-changes function
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
 
-        const { error } = await supabase
-          .from('script_suggestions')
-          .insert({
-            script_id: scriptId,
-            content: content,
-            user_id: user.id,
-          });
+        const response = await supabase.functions.invoke('commit-script-changes', {
+          body: {
+            scriptId,
+            content,
+          }
+        });
 
-        if (error) throw error;
+        if (response.error) throw response.error;
+
+        onSuggestChange(content);
+        toast({
+          title: "Changes saved",
+          description: "Your changes have been committed successfully",
+        });
+      } else {
+        // Call the create-change-suggestion function
+        const response = await supabase.functions.invoke('create-change-suggestion', {
+          body: {
+            scriptId,
+            content,
+          }
+        });
+
+        if (response.error) throw response.error;
 
         toast({
           title: "Suggestion submitted",
@@ -59,14 +71,16 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         
         // Reset content to original after successful submission
         setContent(originalContent);
-      } catch (error) {
-        console.error('Error submitting suggestion:', error);
-        toast({
-          title: "Error",
-          description: "Failed to submit suggestion. Please try again.",
-          variant: "destructive",
-        });
       }
+    } catch (error) {
+      console.error('Error submitting changes:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit changes. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -81,9 +95,14 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       <div className="flex justify-end">
         <Button 
           onClick={handleSubmit}
+          disabled={isSubmitting}
           className="w-full md:w-auto"
         >
-          {isAdmin ? "Save Changes" : "Suggest Changes"}
+          {isSubmitting ? (
+            isAdmin ? "Committing..." : "Submitting..."
+          ) : (
+            isAdmin ? "Commit Changes" : "Suggest Changes"
+          )}
         </Button>
       </div>
       {isAdmin && <SuggestionList scriptId={scriptId} />}
