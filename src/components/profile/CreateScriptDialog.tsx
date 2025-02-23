@@ -36,7 +36,6 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   const [hasGithubConnection, setHasGithubConnection] = useState(false);
   const { toast } = useToast();
 
-  // New function to verify the installation via your backend.
   const verifyGitHubInstallation = async (installationId: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase.functions.invoke('verify-github-installation', {
@@ -46,7 +45,6 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         console.error('Error verifying GitHub installation:', error);
         return false;
       }
-      // Expecting data to be { active: boolean }
       return data?.active === true;
     } catch (error) {
       console.error('Error verifying GitHub installation:', error);
@@ -132,8 +130,8 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   };
 
   const handleGitHubAppInstall = () => {
-    // Redirect to GitHub App installation page
-    window.location.href = `https://github.com/apps/script-editor/installations/new`;
+    const callbackUrl = `${window.location.origin}/github/callback`;
+    window.location.href = `https://github.com/apps/script-editor/installations/new?state=${encodeURIComponent(callbackUrl)}`;
   };
 
   const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
