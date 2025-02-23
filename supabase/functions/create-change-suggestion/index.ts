@@ -18,36 +18,65 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
-  try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
 
+  try {
+    // Get the request body
     const { scriptId, content } = await req.json() as RequestBody
+
+    // Get the authorization header
+    const authHeader = req.headers.get('Authorization')?.split('Bearer ')[1]
+    if (!authHeader) {
+      throw new Error('No authorization header')
+    }
+
+    // Get the user from the JWT
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader)
+    if (userError || !user) throw new Error('Error getting user')
+
+    // Get user's profile
+    const { data: profile, error: profileError } = await supabaseClient
+      .from('profiles')
+      .select('email, username')
+      .eq('id', user.id)
+      .single()
+    
+    if (profileError || !profile) {
+      throw new Error('Error getting user profile')
+    }
 
     // Get script details
     const { data: script, error: scriptError } = await supabaseClient
       .from('scripts')
-      .select('github_repo, github_owner, admin_id')
+      .select('github_repo, github_owner, content')
       .eq('id', scriptId)
       .single()
 
     if (scriptError || !script) {
-      console.error('Error fetching script:', scriptError)
-      return new Response(
-        JSON.stringify({ error: 'Script not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      throw new Error('Error getting script')
     }
 
-    // Initialize Octokit
+    // Create a unique branch name for this suggestion
+    const branchName = `suggestion-${crypto.randomUUID()}`
+
+    // Initialize GitHub client
     const octokit = new Octokit({
       auth: Deno.env.get('GITHUB_PAT')
     })
 
-    // Create a unique branch name
-    const branchName = `suggestion-${crypto.randomUUID()}`
+    // Find the first line number that differs
+    const originalLines = script.content.split('\n')
+    const newLines = content.split('\n')
+    let firstChangedLine = 1
+    for (let i = 0; i < Math.min(originalLines.length, newLines.length); i++) {
+      if (originalLines[i] !== newLines[i]) {
+        firstChangedLine = i + 1
+        break
+      }
+    }
 
     // Get the current commit SHA of the main branch
     const { data: ref } = await octokit.rest.git.getRef({
@@ -56,7 +85,7 @@ serve(async (req) => {
       ref: 'heads/main'
     })
 
-    // Create new branch from main
+    // Create new branch
     await octokit.rest.git.createRef({
       owner: script.github_owner,
       repo: script.github_repo,
@@ -64,49 +93,27 @@ serve(async (req) => {
       sha: ref.object.sha
     })
 
-    // Create a new blob with the content
-    const { data: blob } = await octokit.rest.git.createBlob({
+    // Get the current file to get its SHA
+    const { data: file } = await octokit.rest.repos.getContent({
       owner: script.github_owner,
       repo: script.github_repo,
-      content: content,
-      encoding: 'utf-8'
+      path: 'script.txt',
+      ref: 'main'
     })
 
-    // Get the current tree
-    const { data: commit } = await octokit.rest.git.getCommit({
-      owner: script.github_owner,
-      repo: script.github_repo,
-      commit_sha: ref.object.sha
-    })
+    if (!('sha' in file)) {
+      throw new Error('Could not get file SHA')
+    }
 
-    // Create a new tree
-    const { data: tree } = await octokit.rest.git.createTree({
+    // Update file in the new branch
+    await octokit.rest.repos.createOrUpdateFileContents({
       owner: script.github_owner,
       repo: script.github_repo,
-      base_tree: commit.tree.sha,
-      tree: [{
-        path: 'script.txt',
-        mode: '100644',
-        type: 'blob',
-        sha: blob.sha
-      }]
-    })
-
-    // Create a new commit on the new branch
-    const { data: newCommit } = await octokit.rest.git.createCommit({
-      owner: script.github_owner,
-      repo: script.github_repo,
-      message: 'Suggested changes to script',
-      tree: tree.sha,
-      parents: [ref.object.sha]
-    })
-
-    // Update the branch reference
-    await octokit.rest.git.updateRef({
-      owner: script.github_owner,
-      repo: script.github_repo,
-      ref: `heads/${branchName}`,
-      sha: newCommit.sha
+      path: 'script.txt',
+      message: `${profile.username} suggested a change on line ${firstChangedLine} (${profile.email})`,
+      content: btoa(content),
+      branch: branchName,
+      sha: file.sha
     })
 
     // Create suggestion in database
@@ -114,6 +121,7 @@ serve(async (req) => {
       .from('script_suggestions')
       .insert([{
         script_id: scriptId,
+        user_id: user.id,
         content: content,
         branch_name: branchName,
         status: 'pending'
@@ -122,24 +130,26 @@ serve(async (req) => {
       .single()
 
     if (suggestionError) {
-      console.error('Error creating suggestion:', suggestionError)
       throw suggestionError
     }
 
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        branchName,
-        suggestion 
+        success: true,
+        suggestion,
+        branchName
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Error in create-change-suggestion:', error)
+    console.error('Error creating suggestion:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     )
   }
 })
