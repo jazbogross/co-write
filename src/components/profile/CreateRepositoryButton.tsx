@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FolderPlus } from "lucide-react";
@@ -18,16 +19,27 @@ export function CreateRepositoryButton({ onRepositoryCreated }: CreateRepository
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Get the GitHub App installation ID
+      const installationId = localStorage.getItem('github_app_installation_id');
+      if (!installationId) {
+        toast({
+          title: "Error",
+          description: "Please install the GitHub App first",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { data, error } = await supabase
-        .from('github_repositories')
-        .insert({
-          name: 'New Repository',
-          owner: user.email?.split('@')[0] || 'user',
-          is_private: false,
-          user_id: user.id
-        })
-        .select()
-        .single();
+        .functions.invoke('create-github-repo', {
+          body: {
+            scriptName: 'New Repository',
+            originalCreator: user.email?.split('@')[0] || 'user',
+            coAuthors: [],
+            isPrivate: false,
+            installationId: installationId
+          }
+        });
 
       if (error) throw error;
 
@@ -39,6 +51,7 @@ export function CreateRepositoryButton({ onRepositoryCreated }: CreateRepository
         });
       }
     } catch (error) {
+      console.error('Error creating repository:', error);
       toast({
         title: "Error",
         description: "Failed to create repository",
