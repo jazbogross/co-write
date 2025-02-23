@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { UserProfileCard } from "@/components/profile/UserProfileCard";
 import { ScriptsCard } from "@/components/profile/ScriptsCard";
+import { GitHubConnectionChecker } from "@/components/profile/GitHubConnectionChecker";
 
 type Script = {
   id: string;
@@ -59,8 +60,14 @@ export default function Profile() {
 
   return (
     <div className="container max-w-2xl py-10">
-      <UserProfileCard profileData={profileData} />
-      <ScriptsCard scripts={scripts} />
+      <div className="space-y-8">
+        <UserProfileCard profileData={profileData} />
+        <div className="card p-6 border rounded-lg bg-card">
+          <h3 className="text-lg font-semibold mb-4">GitHub Connection</h3>
+          <GitHubConnectionChecker />
+        </div>
+        <ScriptsCard scripts={scripts} />
+      </div>
     </div>
   );
 }
