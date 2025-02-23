@@ -16,18 +16,6 @@ interface RequestBody {
   installationId: string;
 }
 
-function convertToPlainPrivateKey(key: string): string {
-  // Remove headers, footers, and newlines to get the base64-encoded key
-  const base64Key = key
-    .replace('-----BEGIN PRIVATE KEY-----', '')
-    .replace('-----END PRIVATE KEY-----', '')
-    .replace('-----BEGIN RSA PRIVATE KEY-----', '')
-    .replace('-----END RSA PRIVATE KEY-----', '')
-    .replace(/\n/g, '');
-
-  return `-----BEGIN PRIVATE KEY-----\n${base64Key}\n-----END PRIVATE KEY-----`;
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -45,13 +33,10 @@ serve(async (req) => {
       throw new Error('GitHub App private key is not configured');
     }
 
-    // Convert the private key to PKCS#8 format
-    const formattedPrivateKey = convertToPlainPrivateKey(privateKey);
-
     // Initialize authentication with the GitHub App
     const auth = createAppAuth({
       appId: Deno.env.get("GITHUB_APP_ID")!,
-      privateKey: formattedPrivateKey,
+      privateKey: privateKey.replace(/\\n/g, '\n'), // Handle escaped newlines in the private key
       installationId: installationId,
     });
 
