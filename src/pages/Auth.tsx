@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -15,6 +16,26 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  // Handle GitHub App installation callback
+  useEffect(() => {
+    const installation_id = searchParams.get('installation_id');
+    const setup_action = searchParams.get('setup_action');
+    
+    if (installation_id && setup_action === 'install') {
+      // Store the installation ID in localStorage
+      localStorage.setItem('github_app_installation_id', installation_id);
+      
+      toast({
+        title: "Success",
+        description: "GitHub App installed successfully",
+      });
+      
+      // Clear the URL parameters
+      navigate('/auth', { replace: true });
+    }
+  }, [searchParams, navigate, toast]);
 
   const handleAuth = async (action: 'login' | 'signup') => {
     try {
@@ -65,10 +86,11 @@ const Auth = () => {
   const handleGitHubAuth = async () => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          scopes: 'repo', // Request repo access for private repositories
+          scopes: 'repo',
+          redirectTo: `${window.location.origin}/auth`,
         },
       });
 
@@ -78,6 +100,7 @@ const Auth = () => {
           description: error.message,
           variant: "destructive",
         });
+        return;
       }
     } catch (error) {
       console.error('GitHub auth error:', error);
@@ -91,6 +114,11 @@ const Auth = () => {
     }
   };
 
+  const handleGitHubAppInstall = () => {
+    // Redirect to GitHub App installation page
+    window.location.href = `https://github.com/apps/YOUR-APP-NAME/installations/new?state=${encodeURIComponent(window.location.origin)}/auth`;
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-[400px]">
@@ -98,15 +126,27 @@ const Auth = () => {
           <CardTitle className="text-2xl text-center">Welcome</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={handleGitHubAuth}
-            disabled={loading}
-          >
-            <Github className="mr-2 h-4 w-4" />
-            Continue with GitHub
-          </Button>
+          <div className="space-y-2">
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={handleGitHubAuth}
+              disabled={loading}
+            >
+              <Github className="mr-2 h-4 w-4" />
+              Continue with GitHub
+            </Button>
+            
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleGitHubAppInstall}
+              disabled={loading}
+            >
+              <Github className="mr-2 h-4 w-4" />
+              Install GitHub App
+            </Button>
+          </div>
           
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
