@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -40,9 +39,11 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   useEffect(() => {
     const checkGithubConnection = async () => {
       try {
+        // Get the current user once
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
+        // Get the user profile for the username
         const { data: profile } = await supabase
           .from('profiles')
           .select('username')
@@ -53,15 +54,21 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
           setUsername(profile.username);
         }
 
-        // Check if user has GitHub identity
-        const { data: userWithIdentities } = await supabase.auth.getUser();
-        if (userWithIdentities.user?.app_metadata?.provider === 'github' || 
-            userWithIdentities.user?.app_metadata?.providers?.includes('github')) {
+        // Check if the user has a GitHub identity
+        const isGithubConnected = 
+          user.app_metadata?.provider === 'github' ||
+          (user.app_metadata?.providers && user.app_metadata.providers.includes('github'));
+
+        if (isGithubConnected) {
           setHasGithubConnection(true);
-          
-          // Check for GitHub App installation
+
+          // Check for GitHub App installation with additional validation
           const installationId = localStorage.getItem('github_app_installation_id');
-          if (installationId) {
+          console.log("Installation ID from localStorage:", installationId);
+          if (installationId && 
+              installationId !== "null" && 
+              installationId !== "undefined" && 
+              installationId.trim() !== "") {
             setStep('create-script');
           } else {
             setStep('app-install');
@@ -112,8 +119,12 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
 
   const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
     try {
+      // Validate installation ID again before repository creation
       const installationId = localStorage.getItem('github_app_installation_id');
-      if (!installationId) {
+      if (!installationId || 
+          installationId === "null" || 
+          installationId === "undefined" || 
+          installationId.trim() === "") {
         throw new Error('GitHub App not installed. Please install the app first.');
       }
 
