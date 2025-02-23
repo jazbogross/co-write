@@ -36,14 +36,30 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   const [hasGithubConnection, setHasGithubConnection] = useState(false);
   const { toast } = useToast();
 
+  // New function to verify the installation via your backend.
+  const verifyGitHubInstallation = async (installationId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-github-installation', {
+        body: { installationId }
+      });
+      if (error) {
+        console.error('Error verifying GitHub installation:', error);
+        return false;
+      }
+      // Expecting data to be { active: boolean }
+      return data?.active === true;
+    } catch (error) {
+      console.error('Error verifying GitHub installation:', error);
+      return false;
+    }
+  };
+
   useEffect(() => {
     const checkGithubConnection = async () => {
       try {
-        // Get the current user once
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Get the user profile for the username
         const { data: profile } = await supabase
           .from('profiles')
           .select('username')
@@ -54,22 +70,25 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
           setUsername(profile.username);
         }
 
-        // Check if the user has a GitHub identity
-        const isGithubConnected = 
+        const isGithubConnected =
           user.app_metadata?.provider === 'github' ||
           (user.app_metadata?.providers && user.app_metadata.providers.includes('github'));
 
         if (isGithubConnected) {
           setHasGithubConnection(true);
-
-          // Check for GitHub App installation with additional validation
           const installationId = localStorage.getItem('github_app_installation_id');
           console.log("Installation ID from localStorage:", installationId);
           if (installationId && 
               installationId !== "null" && 
               installationId !== "undefined" && 
               installationId.trim() !== "") {
-            setStep('create-script');
+            const isValid = await verifyGitHubInstallation(installationId);
+            if (isValid) {
+              setStep('create-script');
+            } else {
+              setStep('app-install');
+              localStorage.removeItem('github_app_installation_id');
+            }
           } else {
             setStep('app-install');
           }
@@ -119,7 +138,6 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
 
   const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
     try {
-      // Validate installation ID again before repository creation
       const installationId = localStorage.getItem('github_app_installation_id');
       if (!installationId || 
           installationId === "null" || 
@@ -176,7 +194,6 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       const repo = await createGitHubRepository(newTitle);
       console.log('Repository created:', repo);
 
-      // Create the script with GitHub details
       const { data: script, error: scriptError } = await supabase
         .from("scripts")
         .insert([{
