@@ -12,6 +12,7 @@ interface RequestBody {
   originalCreator: string;
   coAuthors: string[];
   isPrivate: boolean;
+  githubToken: string;  // Add this field
 }
 
 serve(async (req) => {
@@ -20,15 +21,14 @@ serve(async (req) => {
   }
 
   try {
-    const { scriptName, originalCreator, coAuthors, isPrivate } = await req.json() as RequestBody
+    const { scriptName, originalCreator, coAuthors, isPrivate, githubToken } = await req.json() as RequestBody
 
-    const githubToken = Deno.env.get('GITHUB_PAT')
     if (!githubToken) {
-      throw new Error('GitHub token not configured')
+      throw new Error('GitHub token is required')
     }
 
     const octokit = new Octokit({
-      auth: githubToken
+      auth: githubToken  // Use the user's token instead of GITHUB_PAT
     })
 
     // First, get the authenticated user's info
@@ -48,7 +48,7 @@ serve(async (req) => {
     const { data: repo } = await octokit.rest.repos.createForAuthenticatedUser({
       name: repoName,
       private: isPrivate,
-      auto_init: true, // This creates a default README.md
+      auto_init: true,
     })
 
     // Wait a moment for the repository to be fully initialized
@@ -60,9 +60,6 @@ serve(async (req) => {
       repo: repoName,
       ref: 'heads/main',
     })
-
-    // Get the commit SHA that the reference points to
-    const commitSha = ref.object.sha
 
     // Create initial README content
     const readmeContent = `# ${scriptName}\n\nCreated by: ${originalCreator}\n${
