@@ -94,14 +94,25 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
     }
   };
 
+  const handleGitHubAppInstall = () => {
+    // Redirect to GitHub App installation page
+    window.location.href = `https://github.com/apps/script-editor/installations/new`;
+  };
+
   const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
     try {
+      const installationId = localStorage.getItem('github_app_installation_id');
+      if (!installationId) {
+        throw new Error('GitHub App not installed. Please install the app first.');
+      }
+
       const { data, error } = await supabase.functions.invoke('create-github-repo', {
         body: {
           scriptName: scriptTitle.toLowerCase().replace(/\s+/g, '-'),
           originalCreator: username || 'user',
           coAuthors: [],
-          isPrivate: isPrivate
+          isPrivate: isPrivate,
+          installationId: installationId
         }
       });
 
@@ -141,6 +152,13 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         description: "Please enter a script title",
         variant: "destructive",
       });
+      return;
+    }
+
+    // Check for GitHub App installation
+    const installationId = localStorage.getItem('github_app_installation_id');
+    if (!installationId) {
+      handleGitHubAppInstall();
       return;
     }
 
