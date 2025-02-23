@@ -42,27 +42,64 @@ serve(async (req) => {
     // Create a unique repository name
     const repoName = `script-${scriptName}-${Date.now()}`
 
+    console.log('Creating repository:', { owner, repoName });
+
     // Create the repository
     const { data: repo } = await octokit.rest.repos.createForAuthenticatedUser({
       name: repoName,
       private: isPrivate,
-      auto_init: true,
+      auto_init: true, // This creates a default README.md
     })
+
+    // Wait a moment for the repository to be fully initialized
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Get the main branch reference
+    const { data: ref } = await octokit.rest.git.getRef({
+      owner,
+      repo: repoName,
+      ref: 'heads/main',
+    })
+
+    // Get the commit SHA that the reference points to
+    const commitSha = ref.object.sha
 
     // Create initial README content
     const readmeContent = `# ${scriptName}\n\nCreated by: ${originalCreator}\n${
       coAuthors.length ? `\nContributors:\n${coAuthors.map(author => `- ${author}`).join('\n')}` : ''
     }`
 
-    // Create or update README
-    await octokit.rest.repos.createOrUpdateFileContents({
-      owner: owner,
-      repo: repoName,
-      path: 'README.md',
-      message: 'Initial commit: Add README',
-      content: btoa(readmeContent),
-      branch: 'main'
-    })
+    // Get the current README.md if it exists
+    try {
+      const { data: existingFile } = await octokit.rest.repos.getContent({
+        owner,
+        repo: repoName,
+        path: 'README.md',
+      });
+
+      // Update README with new content
+      if ('sha' in existingFile) {
+        await octokit.rest.repos.createOrUpdateFileContents({
+          owner,
+          repo: repoName,
+          path: 'README.md',
+          message: 'Update README',
+          content: btoa(readmeContent),
+          sha: existingFile.sha,
+          branch: 'main'
+        });
+      }
+    } catch (error) {
+      // If the file doesn't exist, create it
+      await octokit.rest.repos.createOrUpdateFileContents({
+        owner,
+        repo: repoName,
+        path: 'README.md',
+        message: 'Initial commit: Add README',
+        content: btoa(readmeContent),
+        branch: 'main'
+      });
+    }
 
     console.log('Repository created successfully:', {
       name: repoName,
