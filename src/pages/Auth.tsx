@@ -116,7 +116,7 @@ const Auth = () => {
 
   const handleGitHubAppInstall = () => {
     // Redirect to GitHub App installation page
-    window.location.href = `https://github.com/apps/YOUR-APP-NAME/installations/new?state=${encodeURIComponent(window.location.origin)}/auth`;
+    window.location.href = `https://github.com/apps/script-editor/installations/new?state=${encodeURIComponent(window.location.origin)}/auth`;
   };
 
   return (
