@@ -29,6 +29,7 @@ interface GitHubRepo {
 }
 
 export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: CreateScriptDialogProps) {
+  const [step, setStep] = useState<'github-connect' | 'app-install' | 'create-script'>('github-connect');
   const [newTitle, setNewTitle] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -57,16 +58,26 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         if (userWithIdentities.user?.app_metadata?.provider === 'github' || 
             userWithIdentities.user?.app_metadata?.providers?.includes('github')) {
           setHasGithubConnection(true);
+          
+          // Check for GitHub App installation
+          const installationId = localStorage.getItem('github_app_installation_id');
+          if (installationId) {
+            setStep('create-script');
+          } else {
+            setStep('app-install');
+          }
         } else {
-          setHasGithubConnection(false);
+          setStep('github-connect');
         }
       } catch (error) {
         console.error('Error checking GitHub connection:', error);
       }
     };
 
-    checkGithubConnection();
-  }, []);
+    if (open) {
+      checkGithubConnection();
+    }
+  }, [open]);
 
   const handleGithubConnect = async () => {
     try {
@@ -123,7 +134,6 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       
       console.log('Repository creation response:', data);
 
-      // Validate the response
       if (!data || typeof data.name !== 'string' || typeof data.owner !== 'string') {
         console.error('Invalid response data:', data);
         throw new Error('Invalid repository data received from GitHub');
@@ -137,28 +147,12 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   };
 
   const handleCreate = async () => {
-    if (!hasGithubConnection) {
-      toast({
-        title: "GitHub Connection Required",
-        description: "Please connect your GitHub account before creating a script",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (!newTitle.trim()) {
       toast({
         title: "Error",
         description: "Please enter a script title",
         variant: "destructive",
       });
-      return;
-    }
-
-    // Check for GitHub App installation
-    const installationId = localStorage.getItem('github_app_installation_id');
-    if (!installationId) {
-      handleGitHubAppInstall();
       return;
     }
 
@@ -218,13 +212,19 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Script</DialogTitle>
-          {!hasGithubConnection && (
+          {step === 'github-connect' && (
             <DialogDescription>
               To create a script, you need to connect your GitHub account first.
             </DialogDescription>
           )}
+          {step === 'app-install' && (
+            <DialogDescription>
+              Please install the Script Editor GitHub App to continue.
+            </DialogDescription>
+          )}
         </DialogHeader>
-        {!hasGithubConnection ? (
+        
+        {step === 'github-connect' && (
           <div className="flex justify-center">
             <Button
               variant="outline"
@@ -235,7 +235,22 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
               Connect GitHub Account
             </Button>
           </div>
-        ) : (
+        )}
+
+        {step === 'app-install' && (
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={handleGitHubAppInstall}
+            >
+              <Github className="mr-2 h-4 w-4" />
+              Install GitHub App
+            </Button>
+          </div>
+        )}
+
+        {step === 'create-script' && (
           <>
             <div className="space-y-4">
               <div>

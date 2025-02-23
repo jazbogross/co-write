@@ -1,10 +1,9 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { UserProfileCard } from "@/components/profile/UserProfileCard";
-import { GitHubConnectionCard } from "@/components/profile/GitHubConnectionCard";
 import { ScriptsCard } from "@/components/profile/ScriptsCard";
-import { RepositoryManagementCard } from "@/components/profile/RepositoryManagementCard";
 
 type Script = {
   id: string;
@@ -18,7 +17,6 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState<{ email: string; username: string } | null>(null);
   const [scripts, setScripts] = useState<Script[]>([]);
-  const [isGithubConnected, setIsGithubConnected] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
@@ -28,10 +26,6 @@ export default function Profile() {
         navigate("/auth");
         return;
       }
-
-      const { data: { session } } = await supabase.auth.getSession();
-      const provider = session?.user?.app_metadata?.provider;
-      setIsGithubConnected(provider === 'github');
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -66,8 +60,6 @@ export default function Profile() {
   return (
     <div className="container max-w-2xl py-10">
       <UserProfileCard profileData={profileData} />
-      {!isGithubConnected && <GitHubConnectionCard />}
-      {isGithubConnected && <RepositoryManagementCard />}
       <ScriptsCard scripts={scripts} />
     </div>
   );

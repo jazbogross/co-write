@@ -28,10 +28,15 @@ serve(async (req) => {
       throw new Error('GitHub App installation ID is required')
     }
 
+    const privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
+    if (!privateKey) {
+      throw new Error('GitHub App private key is not configured');
+    }
+
     // Initialize authentication with the GitHub App
     const auth = createAppAuth({
       appId: Deno.env.get("GITHUB_APP_ID")!,
-      privateKey: Deno.env.get("GITHUB_APP_PRIVATE_KEY")!,
+      privateKey: privateKey.replace(/\\n/g, '\n'), // Handle escaped newlines in the private key
       installationId: installationId,
     });
 
