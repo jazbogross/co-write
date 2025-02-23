@@ -46,10 +46,14 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
           setUsername(profile.username);
         }
 
-        // Check if user has GitHub identity
-        const { data: { identities } } = await supabase.auth.getUser();
-        const hasGithub = identities?.some(identity => identity.provider === 'github');
-        setHasGithubConnection(!!hasGithub);
+        // Check if user has GitHub identity by getting user data
+        const { data: userWithIdentities } = await supabase.auth.getUser();
+        if (userWithIdentities.user?.app_metadata?.provider === 'github' || 
+            userWithIdentities.user?.app_metadata?.providers?.includes('github')) {
+          setHasGithubConnection(true);
+        } else {
+          setHasGithubConnection(false);
+        }
       } catch (error) {
         console.error('Error checking GitHub connection:', error);
       }
