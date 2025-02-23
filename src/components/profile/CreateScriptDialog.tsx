@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +38,13 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   const { toast } = useToast();
 
   const verifyGitHubInstallation = async (installationId: string): Promise<boolean> => {
+    if (!installationId || 
+        installationId === "null" || 
+        installationId === "undefined" || 
+        installationId.trim() === "") {
+      return false;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('verify-github-installation', {
         body: { installationId }
