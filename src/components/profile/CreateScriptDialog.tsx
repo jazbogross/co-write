@@ -25,6 +25,7 @@ interface CreateScriptDialogProps {
 interface GitHubRepo {
   name: string;
   owner: string;
+  html_url: string;
 }
 
 export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: CreateScriptDialogProps) {
@@ -104,17 +105,20 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(error.message);
+      }
       
+      console.log('Repository creation response:', data);
+
       // Validate the response
-      if (!data || !data.name || !data.owner) {
+      if (!data || typeof data.name !== 'string' || typeof data.owner !== 'string') {
+        console.error('Invalid response data:', data);
         throw new Error('Invalid repository data received from GitHub');
       }
 
-      return {
-        name: data.name,
-        owner: data.owner
-      };
+      return data as GitHubRepo;
     } catch (error) {
       console.error("Error creating GitHub repository:", error);
       throw error;
@@ -145,15 +149,11 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      // Create GitHub repository first
+      console.log('Creating GitHub repository...');
       const repo = await createGitHubRepository(newTitle);
+      console.log('Repository created:', repo);
 
-      // Validate GitHub repository details
-      if (!repo.name || !repo.owner) {
-        throw new Error("Failed to get valid GitHub repository details");
-      }
-
-      // Create the script with validated GitHub details
+      // Create the script with GitHub details
       const { data: script, error: scriptError } = await supabase
         .from("scripts")
         .insert([{
@@ -167,27 +167,27 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         .select()
         .single();
 
-      if (scriptError) throw scriptError;
-
-      if (script) {
-        // Validate the created script
-        if (!script.github_repo || !script.github_owner) {
-          throw new Error("Script created but GitHub details are missing");
-        }
-
-        onScriptCreated(script);
-        setNewTitle("");
-        onOpenChange(false);
-        toast({
-          title: "Success",
-          description: "New script and GitHub repository created",
-        });
+      if (scriptError) {
+        console.error('Script creation error:', scriptError);
+        throw scriptError;
       }
+
+      if (!script) {
+        throw new Error('Script was not created');
+      }
+
+      onScriptCreated(script);
+      setNewTitle("");
+      onOpenChange(false);
+      toast({
+        title: "Success",
+        description: "New script and GitHub repository created",
+      });
     } catch (error) {
       console.error("Script creation error:", error);
       toast({
         title: "Error",
-        description: "Failed to create script and repository",
+        description: error.message || "Failed to create script and repository",
         variant: "destructive",
       });
     } finally {
