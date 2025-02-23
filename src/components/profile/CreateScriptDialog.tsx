@@ -22,6 +22,11 @@ interface CreateScriptDialogProps {
   onScriptCreated: (script: any) => void;
 }
 
+interface GitHubRepo {
+  name: string;
+  owner: string;
+}
+
 export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: CreateScriptDialogProps) {
   const [newTitle, setNewTitle] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
@@ -46,7 +51,7 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
           setUsername(profile.username);
         }
 
-        // Check if user has GitHub identity by getting user data
+        // Check if user has GitHub identity
         const { data: userWithIdentities } = await supabase.auth.getUser();
         if (userWithIdentities.user?.app_metadata?.provider === 'github' || 
             userWithIdentities.user?.app_metadata?.providers?.includes('github')) {
@@ -88,9 +93,9 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
     }
   };
 
-  const createGitHubRepository = async (scriptTitle: string) => {
+  const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
     try {
-      const { data: response, error } = await supabase.functions.invoke('create-github-repo', {
+      const { data, error } = await supabase.functions.invoke('create-github-repo', {
         body: {
           scriptName: scriptTitle.toLowerCase().replace(/\s+/g, '-'),
           originalCreator: username || 'user',
@@ -100,7 +105,16 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       });
 
       if (error) throw error;
-      return response;
+      
+      // Validate the response
+      if (!data || !data.name || !data.owner) {
+        throw new Error('Invalid repository data received from GitHub');
+      }
+
+      return {
+        name: data.name,
+        owner: data.owner
+      };
     } catch (error) {
       console.error("Error creating GitHub repository:", error);
       throw error;
@@ -134,7 +148,12 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       // Create GitHub repository first
       const repo = await createGitHubRepository(newTitle);
 
-      // Then create the script
+      // Validate GitHub repository details
+      if (!repo.name || !repo.owner) {
+        throw new Error("Failed to get valid GitHub repository details");
+      }
+
+      // Create the script with validated GitHub details
       const { data: script, error: scriptError } = await supabase
         .from("scripts")
         .insert([{
@@ -151,6 +170,11 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       if (scriptError) throw scriptError;
 
       if (script) {
+        // Validate the created script
+        if (!script.github_repo || !script.github_owner) {
+          throw new Error("Script created but GitHub details are missing");
+        }
+
         onScriptCreated(script);
         setNewTitle("");
         onOpenChange(false);
