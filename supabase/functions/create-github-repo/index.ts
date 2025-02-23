@@ -1,5 +1,6 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createAppAuth } from "https://esm.sh/@octokit/auth-app@4.0.13"
 import { Octokit } from 'https://esm.sh/@octokit/rest'
 
 const corsHeaders = {
@@ -12,6 +13,7 @@ interface RequestBody {
   originalCreator: string;
   coAuthors: string[];
   isPrivate: boolean;
+  installationId: string;
 }
 
 serve(async (req) => {
@@ -20,67 +22,67 @@ serve(async (req) => {
   }
 
   try {
-    const { scriptName, originalCreator, coAuthors, isPrivate } = await req.json() as RequestBody
+    const { scriptName, originalCreator, coAuthors, isPrivate, installationId } = await req.json() as RequestBody
 
-    const githubToken = Deno.env.get('GITHUB_PAT')
-    if (!githubToken) {
-      throw new Error('GitHub token not configured')
+    if (!installationId) {
+      throw new Error('GitHub App installation ID is required')
     }
 
+    // Initialize authentication with the GitHub App
+    const auth = createAppAuth({
+      appId: Deno.env.get("GITHUB_APP_ID")!,
+      privateKey: Deno.env.get("GITHUB_APP_PRIVATE_KEY")!,
+      installationId: installationId,
+    });
+
+    // Get an installation access token
+    const installationAuthentication = await auth({ type: "installation" });
+    
     const octokit = new Octokit({
-      auth: githubToken
-    })
+      auth: installationAuthentication.token,
+    });
 
-    // First, get the authenticated user's info
-    const { data: user } = await octokit.rest.users.getAuthenticated()
-    const owner = user.login
+    // Get the authenticated installation
+    const { data: installation } = await octokit.rest.apps.getInstallation({
+      installation_id: parseInt(installationId),
+    });
 
-    if (!owner) {
-      throw new Error('Could not determine GitHub user')
+    if (!installation) {
+      throw new Error('Could not find GitHub App installation')
     }
 
     // Create a unique repository name
     const repoName = `script-${scriptName}-${Date.now()}`
 
-    console.log('Creating repository:', { owner, repoName });
+    console.log('Creating repository:', { repoName });
 
     // Create the repository
-    const { data: repo } = await octokit.rest.repos.createForAuthenticatedUser({
+    const { data: repo } = await octokit.rest.repos.createInOrg({
+      org: installation.account.login,
       name: repoName,
       private: isPrivate,
-      auto_init: true, // This creates a default README.md
+      auto_init: true,
     })
 
     // Wait a moment for the repository to be fully initialized
     await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Get the main branch reference
-    const { data: ref } = await octokit.rest.git.getRef({
-      owner,
-      repo: repoName,
-      ref: 'heads/main',
-    })
-
-    // Get the commit SHA that the reference points to
-    const commitSha = ref.object.sha
 
     // Create initial README content
     const readmeContent = `# ${scriptName}\n\nCreated by: ${originalCreator}\n${
       coAuthors.length ? `\nContributors:\n${coAuthors.map(author => `- ${author}`).join('\n')}` : ''
     }`
 
-    // Get the current README.md if it exists
+    // Update README with new content
     try {
       const { data: existingFile } = await octokit.rest.repos.getContent({
-        owner,
+        owner: installation.account.login,
         repo: repoName,
         path: 'README.md',
       });
 
-      // Update README with new content
       if ('sha' in existingFile) {
         await octokit.rest.repos.createOrUpdateFileContents({
-          owner,
+          owner: installation.account.login,
           repo: repoName,
           path: 'README.md',
           message: 'Update README',
@@ -90,9 +92,8 @@ serve(async (req) => {
         });
       }
     } catch (error) {
-      // If the file doesn't exist, create it
       await octokit.rest.repos.createOrUpdateFileContents({
-        owner,
+        owner: installation.account.login,
         repo: repoName,
         path: 'README.md',
         message: 'Initial commit: Add README',
@@ -103,14 +104,14 @@ serve(async (req) => {
 
     console.log('Repository created successfully:', {
       name: repoName,
-      owner: owner,
+      owner: installation.account.login,
       html_url: repo.html_url
     })
 
     return new Response(
       JSON.stringify({
         name: repoName,
-        owner: owner,
+        owner: installation.account.login,
         html_url: repo.html_url
       }),
       {
