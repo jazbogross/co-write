@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,11 +65,10 @@ const Auth = () => {
   const handleGitHubAuth = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
           scopes: 'repo', // Request repo access for private repositories
-          redirectTo: `${window.location.origin}/`,
         },
       });
 
@@ -80,10 +78,7 @@ const Auth = () => {
           description: error.message,
           variant: "destructive",
         });
-        return;
       }
-      
-      // The token will be available in the session after redirect
     } catch (error) {
       console.error('GitHub auth error:', error);
       toast({
@@ -95,30 +90,6 @@ const Auth = () => {
       setLoading(false);
     }
   };
-
-  // Check for GitHub token on mount and after auth state changes
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.provider_token) {
-        // Store the GitHub token in localStorage
-        localStorage.setItem('github_token', session.provider_token);
-      }
-    };
-
-    checkSession();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.provider_token) {
-        localStorage.setItem('github_token', session.provider_token);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">

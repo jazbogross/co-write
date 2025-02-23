@@ -96,18 +96,12 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
 
   const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
     try {
-      const githubToken = localStorage.getItem('github_token');
-      if (!githubToken) {
-        throw new Error('GitHub token not found. Please reconnect your GitHub account.');
-      }
-
       const { data, error } = await supabase.functions.invoke('create-github-repo', {
         body: {
           scriptName: scriptTitle.toLowerCase().replace(/\s+/g, '-'),
           originalCreator: username || 'user',
           coAuthors: [],
-          isPrivate: isPrivate,
-          githubToken: githubToken  // Pass the token to the edge function
+          isPrivate: isPrivate
         }
       });
 
@@ -118,6 +112,7 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       
       console.log('Repository creation response:', data);
 
+      // Validate the response
       if (!data || typeof data.name !== 'string' || typeof data.owner !== 'string') {
         console.error('Invalid response data:', data);
         throw new Error('Invalid repository data received from GitHub');
