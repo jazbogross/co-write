@@ -116,7 +116,7 @@ serve(async (req: Request) => {
     const jwt = await createJWT(appId, privateKey);
     console.log("JWT created (first 50 chars):", jwt.substring(0, 50) + "...");
 
-    // Use JWT to get installation details (to extract org login)
+    // Use JWT to get installation details (to extract account info)
     const installationDetailsResponse = await fetch(
       `https://api.github.com/app/installations/${installationId}`,
       {
@@ -141,8 +141,10 @@ serve(async (req: Request) => {
     ) {
       throw new Error("Installation details missing account information");
     }
-    const orgLogin = installationDetails.account.login;
-    console.log("Installation organization login:", orgLogin);
+    const accountType = installationDetails.account.type;
+    const accountLogin = installationDetails.account.login;
+    console.log("Installation account type:", accountType);
+    console.log("Installation account login:", accountLogin);
 
     // Request an installation access token
     console.log("Requesting installation access token...");
@@ -172,12 +174,23 @@ serve(async (req: Request) => {
     const octokit = new Octokit({ auth: installationToken });
     const repoName = `script-${scriptName}-${Date.now()}`;
     console.log("Creating repository:", repoName);
-    const createRepoResponse = await octokit.request("POST /orgs/{org}/repos", {
-      org: orgLogin,
-      name: repoName,
-      private: isPrivate,
-      auto_init: true,
-    });
+
+    // Choose the appropriate endpoint based on account type
+    let createRepoResponse;
+    if (accountType === "Organization") {
+      createRepoResponse = await octokit.request("POST /orgs/{org}/repos", {
+        org: accountLogin,
+        name: repoName,
+        private: isPrivate,
+        auto_init: true,
+      });
+    } else {
+      createRepoResponse = await octokit.request("POST /user/repos", {
+        name: repoName,
+        private: isPrivate,
+        auto_init: true,
+      });
+    }
     console.log("Repository created:", createRepoResponse.data.html_url);
 
     // Wait a short while for auto‑init to complete
@@ -194,7 +207,7 @@ serve(async (req: Request) => {
     try {
       const getReadmeResponse = await octokit.request(
         "GET /repos/{owner}/{repo}/contents/{path}",
-        { owner: orgLogin, repo: repoName, path: "README.md" }
+        { owner: accountLogin, repo: repoName, path: "README.md" }
       );
       sha = getReadmeResponse.data.sha;
       console.log("Existing README found, SHA:", sha);
@@ -206,7 +219,7 @@ serve(async (req: Request) => {
       }
     }
     const readmeParams: Record<string, unknown> = {
-      owner: orgLogin,
+      owner: accountLogin,
       repo: repoName,
       path: "README.md",
       message: "Initial commit: Add README",
@@ -223,7 +236,7 @@ serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         name: repoName,
-        owner: orgLogin,
+        owner: accountLogin,
         html_url: createRepoResponse.data.html_url,
       }),
       {
