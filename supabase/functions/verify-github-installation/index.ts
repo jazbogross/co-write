@@ -1,6 +1,5 @@
-
 import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
-import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts";
+import { create, getNumericDate } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,7 +9,6 @@ const corsHeaders = {
 serve(async (req: Request) => {
   console.log(`Received request: ${req.method} ${req.url}`);
 
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     console.log("Handling CORS preflight request");
     return new Response(null, { headers: corsHeaders });
@@ -50,8 +48,9 @@ serve(async (req: Request) => {
     const appId = Deno.env.get("GITHUB_APP_ID");
     let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
 
-    console.log("App ID:", appId);
-    console.log("Private key exists:", !!privateKey);
+    console.log("Retrieved environment variables:");
+    console.log("GITHUB_APP_ID:", appId || "NOT SET");
+    console.log("GITHUB_APP_PRIVATE_KEY Exists:", !!privateKey);
 
     if (!appId || !privateKey) {
       console.error("GitHub app credentials not set");
@@ -78,17 +77,21 @@ serve(async (req: Request) => {
     console.log("Attempting to create JWT...");
     
     try {
+      const jwtPayload = {
+        iat: getNumericDate(0),
+        exp: getNumericDate(600), // 10 minutes
+        iss: appId,
+      };
+
+      console.log("JWT Payload:", jwtPayload);
+
       const jwt = await create(
         { alg: "RS256", typ: "JWT" },
-        {
-          iat: getNumericDate(0),
-          exp: getNumericDate(600), // 10 minutes
-          iss: appId,
-        },
+        jwtPayload,
         privateKey
       );
 
-      console.log("JWT created successfully");
+      console.log("JWT created successfully (First 50 chars):", jwt.substring(0, 50) + "...");
 
       const githubResponse = await fetch(`https://api.github.com/app/installations/${installationId}`, {
         headers: {
@@ -98,14 +101,14 @@ serve(async (req: Request) => {
         },
       });
 
-      console.log('GitHub API Response Status:', githubResponse.status);
+      console.log("GitHub API Response Status:", githubResponse.status);
       const responseText = await githubResponse.text();
-      console.log('GitHub API Response:', responseText);
+      console.log("GitHub API Response:", responseText);
 
       return new Response(
         JSON.stringify({ active: githubResponse.ok }), 
         {
-          status: 200,
+          status: githubResponse.ok ? 200 : 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         }
       );
