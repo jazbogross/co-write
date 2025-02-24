@@ -9,15 +9,17 @@ export function GitHubConnectionChecker() {
   const [isChecking, setIsChecking] = useState(false);
   const { toast } = useToast();
 
-  const verifyGitHubInstallation = async () => {
+  const checkGitHubAppInstallation = async () => {
     setIsChecking(true);
     try {
       const installationId = localStorage.getItem('github_app_installation_id');
-      console.log(installationId);
+      
       if (!installationId) {
         // If no installation ID, redirect to install page
-        console.error('No GitHub installation ID found');
-        window.location.href = `https://github.com/apps/script-editor/installations/new?state=${encodeURIComponent(window.location.origin + '/github/callback')}`;
+        console.log('No GitHub installation ID found, redirecting to installation page');
+        const callbackUrl = encodeURIComponent(window.location.origin + '/github/callback');
+        const state = encodeURIComponent(window.location.pathname);
+        window.location.href = `https://github.com/apps/script-editor/installations/new?state=${state}&redirect_uri=${callbackUrl}`;
         return;
       }
 
@@ -28,15 +30,17 @@ export function GitHubConnectionChecker() {
       if (error || !data?.active) {
         console.error('GitHub verification error:', error);
         localStorage.removeItem('github_app_installation_id');
-        window.location.href = `https://github.com/apps/script-editor/installations/new?state=${encodeURIComponent(window.location.origin + '/github/callback')}`;
+        const callbackUrl = encodeURIComponent(window.location.origin + '/github/callback');
+        const state = encodeURIComponent(window.location.pathname);
+        window.location.href = `https://github.com/apps/script-editor/installations/new?state=${state}&redirect_uri=${callbackUrl}`;
         return;
       }
 
       toast({
         title: "Success",
-        description: "GitHub connection verified successfully",
+        description: "GitHub App installation verified successfully",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('GitHub verification error:', error);
       toast({
         title: "Error",
@@ -49,14 +53,16 @@ export function GitHubConnectionChecker() {
   };
 
   return (
-    <Button
-      variant="outline"
-      onClick={verifyGitHubInstallation}
-      disabled={isChecking}
-      className="w-full"
-    >
-      <Github className="mr-2 h-4 w-4" />
-      {isChecking ? "Checking GitHub Connection..." : "Check GitHub Connection"}
-    </Button>
+    <div className="space-y-4">
+      <Button
+        variant="outline"
+        onClick={checkGitHubAppInstallation}
+        disabled={isChecking}
+        className="w-full"
+      >
+        <Github className="mr-2 h-4 w-4" />
+        {isChecking ? "Checking GitHub App Installation..." : "Install GitHub App"}
+      </Button>
+    </div>
   );
 }
