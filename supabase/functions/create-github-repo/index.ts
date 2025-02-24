@@ -16,57 +16,74 @@ interface RequestBody {
 }
 
 serve(async (req) => {
+  console.log(`📌 Received request: ${req.method} ${req.url}`);
+
   if (req.method === 'OPTIONS') {
+    console.log("🔄 Handling CORS preflight request");
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { scriptName, originalCreator, coAuthors, isPrivate, installationId } = await req.json() as RequestBody
+    console.log("📥 Parsing request body...");
+    const body = await req.json() as RequestBody;
+    console.log("✅ Request Body:", JSON.stringify(body, null, 2));
+
+    const { scriptName, originalCreator, coAuthors, isPrivate, installationId } = body;
 
     if (!installationId) {
-      throw new Error('GitHub App installation ID is required')
+      throw new Error('❌ GitHub App installation ID is required');
     }
 
-    let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY_PKCS1");
-    if (!privateKey) {
-      throw new Error('GitHub App private key is not configured');
+    console.log("🔑 Retrieving GitHub App credentials...");
+    let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
+    const appId = Deno.env.get("GITHUB_APP_ID");
+
+    console.log(`✅ GITHUB_APP_ID: ${appId}`);
+    console.log(`✅ GITHUB_APP_PRIVATE_KEY Exists: ${!!privateKey}`);
+
+    if (!appId || !privateKey) {
+      throw new Error('❌ GitHub App credentials are not set');
     }
 
-    // Ensure the private key is correctly formatted
+    // Ensure the private key is correctly formatted (PKCS#8)
     privateKey = privateKey.replace(/\\n/g, '\n').trim();
 
-    console.log("Processed Private Key (first 200 chars):", privateKey.substring(0, 200) + "...");
+    console.log("✅ Processed Private Key (first 200 chars):", privateKey.substring(0, 200) + "...");
 
-    if (!privateKey.includes("-----BEGIN RSA PRIVATE KEY-----")) {
-      throw new Error("Invalid private key format. Ensure it's PKCS#1 format.");
+    if (!privateKey.includes("-----BEGIN PRIVATE KEY-----")) {
+      throw new Error("❌ Invalid private key format. Ensure it's in PKCS#8 format.");
     }
 
-    // Initialize authentication with the GitHub App
+    console.log("🔐 Initializing GitHub App authentication...");
     const auth = createAppAuth({
-      appId: Deno.env.get("GITHUB_APP_ID")!,
+      appId: appId,
       privateKey: privateKey,
       installationId: installationId,
     });
 
-    // Get an installation access token
+    console.log("🔑 Requesting installation access token...");
     const installationAuthentication = await auth({ type: "installation" });
+
+    console.log("✅ Installation Access Token received");
 
     const octokit = new Octokit({
       auth: installationAuthentication.token,
     });
 
-    // Get the authenticated installation
+    console.log(`🔎 Fetching GitHub App installation for ID: ${installationId}`);
     const { data: installation } = await octokit.rest.apps.getInstallation({
       installation_id: parseInt(installationId),
     });
 
+    console.log("✅ GitHub App Installation Data:", installation);
+
     if (!installation) {
-      throw new Error('Could not find GitHub App installation')
+      throw new Error('❌ Could not find GitHub App installation');
     }
 
     // Create a unique repository name
     const repoName = `script-${scriptName}-${Date.now()}`
-    console.log('Creating repository:', { repoName });
+    console.log(`📂 Creating repository: ${repoName}`);
 
     // Create the repository
     const { data: repo } = await octokit.rest.repos.createInOrg({
@@ -76,7 +93,10 @@ serve(async (req) => {
       auto_init: true,
     });
 
-    // Wait a moment for the repository to be fully initialized
+    console.log(`✅ Repository created successfully: ${repo.html_url}`);
+
+    // Wait for repository initialization
+    console.log("⏳ Waiting 1 second for repository initialization...");
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Create initial README content
@@ -84,14 +104,19 @@ serve(async (req) => {
       coAuthors.length ? `\nContributors:\n${coAuthors.map(author => `- ${author}`).join('\n')}` : ''
     }`;
 
-    // Update README with new content
+    console.log("📜 Preparing README content...");
+    console.log(readmeContent);
+
+    // Try updating README file if it exists, otherwise create a new one
     try {
+      console.log("🔍 Checking if README.md already exists...");
       const { data: existingFile } = await octokit.rest.repos.getContent({
         owner: installation.account.login,
         repo: repoName,
         path: 'README.md',
       });
 
+      console.log("✅ README.md found. Updating...");
       if ('sha' in existingFile) {
         await octokit.rest.repos.createOrUpdateFileContents({
           owner: installation.account.login,
@@ -102,8 +127,10 @@ serve(async (req) => {
           sha: existingFile.sha,
           branch: 'main'
         });
+        console.log("✅ README updated successfully");
       }
     } catch (error) {
+      console.log("ℹ️ README.md not found. Creating new file...");
       await octokit.rest.repos.createOrUpdateFileContents({
         owner: installation.account.login,
         repo: repoName,
@@ -112,9 +139,10 @@ serve(async (req) => {
         content: btoa(readmeContent),
         branch: 'main'
       });
+      console.log("✅ README created successfully");
     }
 
-    console.log('Repository created successfully:', {
+    console.log('🎉 Repository setup complete:', {
       name: repoName,
       owner: installation.account.login,
       html_url: repo.html_url
@@ -133,7 +161,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error:', error)
+    console.error('❌ Error:', error)
     return new Response(
       JSON.stringify({
         error: error.message
