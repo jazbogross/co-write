@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createAppAuth } from "https://esm.sh/@octokit/auth-app@4.0.13"
 import { Octokit } from 'https://esm.sh/@octokit/rest'
@@ -28,21 +27,30 @@ serve(async (req) => {
       throw new Error('GitHub App installation ID is required')
     }
 
-    const privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
+    let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY_PKCS1");
     if (!privateKey) {
       throw new Error('GitHub App private key is not configured');
+    }
+
+    // Ensure the private key is correctly formatted
+    privateKey = privateKey.replace(/\\n/g, '\n').trim();
+
+    console.log("Processed Private Key (first 200 chars):", privateKey.substring(0, 200) + "...");
+
+    if (!privateKey.includes("-----BEGIN RSA PRIVATE KEY-----")) {
+      throw new Error("Invalid private key format. Ensure it's PKCS#1 format.");
     }
 
     // Initialize authentication with the GitHub App
     const auth = createAppAuth({
       appId: Deno.env.get("GITHUB_APP_ID")!,
-      privateKey: privateKey.replace(/\\n/g, '\n'), // Handle escaped newlines in the private key
+      privateKey: privateKey,
       installationId: installationId,
     });
 
     // Get an installation access token
     const installationAuthentication = await auth({ type: "installation" });
-    
+
     const octokit = new Octokit({
       auth: installationAuthentication.token,
     });
@@ -58,7 +66,6 @@ serve(async (req) => {
 
     // Create a unique repository name
     const repoName = `script-${scriptName}-${Date.now()}`
-
     console.log('Creating repository:', { repoName });
 
     // Create the repository
@@ -67,7 +74,7 @@ serve(async (req) => {
       name: repoName,
       private: isPrivate,
       auto_init: true,
-    })
+    });
 
     // Wait a moment for the repository to be fully initialized
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -75,7 +82,7 @@ serve(async (req) => {
     // Create initial README content
     const readmeContent = `# ${scriptName}\n\nCreated by: ${originalCreator}\n${
       coAuthors.length ? `\nContributors:\n${coAuthors.map(author => `- ${author}`).join('\n')}` : ''
-    }`
+    }`;
 
     // Update README with new content
     try {
@@ -111,7 +118,7 @@ serve(async (req) => {
       name: repoName,
       owner: installation.account.login,
       html_url: repo.html_url
-    })
+    });
 
     return new Response(
       JSON.stringify({
@@ -123,7 +130,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       },
-    )
+    );
 
   } catch (error) {
     console.error('Error:', error)
@@ -135,6 +142,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       },
-    )
+    );
   }
-})
+});
