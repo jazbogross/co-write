@@ -1,7 +1,7 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { UserProfileCard } from "@/components/profile/UserProfileCard";
 import { ScriptsCard } from "@/components/profile/ScriptsCard";
 import { GitHubConnectionChecker } from "@/components/profile/GitHubConnectionChecker";
@@ -15,9 +15,27 @@ type Script = {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState<{ email: string; username: string } | null>(null);
   const [scripts, setScripts] = useState<Script[]>([]);
+
+  // This effect runs once when the component mounts.
+  // It checks for GitHub installation parameters in the URL and stores the installation ID.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const installationId = params.get("installation_id");
+
+    if (installationId) {
+      localStorage.setItem("github_app_installation_id", installationId);
+      toast({
+        title: "Success",
+        description: "GitHub App installed successfully",
+      });
+      // Remove query parameters by navigating to the same pathname without them.
+      navigate(window.location.pathname, { replace: true });
+    }
+  }, [navigate, toast]);
 
   useEffect(() => {
     async function loadProfile() {
