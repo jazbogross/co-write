@@ -17,9 +17,10 @@ function encodeBase64Url(buffer: Uint8Array): string {
 // Function to sign JWT manually using Deno's built-in crypto.subtle API
 async function createJWT(appId: string, privateKeyPEM: string): Promise<string> {
   const header = JSON.stringify({ alg: "RS256", typ: "JWT" });
+  const now = getNumericDate(0);
   const payload = JSON.stringify({
-    iat: getNumericDate(0),
-    exp: getNumericDate(600),
+    iat: now,
+    exp: now + 600,  // 10 minutes from `now`
     iss: appId,
   });
 
