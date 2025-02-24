@@ -33,7 +33,18 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   const { toast } = useToast();
 
   const verifyGitHubConnection = async () => {
-    const installationId = localStorage.getItem('github_app_installation_id');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('No authenticated user found');
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('github_app_installation_id')
+      .eq('id', user.id)
+      .single();
+
+    const installationId = profile?.github_app_installation_id;
     if (!installationId) {
       throw new Error('GitHub App not connected. Please check your GitHub connection in the profile settings.');
     }
@@ -44,7 +55,11 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
     });
 
     if (error || !data?.active) {
-      localStorage.removeItem('github_app_installation_id');
+      // Clear the invalid installation ID
+      await supabase
+        .from('profiles')
+        .update({ github_app_installation_id: null })
+        .eq('id', user.id);
       throw new Error('GitHub connection is invalid. Please reconnect in the profile settings.');
     }
 
