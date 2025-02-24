@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createAppAuth } from "https://esm.sh/@octokit/auth-app@4.0.13"
 import { Octokit } from 'https://esm.sh/@octokit/rest'
@@ -14,6 +13,35 @@ interface RequestBody {
   coAuthors: string[];
   isPrivate: boolean;
   installationId: string;
+}
+
+/**
+ * Converts a PEM-encoded PKCS#8 key to a binary format suitable for crypto.subtle.importKey
+ */
+function importPrivateKey(pem: string): ArrayBuffer {
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+
+  if (!pem.includes(pemHeader) || !pem.includes(pemFooter)) {
+    throw new Error("❌ Invalid private key format. Ensure it's in PKCS#8 format.");
+  }
+
+  const pemContents = pem
+    .replace(pemHeader, "")
+    .replace(pemFooter, "")
+    .replace(/\n/g, "")
+    .trim();
+
+  console.log("🔍 Extracted Base64 Key (First 50 chars):", pemContents.substring(0, 50) + "...");
+
+  const binaryDerString = atob(pemContents);
+  const binaryDer = new Uint8Array(binaryDerString.length);
+
+  for (let i = 0; i < binaryDerString.length; i++) {
+    binaryDer[i] = binaryDerString.charCodeAt(i);
+  }
+
+  return binaryDer.buffer;
 }
 
 serve(async (req) => {
@@ -37,8 +65,7 @@ serve(async (req) => {
 
     console.log("🔑 Retrieving GitHub App credentials...");
     const appId = Deno.env.get("GITHUB_APP_ID");
-    // Use PKCS1 format key instead of PKCS8
-    const privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY_PKCS1");
+    let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
 
     if (!appId || !privateKey) {
       throw new Error('❌ GitHub App credentials are not properly configured.');
@@ -46,6 +73,24 @@ serve(async (req) => {
 
     console.log(`✅ GITHUB_APP_ID: ${appId}`);
     console.log(`✅ Private key exists: ${!!privateKey}`);
+
+    // Ensure private key is correctly formatted
+    privateKey = privateKey
+      .replace(/\\n/g, '\n')  // Convert escaped newlines
+      .replace(/\r\n/g, '\n') // Normalize Windows-style newlines
+      .replace(/^"|"$/g, '')  // Remove surrounding double quotes
+      .replace(/^'|'$/g, '')  // Remove surrounding single quotes
+      .trim();
+
+    console.log("🔍 Processed Private Key (first 50 chars):", privateKey.substring(0, 50) + "...");
+
+    if (!privateKey.includes("-----BEGIN PRIVATE KEY-----")) {
+      throw new Error("❌ Invalid private key format. Ensure it's in PKCS#8 format.");
+    }
+
+    console.log("🔐 Converting Private Key to Binary Format...");
+    const binaryKey = importPrivateKey(privateKey);
+    console.log("✅ Private Key Converted Successfully");
 
     try {
       console.log("🔐 Initializing GitHub App authentication...");
