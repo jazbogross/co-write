@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,40 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Add effect to handle OAuth callback and token storage
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.provider_token) {
+          console.log("Got provider token, attempting to store...");
+          
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ github_access_token: session.provider_token })
+            .eq('id', session.user.id);
+
+          if (updateError) {
+            console.error('Failed to store GitHub token:', updateError);
+            toast({
+              title: "Warning",
+              description: "Failed to store GitHub access token",
+              variant: "destructive",
+            });
+          } else {
+            console.log('Successfully stored GitHub access token');
+            navigate('/profile');
+          }
+        }
+      } catch (error) {
+        console.error('Error in OAuth callback:', error);
+      }
+    };
+
+    handleOAuthCallback();
+  }, []); // Run once on component mount
 
   const handleAuth = async (action: 'login' | 'signup') => {
     try {
@@ -80,32 +114,7 @@ const Auth = () => {
           description: error.message,
           variant: "destructive",
         });
-        return;
       }
-
-      // After successful GitHub auth, get the access token from the session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.provider_token) {
-        // Store the GitHub access token in the profiles table
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ github_access_token: session.provider_token })
-          .eq('id', session.user.id);
-
-        if (updateError) {
-          console.error('Failed to store GitHub token:', updateError);
-          toast({
-            title: "Warning",
-            description: "Failed to store GitHub access token",
-            variant: "destructive",
-          });
-        } else {
-          console.log('Successfully stored GitHub access token');
-        }
-      }
-
-      // Navigate to profile page after successful auth
-      navigate('/profile');
     } catch (error) {
       console.error('GitHub auth error:', error);
       toast({

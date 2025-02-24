@@ -12,7 +12,7 @@ interface RequestBody {
   originalCreator: string;
   coAuthors: string[];
   isPrivate: boolean;
-  githubAccessToken: string; // Now expecting OAuth token instead of installation ID
+  githubAccessToken: string;
 }
 
 serve(async (req) => {
@@ -59,21 +59,30 @@ serve(async (req) => {
       console.log(`✅ Repository created successfully: ${repo.html_url}`);
 
       // Wait for repository initialization
-      console.log("⏳ Waiting 1 second for repository initialization...");
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log("⏳ Waiting 2 seconds for repository initialization...");
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Get the current README content to get its SHA
+      console.log("🔍 Getting current README content...");
+      const { data: currentFile } = await octokit.rest.repos.getContent({
+        owner: user.login,
+        repo: repoName,
+        path: 'README.md',
+      });
 
       // Create initial README content
       const readmeContent = `# ${scriptName}\n\nCreated by: ${originalCreator}\n${
         coAuthors.length ? `\nContributors:\n${coAuthors.map(author => `- ${author}`).join('\n')}` : ''
       }`;
 
-      console.log("📝 Creating initial README...");
+      console.log("📝 Updating README with new content...");
       await octokit.rest.repos.createOrUpdateFileContents({
         owner: user.login,
         repo: repoName,
         path: 'README.md',
         message: 'Initial commit: Add README',
         content: btoa(readmeContent),
+        sha: Array.isArray(currentFile) ? undefined : currentFile.sha,
         branch: 'main'
       });
 
