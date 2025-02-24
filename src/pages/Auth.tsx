@@ -104,8 +104,8 @@ const Auth = () => {
         }
       }
 
-      // Navigate to home page after successful auth
-      navigate('/');
+      // Navigate to profile page after successful auth
+      navigate('/profile');
     } catch (error) {
       console.error('GitHub auth error:', error);
       toast({
