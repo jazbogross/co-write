@@ -52,6 +52,8 @@ serve(async (req) => {
     privateKey = privateKey
       .replace(/\\n/g, '\n') // Convert escaped newlines
       .replace(/\r\n/g, '\n') // Normalize Windows-style newlines
+      .replace(/^"|"$/g, '')  // Remove surrounding double quotes
+      .replace(/^'|'$/g, '')  // Remove surrounding single quotes
       .trim();
 
     // DEBUG: Log the cleaned-up private key (first 200 chars)
