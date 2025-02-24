@@ -17,7 +17,6 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Only allow POST requests
     if (req.method !== "POST") {
       console.warn("Rejected non-POST request");
       return new Response("Method not allowed", { 
@@ -26,7 +25,6 @@ serve(async (req: Request) => {
       });
     }
 
-    // Parse the JSON body to extract the installationId
     let body;
     try {
       body = await req.json();
@@ -44,104 +42,90 @@ serve(async (req: Request) => {
       console.error("Missing installationId in request.");
       return new Response(
         JSON.stringify({ active: false, error: "Missing installationId" }), 
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Retrieve GitHub App credentials from environment variables
+    // Get and verify GitHub App credentials
     const appId = Deno.env.get("GITHUB_APP_ID");
     let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
 
-    console.log("Retrieved environment variables:");
-    console.log("GITHUB_APP_ID:", appId);
-    console.log("GITHUB_APP_PRIVATE_KEY exists:", !!privateKey);
+    console.log("App ID:", appId);
+    console.log("Private key exists:", !!privateKey);
 
     if (!appId || !privateKey) {
-      console.error("GitHub app credentials not set.");
+      console.error("GitHub app credentials not set");
       return new Response(
         JSON.stringify({ active: false, error: "GitHub app credentials not set" }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Restore newlines in private key (fix for environment variable formatting issues)
-    privateKey = privateKey.replace(/\\n/g, "\n");
+    // Clean up the private key
+    privateKey = privateKey
+      .replace(/\\n/g, '\n')
+      .replace(/^"|"$/g, '')
+      .replace(/^'|'$/g, '');
 
-    // Generate a JWT for GitHub App authentication
-    let jwt;
+    if (!privateKey.includes('-----BEGIN RSA PRIVATE KEY-----')) {
+      console.error("Invalid private key format");
+      return new Response(
+        JSON.stringify({ active: false, error: "Invalid private key format" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("Attempting to create JWT...");
+    
     try {
-      console.log("Generating JWT...");
-      jwt = await create(
+      const jwt = await create(
         { alg: "RS256", typ: "JWT" },
         {
           iat: getNumericDate(0),
-          exp: getNumericDate(60 * 10), // JWT valid for 10 minutes
+          exp: getNumericDate(600), // 10 minutes
           iss: appId,
         },
         privateKey
       );
-      console.log("Generated JWT:", jwt.substring(0, 50) + "..."); // Print first 50 characters
-    } catch (jwtError) {
-      console.error("JWT Creation Error:", jwtError);
+
+      console.log("JWT created successfully");
+
+      const githubResponse = await fetch(`https://api.github.com/app/installations/${installationId}`, {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28"
+        },
+      });
+
+      console.log('GitHub API Response Status:', githubResponse.status);
+      const responseText = await githubResponse.text();
+      console.log('GitHub API Response:', responseText);
+
       return new Response(
-        JSON.stringify({ active: false, error: "Failed to generate JWT" }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
-    }
-
-    // Query GitHub API to check if the installation exists/active
-    console.log(`Checking GitHub installation with ID: ${installationId}`);
-
-    const githubResponse = await fetch(`https://api.github.com/app/installations/${installationId}`, {
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-
-    console.log('GitHub API Response Status:', githubResponse.status);
-    
-    const responseText = await githubResponse.text();
-    console.log('GitHub API Response Body:', responseText);
-
-    // If GitHub returns a successful response, the installation is valid
-    if (githubResponse.ok) {
-      console.log(`Installation ${installationId} is active.`);
-      return new Response(
-        JSON.stringify({ active: true }), 
+        JSON.stringify({ active: githubResponse.ok }), 
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         }
       );
-    } else {
-      // If not, return active: false
-      console.error(`GitHub installation verification failed for ID: ${installationId}`);
+    } catch (jwtError) {
+      console.error("JWT Creation Error:", jwtError);
+      console.error("JWT Creation Error Stack:", jwtError.stack);
       return new Response(
-        JSON.stringify({ active: false, error: "Invalid installation ID or authentication failed" }), 
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        JSON.stringify({ 
+          active: false, 
+          error: "Failed to generate JWT",
+          details: jwtError.message 
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-  } catch (error: any) {
-    console.error("Unexpected error verifying installation:", error);
+  } catch (error) {
+    console.error("Unexpected error:", error);
     return new Response(
       JSON.stringify({ active: false, error: error.message }), 
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
