@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createAppAuth } from "https://esm.sh/@octokit/auth-app@4.0.13"
-import { Octokit } from 'https://esm.sh/@octokit/rest'
+import { createAppAuth } from "https://esm.sh/@octokit/auth-app";
+import { Octokit } from "https://esm.sh/@octokit/core";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
