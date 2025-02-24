@@ -20,7 +20,7 @@ async function createJWT(appId: string, privateKeyPEM: string): Promise<string> 
   const now = getNumericDate(0);
   const payload = JSON.stringify({
     iat: now,
-    exp: now + 600,  // 10 minutes from `now`
+    exp: now + 580,  // 10 minutes from `now`
     iss: appId,
   });
 
