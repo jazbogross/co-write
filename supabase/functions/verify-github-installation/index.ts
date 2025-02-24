@@ -1,10 +1,48 @@
 import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
-import { create, getNumericDate } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
+import { encodeBase64Url } from "https://deno.land/std@0.170.0/encoding/base64url.ts";
+import { getNumericDate } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Function to sign JWT manually using Deno's built-in crypto.subtle API
+async function createJWT(appId: string, privateKeyPEM: string): Promise<string> {
+  const header = JSON.stringify({ alg: "RS256", typ: "JWT" });
+  const payload = JSON.stringify({
+    iat: getNumericDate(0),
+    exp: getNumericDate(600),
+    iss: appId,
+  });
+
+  const headerBase64 = encodeBase64Url(new TextEncoder().encode(header));
+  const payloadBase64 = encodeBase64Url(new TextEncoder().encode(payload));
+  const data = `${headerBase64}.${payloadBase64}`;
+
+  // Convert PEM private key to CryptoKey
+  const pemHeader = "-----BEGIN RSA PRIVATE KEY-----";
+  const pemFooter = "-----END RSA PRIVATE KEY-----";
+  privateKeyPEM = privateKeyPEM.replace(/\n/g, "").replace(pemHeader, "").replace(pemFooter, "");
+
+  const binaryKey = Uint8Array.from(atob(privateKeyPEM), (c) => c.charCodeAt(0));
+
+  const privateKey = await crypto.subtle.importKey(
+    "pkcs8",
+    binaryKey,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  // Sign JWT
+  const signature = new Uint8Array(
+    await crypto.subtle.sign("RSASSA-PKCS1-v1_5", privateKey, new TextEncoder().encode(data))
+  );
+
+  const signatureBase64 = encodeBase64Url(signature);
+  return `${data}.${signatureBase64}`;
+}
 
 serve(async (req: Request) => {
   console.log(`Received request: ${req.method} ${req.url}`);
@@ -60,7 +98,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // Clean up and validate private key format
+    // Clean up private key formatting
     privateKey = privateKey
       .replace(/\\n/g, '\n') // Fix escaped newlines
       .replace(/(^"|"$)/g, '') // Remove leading/trailing double quotes
@@ -77,56 +115,39 @@ serve(async (req: Request) => {
       );
     }
 
-    console.log("Attempting to create JWT...");
+    console.log("Attempting to create JWT using crypto.subtle...");
 
+    let jwt;
     try {
-      const jwtPayload = {
-        iat: getNumericDate(0),
-        exp: getNumericDate(600), // 10 minutes
-        iss: appId,
-      };
-
-      console.log("JWT Payload:", jwtPayload);
-
-      const jwt = await create(
-        { alg: "RS256", typ: "JWT" },
-        jwtPayload,
-        privateKey
-      );
-
+      jwt = await createJWT(appId, privateKey);
       console.log("JWT created successfully (First 50 chars):", jwt.substring(0, 50) + "...");
-
-      const githubResponse = await fetch(`https://api.github.com/app/installations/${installationId}`, {
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28"
-        },
-      });
-
-      console.log("GitHub API Response Status:", githubResponse.status);
-      const responseText = await githubResponse.text();
-      console.log("GitHub API Response:", responseText);
-
-      return new Response(
-        JSON.stringify({ active: githubResponse.ok }), 
-        {
-          status: githubResponse.ok ? 200 : 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
     } catch (jwtError) {
       console.error("JWT Creation Error:", jwtError);
-      console.error("JWT Creation Error Stack:", jwtError.stack);
       return new Response(
-        JSON.stringify({ 
-          active: false, 
-          error: "Failed to generate JWT",
-          details: jwtError.message 
-        }),
+        JSON.stringify({ active: false, error: "Failed to generate JWT", details: jwtError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const githubResponse = await fetch(`https://api.github.com/app/installations/${installationId}`, {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+    });
+
+    console.log("GitHub API Response Status:", githubResponse.status);
+    const responseText = await githubResponse.text();
+    console.log("GitHub API Response:", responseText);
+
+    return new Response(
+      JSON.stringify({ active: githubResponse.ok }), 
+      {
+        status: githubResponse.ok ? 200 : 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      }
+    );
   } catch (error) {
     console.error("Unexpected error:", error);
     return new Response(
