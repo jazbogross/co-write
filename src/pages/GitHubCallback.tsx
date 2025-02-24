@@ -12,11 +12,11 @@ export default function GitHubCallback() {
     const handleCallback = async () => {
       const params = new URLSearchParams(window.location.search);
       const installationId = params.get("installation_id");
+      const state = params.get("state");
 
       if (installationId) {
         try {
-          // Verify the installation
-          console.log('Verifying GitHub installation...');
+          console.log('Verifying GitHub installation...', installationId);
           const { data, error } = await supabase.functions.invoke('verify-github-installation', {
             body: { installationId }
           });
@@ -31,7 +31,7 @@ export default function GitHubCallback() {
             title: "Success",
             description: "GitHub App installed successfully",
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error('Installation verification error:', error);
           toast({
             title: "Error",
@@ -39,17 +39,12 @@ export default function GitHubCallback() {
             variant: "destructive",
           });
         }
-      } else {
-        toast({
-          title: "Error",
-          description: "Installation ID not found in callback",
-          variant: "destructive",
-        });
       }
 
-      // Optionally delay the redirect so the user can see the toast message
+      // Navigate back to the original page or profile
+      const redirectPath = state ? decodeURIComponent(state) : "/profile";
       setTimeout(() => {
-        navigate("/");
+        navigate(redirectPath);
       }, 1500);
     };
 
