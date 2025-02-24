@@ -1,16 +1,17 @@
-
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export default function GitHubCallback() {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleCallback = async () => {
       const params = new URLSearchParams(window.location.search);
       const installationId = params.get("installation_id");
-      
+
       if (installationId) {
         try {
           // Verify the installation
@@ -22,7 +23,7 @@ export default function GitHubCallback() {
             throw new Error(error?.message || 'Installation verification failed');
           }
 
-          // If verification successful, store the installation ID
+          // If verification is successful, store the installation ID
           localStorage.setItem("github_app_installation_id", installationId);
           toast({
             title: "Success",
@@ -36,14 +37,22 @@ export default function GitHubCallback() {
             variant: "destructive",
           });
         }
+      } else {
+        toast({
+          title: "Error",
+          description: "Installation ID not found in callback",
+          variant: "destructive",
+        });
       }
-      
-      // Redirect back to home page
-      window.location.href = "/";
+
+      // Optionally delay the redirect so the user can see the toast message
+      setTimeout(() => {
+        navigate("/");
+      }, 1500);
     };
 
     handleCallback();
-  }, []);
+  }, [navigate, toast]);
 
   return (
     <div className="flex items-center justify-center min-h-screen">
