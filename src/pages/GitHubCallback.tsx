@@ -20,6 +20,12 @@ export default function GitHubCallback() {
       if (installationId) {
         console.log('GitHubCallback: useEffect: handleCallback: verifying GitHub installation...', installationId);
         try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            throw new Error("No authenticated user found");
+          }
+
+          // Verify the installation
           const { data, error } = await supabase.functions.invoke('verify-github-installation', {
             body: { installationId }
           });
@@ -31,9 +37,17 @@ export default function GitHubCallback() {
             throw new Error(error?.message || 'Installation verification failed');
           }
 
-          // If verification is successful, store the installation ID
-          localStorage.setItem("github_app_installation_id", installationId);
-          console.log('GitHubCallback: useEffect: handleCallback: storing installation ID in localStorage');
+          // If verification is successful, store the installation ID in the database
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ github_app_installation_id: installationId })
+            .eq('id', user.id);
+
+          if (updateError) {
+            throw new Error('Failed to update profile with installation ID');
+          }
+
+          console.log('GitHubCallback: useEffect: handleCallback: storing installation ID in database');
           toast({
             title: "Success",
             description: "GitHub App installed successfully",

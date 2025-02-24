@@ -13,8 +13,21 @@ export function GitHubConnectionChecker() {
     setIsChecking(true);
     try {
       console.log("Starting GitHub App installation check...");
-      const installationId = localStorage.getItem("github_app_installation_id");
-      console.log("Retrieved installation ID from localStorage:", installationId);
+      
+      // Get current user's profile
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("No authenticated user found");
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("github_app_installation_id")
+        .eq("id", user.id)
+        .single();
+
+      const installationId = profile?.github_app_installation_id;
+      console.log("Retrieved installation ID from database:", installationId);
       
       if (!installationId) {
         console.log("No GitHub installation ID found, redirecting to installation page");
@@ -32,8 +45,13 @@ export function GitHubConnectionChecker() {
 
       if (error || !data?.active) {
         console.error("GitHub verification error:", error);
-        localStorage.removeItem("github_app_installation_id");
-        console.log("Removed invalid installation ID from localStorage");
+        // Clear the installation ID from the database
+        await supabase
+          .from("profiles")
+          .update({ github_app_installation_id: null })
+          .eq("id", user.id);
+
+        console.log("Removed invalid installation ID from database");
         const callbackUrl = `${window.location.origin}/github/callback`;
         const state = window.location.pathname;
         console.log("Redirecting user to GitHub App installation page...");
