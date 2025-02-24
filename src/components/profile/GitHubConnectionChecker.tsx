@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Github } from "lucide-react";
@@ -12,26 +11,31 @@ export function GitHubConnectionChecker() {
   const checkGitHubAppInstallation = async () => {
     setIsChecking(true);
     try {
-      const installationId = localStorage.getItem('github_app_installation_id');
+      console.log("Starting GitHub App installation check...");
+      const installationId = localStorage.getItem("github_app_installation_id");
+      console.log("Retrieved installation ID from localStorage:", installationId);
       
       if (!installationId) {
-        // If no installation ID, redirect to install page
-        console.log('No GitHub installation ID found, redirecting to installation page');
-        const callbackUrl = encodeURIComponent(window.location.origin + '/github/callback');
+        console.log("No GitHub installation ID found, redirecting to installation page");
+        const callbackUrl = encodeURIComponent(window.location.origin + "/github/callback");
         const state = encodeURIComponent(window.location.pathname);
         window.location.href = `https://github.com/apps/script-editor/installations/new?state=${state}&redirect_uri=${callbackUrl}`;
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('verify-github-installation', {
-        body: { installationId }
+      console.log("Verifying installation ID with Supabase function...");
+      const { data, error } = await supabase.functions.invoke("verify-github-installation", {
+        body: { installationId },
       });
+      console.log("Supabase function response:", { data, error });
 
       if (error || !data?.active) {
-        console.error('GitHub verification error:', error);
-        localStorage.removeItem('github_app_installation_id');
-        const callbackUrl = encodeURIComponent(window.location.origin + '/github/callback');
+        console.error("GitHub verification error:", error);
+        localStorage.removeItem("github_app_installation_id");
+        console.log("Removed invalid installation ID from localStorage");
+        const callbackUrl = encodeURIComponent(window.location.origin + "/github/callback");
         const state = encodeURIComponent(window.location.pathname);
+        console.log("Redirecting user to GitHub App installation page...");
         window.location.href = `https://github.com/apps/script-editor/installations/new?state=${state}&redirect_uri=${callbackUrl}`;
         return;
       }
@@ -40,8 +44,9 @@ export function GitHubConnectionChecker() {
         title: "Success",
         description: "GitHub App installation verified successfully",
       });
-    } catch (error: any) {
-      console.error('GitHub verification error:', error);
+      console.log("GitHub App installation verified successfully");
+    } catch (error) {
+      console.error("GitHub verification error:", error);
       toast({
         title: "Error",
         description: "Failed to verify GitHub connection",
@@ -49,6 +54,7 @@ export function GitHubConnectionChecker() {
       });
     } finally {
       setIsChecking(false);
+      console.log("GitHub App installation check complete.");
     }
   };
 

@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
-import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts";
+import { create, getNumericDate } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,22 +7,41 @@ const corsHeaders = {
 };
 
 serve(async (req: Request) => {
+  console.log(`Received request: ${req.method} ${req.url}`);
+
+  // Log all request headers
+  console.log("Request Headers:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2));
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log("Handling CORS preflight request");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     // Only allow POST requests
     if (req.method !== "POST") {
+      console.warn("Rejected non-POST request");
       return new Response("Method not allowed", { 
         status: 405,
         headers: corsHeaders
       });
     }
-    
+
     // Parse the JSON body to extract the installationId
-    const { installationId } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+      console.log("Request Body:", body);
+    } catch (parseError) {
+      console.error("Failed to parse JSON body:", parseError);
+      return new Response(
+        JSON.stringify({ active: false, error: "Invalid JSON body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { installationId } = body;
     if (!installationId) {
       console.error("Missing installationId in request.");
       return new Response(
@@ -38,9 +57,9 @@ serve(async (req: Request) => {
     const appId = Deno.env.get("GITHUB_APP_ID");
     let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
 
-    // Debugging logs
-    console.log("App ID:", appId);
-    console.log("Private Key Exists:", !!privateKey);
+    console.log("Retrieved environment variables:");
+    console.log("GITHUB_APP_ID:", appId);
+    console.log("GITHUB_APP_PRIVATE_KEY exists:", !!privateKey);
 
     if (!appId || !privateKey) {
       console.error("GitHub app credentials not set.");
@@ -59,6 +78,7 @@ serve(async (req: Request) => {
     // Generate a JWT for GitHub App authentication
     let jwt;
     try {
+      console.log("Generating JWT...");
       jwt = await create(
         { alg: "RS256", typ: "JWT" },
         {
@@ -68,7 +88,7 @@ serve(async (req: Request) => {
         },
         privateKey
       );
-      console.log("Generated JWT:", jwt.substring(0, 50) + "..."); // Print first 50 characters for debugging
+      console.log("Generated JWT:", jwt.substring(0, 50) + "..."); // Print first 50 characters
     } catch (jwtError) {
       console.error("JWT Creation Error:", jwtError);
       return new Response(
@@ -81,19 +101,23 @@ serve(async (req: Request) => {
     }
 
     // Query GitHub API to check if the installation exists/active
-    console.log(`Checking installation with ID: ${installationId}`);
+    console.log(`Checking GitHub installation with ID: ${installationId}`);
 
-    const response = await fetch(`https://api.github.com/app/installations/${installationId}`, {
+    const githubResponse = await fetch(`https://api.github.com/app/installations/${installationId}`, {
       headers: {
         Authorization: `Bearer ${jwt}`,
         Accept: "application/vnd.github+json",
       },
     });
 
-    console.log('GitHub API Response:', response.status);
+    console.log('GitHub API Response Status:', githubResponse.status);
+    
+    const responseText = await githubResponse.text();
+    console.log('GitHub API Response Body:', responseText);
 
     // If GitHub returns a successful response, the installation is valid
-    if (response.ok) {
+    if (githubResponse.ok) {
+      console.log(`Installation ${installationId} is active.`);
       return new Response(
         JSON.stringify({ active: true }), 
         {
@@ -103,7 +127,7 @@ serve(async (req: Request) => {
       );
     } else {
       // If not, return active: false
-      console.error("GitHub installation verification failed:", await response.text());
+      console.error(`GitHub installation verification failed for ID: ${installationId}`);
       return new Response(
         JSON.stringify({ active: false, error: "Invalid installation ID or authentication failed" }), 
         {
@@ -113,7 +137,7 @@ serve(async (req: Request) => {
       );
     }
   } catch (error: any) {
-    console.error("Error verifying installation:", error);
+    console.error("Unexpected error verifying installation:", error);
     return new Response(
       JSON.stringify({ active: false, error: error.message }), 
       {
