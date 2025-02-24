@@ -51,6 +51,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string
+          github_access_token: string | null
           github_app_installation_id: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
@@ -60,6 +61,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email: string
+          github_access_token?: string | null
           github_app_installation_id?: string | null
           id: string
           role?: Database["public"]["Enums"]["app_role"]
@@ -69,6 +71,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string
+          github_access_token?: string | null
           github_app_installation_id?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
