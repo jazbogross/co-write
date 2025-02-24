@@ -34,7 +34,7 @@ function encodeBase64(input: string): string {
   return btoa(binary);
 }
 
-// Helper: Create a JWT manually using crypto.subtle, as in your working function
+// Helper: Create a JWT manually using crypto.subtle (as in your working installation function)
 async function createJWT(appId: string, privateKeyPEM: string): Promise<string> {
   const header = JSON.stringify({ alg: "RS256", typ: "JWT" });
   const now = getNumericDate(0);
@@ -68,7 +68,11 @@ async function createJWT(appId: string, privateKeyPEM: string): Promise<string> 
   );
 
   const signature = new Uint8Array(
-    await crypto.subtle.sign("RSASSA-PKCS1-v1_5", privateKey, new TextEncoder().encode(data))
+    await crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      privateKey,
+      new TextEncoder().encode(data)
+    )
   );
   const signatureBase64 = encodeBase64Url(signature);
   return `${data}.${signatureBase64}`;
@@ -130,6 +134,7 @@ serve(async (req: Request) => {
       );
     }
     const installationDetails = await installationDetailsResponse.json();
+    console.log("Installation details:", installationDetails);
     if (
       !installationDetails.account ||
       !installationDetails.account.login
@@ -139,7 +144,7 @@ serve(async (req: Request) => {
     const orgLogin = installationDetails.account.login;
     console.log("Installation organization login:", orgLogin);
 
-    // Create installation access token
+    // Request an installation access token
     console.log("Requesting installation access token...");
     const installationTokenResponse = await fetch(
       `https://api.github.com/app/installations/${installationId}/access_tokens`,
