@@ -1,5 +1,6 @@
+
 import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
-import { create, getNumericDate } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
+import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,9 +9,6 @@ const corsHeaders = {
 
 serve(async (req: Request) => {
   console.log(`Received request: ${req.method} ${req.url}`);
-
-  // Log all request headers
-  console.log("Request Headers:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2));
 
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
