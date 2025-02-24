@@ -60,22 +60,25 @@ serve(async (req: Request) => {
       );
     }
 
-    // Clean up the private key
+    // Clean up and validate private key format
     privateKey = privateKey
-      .replace(/\\n/g, '\n')
-      .replace(/^"|"$/g, '')
-      .replace(/^'|'$/g, '');
+      .replace(/\\n/g, '\n') // Fix escaped newlines
+      .replace(/(^"|"$)/g, '') // Remove leading/trailing double quotes
+      .replace(/(^'|'$)/g, '') // Remove leading/trailing single quotes
+      .trim(); // Ensure no extra spaces
 
-    if (!privateKey.includes('-----BEGIN RSA PRIVATE KEY-----')) {
-      console.error("Invalid private key format");
+    console.log("Processed Private Key (first 50 chars):", privateKey.substring(0, 50) + "...");
+
+    if (!privateKey.includes("-----BEGIN RSA PRIVATE KEY-----")) {
+      console.error("Invalid private key format. Ensure it's PKCS#1 format.");
       return new Response(
-        JSON.stringify({ active: false, error: "Invalid private key format" }),
+        JSON.stringify({ active: false, error: "Invalid private key format. Must be PKCS#1" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     console.log("Attempting to create JWT...");
-    
+
     try {
       const jwtPayload = {
         iat: getNumericDate(0),
