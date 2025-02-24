@@ -1,11 +1,18 @@
 import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
-import { encodeBase64Url } from "https://deno.land/std@0.170.0/encoding/base64url.ts";
 import { getNumericDate } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Custom function to Base64 URL encode
+function encodeBase64Url(buffer: Uint8Array): string {
+  return btoa(String.fromCharCode(...buffer))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 
 // Function to sign JWT manually using Deno's built-in crypto.subtle API
 async function createJWT(appId: string, privateKeyPEM: string): Promise<string> {
@@ -21,8 +28,8 @@ async function createJWT(appId: string, privateKeyPEM: string): Promise<string> 
   const data = `${headerBase64}.${payloadBase64}`;
 
   // Convert PEM private key to CryptoKey
-  const pemHeader = "-----BEGIN RSA PRIVATE KEY-----";
-  const pemFooter = "-----END RSA PRIVATE KEY-----";
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
   privateKeyPEM = privateKeyPEM.replace(/\n/g, "").replace(pemHeader, "").replace(pemFooter, "");
 
   const binaryKey = Uint8Array.from(atob(privateKeyPEM), (c) => c.charCodeAt(0));
@@ -99,18 +106,14 @@ serve(async (req: Request) => {
     }
 
     // Clean up private key formatting
-    privateKey = privateKey
-      .replace(/\\n/g, '\n') // Fix escaped newlines
-      .replace(/(^"|"$)/g, '') // Remove leading/trailing double quotes
-      .replace(/(^'|'$)/g, '') // Remove leading/trailing single quotes
-      .trim(); // Ensure no extra spaces
+    privateKey = privateKey.replace(/\\n/g, '\n').trim();
 
-    console.log("Processed Private Key (first 50 chars):", privateKey.substring(0, 50) + "...");
+    console.log("Processed Private Key (first 200 chars):", privateKey.substring(0, 200) + "...");
 
-    if (!privateKey.includes("-----BEGIN RSA PRIVATE KEY-----")) {
-      console.error("Invalid private key format. Ensure it's PKCS#1 format.");
+    if (!privateKey.includes("-----BEGIN PRIVATE KEY-----")) {
+      console.error("Invalid private key format. Ensure it's PKCS#8 format.");
       return new Response(
-        JSON.stringify({ active: false, error: "Invalid private key format. Must be PKCS#1" }),
+        JSON.stringify({ active: false, error: "Invalid private key format. Must be PKCS#8" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
