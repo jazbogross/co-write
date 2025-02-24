@@ -32,11 +32,27 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
 
-  const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
+  const verifyGitHubConnection = async () => {
     const installationId = localStorage.getItem('github_app_installation_id');
     if (!installationId) {
       throw new Error('GitHub App not connected. Please check your GitHub connection in the profile settings.');
     }
+
+    // Verify the installation is still valid
+    const { data, error } = await supabase.functions.invoke('verify-github-installation', {
+      body: { installationId }
+    });
+
+    if (error || !data?.active) {
+      localStorage.removeItem('github_app_installation_id');
+      throw new Error('GitHub connection is invalid. Please reconnect in the profile settings.');
+    }
+
+    return installationId;
+  };
+
+  const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
+    const installationId = await verifyGitHubConnection();
 
     const { data: userData } = await supabase.auth.getUser();
     const { data: profile } = await supabase
@@ -76,7 +92,10 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
+      // First verify GitHub connection and create repository
       const repo = await createGitHubRepository(newTitle);
+
+      // Then create the script in our database
       const { data: script, error: scriptError } = await supabase
         .from("scripts")
         .insert([{
