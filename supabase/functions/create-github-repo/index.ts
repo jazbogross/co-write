@@ -35,29 +35,41 @@ serve(async (req) => {
     }
 
     console.log("🔑 Retrieving GitHub App credentials...");
-    let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
-    const appId = Deno.env.get("GITHUB_APP_ID");
+    let privateKey: string | null = null;
+    let appId: string | null = null;
+
+    try {
+      privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY") || null;
+      appId = Deno.env.get("GITHUB_APP_ID") || null;
+    } catch (error) {
+      throw new Error("❌ Failed to retrieve environment variables: " + error.message);
+    }
 
     console.log(`✅ GITHUB_APP_ID: ${appId}`);
     console.log(`✅ GITHUB_APP_PRIVATE_KEY Exists: ${!!privateKey}`);
 
     if (!appId || !privateKey) {
-      throw new Error('❌ GitHub App credentials are not set');
+      throw new Error('❌ GitHub App credentials are not set in environment variables.');
     }
 
-    // DEBUG: Log the raw private key (first 200 chars, masked for security)
-    console.log("🔍 Raw Private Key (first 200 chars):", JSON.stringify(privateKey.substring(0, 200)) + "...");
+    // Debug: Log the raw private key **before processing**
+    console.log(`🔍 Raw Private Key Length: ${privateKey.length}`);
+    console.log("🔍 Raw Private Key (first 5 lines, as stored in Supabase):\n" + privateKey.split("\n").slice(0, 5).join("\n"));
 
-    // Fix newlines & encoding issues
+    // Ensure privateKey is a string before applying `.replace()`
+    privateKey = String(privateKey);
+
+    // Fix newline and encoding issues
     privateKey = privateKey
-      .replace(/\\n/g, '\n') // Convert escaped newlines
+      .replace(/\\n/g, '\n')  // Convert escaped newlines
       .replace(/\r\n/g, '\n') // Normalize Windows-style newlines
       .replace(/^"|"$/g, '')  // Remove surrounding double quotes
       .replace(/^'|'$/g, '')  // Remove surrounding single quotes
       .trim();
 
-    // DEBUG: Log the cleaned-up private key (first 200 chars)
-    console.log("✅ Processed Private Key (first 200 chars):", JSON.stringify(privateKey.substring(0, 200)) + "...");
+    // Debug: Log processed private key
+    console.log(`✅ Processed Private Key Length: ${privateKey.length}`);
+    console.log("✅ Processed Private Key (first 5 lines, after cleanup):\n" + privateKey.split("\n").slice(0, 5).join("\n"));
 
     // Ensure it's PKCS#8
     if (!privateKey.includes("-----BEGIN PRIVATE KEY-----")) {
@@ -174,7 +186,7 @@ serve(async (req) => {
 
     } catch (error) {
       console.error("❌ Error in GitHub App authentication:", error);
-      throw new Error("GitHub authentication failed: " + error.message);
+      throw new Error(`GitHub authentication failed: ${error.message}, App ID: ${appId}, Installation ID: ${installationId}`);
     }
   } catch (error) {
     console.error('❌ Error:', error)
