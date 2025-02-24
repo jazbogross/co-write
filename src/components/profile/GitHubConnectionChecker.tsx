@@ -13,8 +13,10 @@ export function GitHubConnectionChecker() {
     setIsChecking(true);
     try {
       const installationId = localStorage.getItem('github_app_installation_id');
+      console.log(installationId);
       if (!installationId) {
         // If no installation ID, redirect to install page
+        console.error('No GitHub installation ID found');
         window.location.href = `https://github.com/apps/script-editor/installations/new?state=${encodeURIComponent(window.location.origin + '/github/callback')}`;
         return;
       }
@@ -24,6 +26,7 @@ export function GitHubConnectionChecker() {
       });
 
       if (error || !data?.active) {
+        console.error('GitHub verification error:', error);
         localStorage.removeItem('github_app_installation_id');
         window.location.href = `https://github.com/apps/script-editor/installations/new?state=${encodeURIComponent(window.location.origin + '/github/callback')}`;
         return;

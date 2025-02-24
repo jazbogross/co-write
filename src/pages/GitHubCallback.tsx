@@ -16,6 +16,7 @@ export default function GitHubCallback() {
       if (installationId) {
         try {
           // Verify the installation
+          console.log('Verifying GitHub installation...');
           const { data, error } = await supabase.functions.invoke('verify-github-installation', {
             body: { installationId }
           });
