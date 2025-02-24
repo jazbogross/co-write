@@ -82,6 +82,30 @@ const Auth = () => {
         });
         return;
       }
+
+      // After successful GitHub auth, get the access token from the session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.provider_token) {
+        // Store the GitHub access token in the profiles table
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ github_access_token: session.provider_token })
+          .eq('id', session.user.id);
+
+        if (updateError) {
+          console.error('Failed to store GitHub token:', updateError);
+          toast({
+            title: "Warning",
+            description: "Failed to store GitHub access token",
+            variant: "destructive",
+          });
+        } else {
+          console.log('Successfully stored GitHub access token');
+        }
+      }
+
+      // Navigate to home page after successful auth
+      navigate('/');
     } catch (error) {
       console.error('GitHub auth error:', error);
       toast({
