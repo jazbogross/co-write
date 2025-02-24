@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { Octokit } from 'https://esm.sh/@octokit/rest'
@@ -62,12 +61,16 @@ serve(async (req) => {
     // Create a unique branch name for this suggestion
     const branchName = `suggestion-${crypto.randomUUID()}`
 
-    // Initialize GitHub client
+    // Try to get the session to check for a GitHub OAuth token
+    const { data: { session } } = await supabaseClient.auth.getSession()
+    const githubToken = session?.provider_token ?? Deno.env.get('GITHUB_PAT')
+
+    // Initialize GitHub client with the appropriate token
     const octokit = new Octokit({
-      auth: Deno.env.get('GITHUB_PAT')
+      auth: githubToken
     })
 
-    // Find the first line number that differs
+    // Find the first line number that differs between the original and new content
     const originalLines = script.content.split('\n')
     const newLines = content.split('\n')
     let firstChangedLine = 1
@@ -85,7 +88,7 @@ serve(async (req) => {
       ref: 'heads/main'
     })
 
-    // Create new branch
+    // Create new branch for the suggestion
     await octokit.rest.git.createRef({
       owner: script.github_owner,
       repo: script.github_repo,
@@ -93,7 +96,7 @@ serve(async (req) => {
       sha: ref.object.sha
     })
 
-    // Get the current file to get its SHA
+    // Get the current file to retrieve its SHA
     const { data: file } = await octokit.rest.repos.getContent({
       owner: script.github_owner,
       repo: script.github_repo,
@@ -105,7 +108,7 @@ serve(async (req) => {
       throw new Error('Could not get file SHA')
     }
 
-    // Update file in the new branch
+    // Update the file in the new branch with the suggested content
     await octokit.rest.repos.createOrUpdateFileContents({
       owner: script.github_owner,
       repo: script.github_repo,
@@ -116,7 +119,7 @@ serve(async (req) => {
       sha: file.sha
     })
 
-    // Create suggestion in database
+    // Create the suggestion record in the database
     const { data: suggestion, error: suggestionError } = await supabaseClient
       .from('script_suggestions')
       .insert([{
