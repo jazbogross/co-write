@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { Octokit } from 'https://esm.sh/@octokit/rest'
@@ -11,6 +10,7 @@ const corsHeaders = {
 interface RequestBody {
   scriptId: string;
   content: string;
+  githubAccessToken: string;
 }
 
 serve(async (req) => {
@@ -20,15 +20,20 @@ serve(async (req) => {
   }
 
   try {
+    // Parse request body
+    const { scriptId, content, githubAccessToken } = await req.json() as RequestBody
+
+    // Validate GitHub OAuth token
+    if (!githubAccessToken) {
+      throw new Error('❌ GitHub OAuth access token is required')
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get request body
-    const { scriptId, content } = await req.json() as RequestBody
-
-    // Get script details
+    // Get script details from Supabase
     const { data: script, error: scriptError } = await supabaseClient
       .from('scripts')
       .select('github_repo, github_owner, admin_id')
@@ -55,9 +60,9 @@ serve(async (req) => {
       )
     }
 
-    // Initialize Octokit
+    // Initialize Octokit using the provided GitHub OAuth access token
     const octokit = new Octokit({
-      auth: Deno.env.get('GITHUB_PAT')
+      auth: githubAccessToken
     })
 
     try {
@@ -68,14 +73,14 @@ serve(async (req) => {
         ref: 'heads/main'
       })
 
-      // Get the current tree
+      // Get the current commit details
       const { data: commit } = await octokit.rest.git.getCommit({
         owner: script.github_owner,
         repo: script.github_repo,
         commit_sha: ref.object.sha
       })
 
-      // Create a new blob with the content
+      // Create a new blob with the updated content
       const { data: blob } = await octokit.rest.git.createBlob({
         owner: script.github_owner,
         repo: script.github_repo,
@@ -83,7 +88,7 @@ serve(async (req) => {
         encoding: 'utf-8'
       })
 
-      // Create a new tree
+      // Create a new tree containing the updated file
       const { data: tree } = await octokit.rest.git.createTree({
         owner: script.github_owner,
         repo: script.github_repo,
@@ -96,7 +101,7 @@ serve(async (req) => {
         }]
       })
 
-      // Create a new commit
+      // Create a new commit with the new tree
       const { data: newCommit } = await octokit.rest.git.createCommit({
         owner: script.github_owner,
         repo: script.github_repo,
@@ -105,7 +110,7 @@ serve(async (req) => {
         parents: [ref.object.sha]
       })
 
-      // Update the reference
+      // Update the reference for the main branch
       await octokit.rest.git.updateRef({
         owner: script.github_owner,
         repo: script.github_repo,
@@ -113,7 +118,7 @@ serve(async (req) => {
         sha: newCommit.sha
       })
 
-      // Update script content in Supabase
+      // Update the script content in Supabase
       const { error: updateError } = await supabaseClient
         .from('scripts')
         .update({ content })
