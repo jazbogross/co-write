@@ -35,14 +35,20 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     setIsSubmitting(true);
     try {
       if (isAdmin) {
-        // Call the commit-script-changes function
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+        // Retrieve the session to get the GitHub OAuth token
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+        const githubAccessToken = session.provider_token;
+        if (!githubAccessToken) {
+          throw new Error('GitHub OAuth access token is missing');
+        }
 
+        // Call the commit-script-changes function with the GitHub token
         const response = await supabase.functions.invoke('commit-script-changes', {
           body: {
             scriptId,
             content,
+            githubAccessToken,
           }
         });
 
@@ -54,7 +60,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           description: "Your changes have been committed successfully",
         });
       } else {
-        // Call the create-change-suggestion function
+        // Call the create-change-suggestion function for non-admin users
         const response = await supabase.functions.invoke('create-change-suggestion', {
           body: {
             scriptId,
@@ -72,7 +78,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         // Reset content to original after successful submission
         setContent(originalContent);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting changes:', error);
       toast({
         title: "Error",
@@ -101,7 +107,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           {isSubmitting ? (
             isAdmin ? "Committing..." : "Submitting..."
           ) : (
-            isAdmin ? "Commit Changes" : "Suggest Changes"
+            isAdmin ? "Save Changes" : "Suggest Changes"
           )}
         </Button>
       </div>
