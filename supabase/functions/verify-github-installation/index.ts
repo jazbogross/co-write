@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
 import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts";
 
@@ -25,6 +24,7 @@ serve(async (req: Request) => {
     // Parse the JSON body to extract the installationId
     const { installationId } = await req.json();
     if (!installationId) {
+      console.error("Missing installationId in request.");
       return new Response(
         JSON.stringify({ active: false, error: "Missing installationId" }), 
         { 
@@ -36,8 +36,14 @@ serve(async (req: Request) => {
 
     // Retrieve GitHub App credentials from environment variables
     const appId = Deno.env.get("GITHUB_APP_ID");
-    const privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
+    let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
+
+    // Debugging logs
+    console.log("App ID:", appId);
+    console.log("Private Key Exists:", !!privateKey);
+
     if (!appId || !privateKey) {
+      console.error("GitHub app credentials not set.");
       return new Response(
         JSON.stringify({ active: false, error: "GitHub app credentials not set" }),
         { 
@@ -47,18 +53,36 @@ serve(async (req: Request) => {
       );
     }
 
+    // Restore newlines in private key (fix for environment variable formatting issues)
+    privateKey = privateKey.replace(/\\n/g, "\n");
+
     // Generate a JWT for GitHub App authentication
-    const jwt = await create(
-      { alg: "RS256", typ: "JWT" },
-      {
-        iat: getNumericDate(0),
-        exp: getNumericDate(60 * 10), // JWT valid for 10 minutes
-        iss: appId,
-      },
-      privateKey
-    );
+    let jwt;
+    try {
+      jwt = await create(
+        { alg: "RS256", typ: "JWT" },
+        {
+          iat: getNumericDate(0),
+          exp: getNumericDate(60 * 10), // JWT valid for 10 minutes
+          iss: appId,
+        },
+        privateKey
+      );
+      console.log("Generated JWT:", jwt.substring(0, 50) + "..."); // Print first 50 characters for debugging
+    } catch (jwtError) {
+      console.error("JWT Creation Error:", jwtError);
+      return new Response(
+        JSON.stringify({ active: false, error: "Failed to generate JWT" }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
 
     // Query GitHub API to check if the installation exists/active
+    console.log(`Checking installation with ID: ${installationId}`);
+
     const response = await fetch(`https://api.github.com/app/installations/${installationId}`, {
       headers: {
         Authorization: `Bearer ${jwt}`,
@@ -79,10 +103,11 @@ serve(async (req: Request) => {
       );
     } else {
       // If not, return active: false
+      console.error("GitHub installation verification failed:", await response.text());
       return new Response(
-        JSON.stringify({ active: false }), 
+        JSON.stringify({ active: false, error: "Invalid installation ID or authentication failed" }), 
         {
-          status: 200,
+          status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         }
       );
