@@ -1,257 +1,108 @@
-import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
-import { getNumericDate } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 
-// CORS headers
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { Octokit } from 'https://esm.sh/@octokit/rest'
+
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 interface RequestBody {
   scriptName: string;
   originalCreator: string;
   coAuthors: string[];
   isPrivate: boolean;
-  installationId: string;
+  githubAccessToken: string; // Now expecting OAuth token instead of installation ID
 }
 
-// Helper: Base64 URL encoding (for JWT parts)
-function encodeBase64Url(buffer: Uint8Array): string {
-  return btoa(String.fromCharCode(...buffer))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
+serve(async (req) => {
+  console.log(`📌 Received request: ${req.method} ${req.url}`);
 
-// Helper: Standard base64 encoding (for file contents)
-function encodeBase64(input: string): string {
-  const bytes = new TextEncoder().encode(input);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  if (req.method === 'OPTIONS') {
+    console.log("🔄 Handling CORS preflight request");
+    return new Response(null, { headers: corsHeaders })
   }
-  return btoa(binary);
-}
 
-// Helper: Create a JWT manually using crypto.subtle (as in your working installation function)
-async function createJWT(appId: string, privateKeyPEM: string): Promise<string> {
-  const header = JSON.stringify({ alg: "RS256", typ: "JWT" });
-  const now = getNumericDate(0);
-  const payload = JSON.stringify({
-    iat: now,
-    exp: now + 580, // 10 minutes expiration
-    iss: appId,
-  });
-
-  const headerBase64 = encodeBase64Url(new TextEncoder().encode(header));
-  const payloadBase64 = encodeBase64Url(new TextEncoder().encode(payload));
-  const data = `${headerBase64}.${payloadBase64}`;
-
-  // Remove PEM header/footer and newlines
-  const pemHeader = "-----BEGIN PRIVATE KEY-----";
-  const pemFooter = "-----END PRIVATE KEY-----";
-  const keyContents = privateKeyPEM
-    .replace(/\n/g, "")
-    .replace(pemHeader, "")
-    .replace(pemFooter, "");
-  const binaryKey = Uint8Array.from(atob(keyContents), (c) =>
-    c.charCodeAt(0)
-  );
-
-  const privateKey = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signature = new Uint8Array(
-    await crypto.subtle.sign(
-      "RSASSA-PKCS1-v1_5",
-      privateKey,
-      new TextEncoder().encode(data)
-    )
-  );
-  const signatureBase64 = encodeBase64Url(signature);
-  return `${data}.${signatureBase64}`;
-}
-
-serve(async (req: Request) => {
-  console.log(`Received request: ${req.method} ${req.url}`);
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
   try {
-    if (req.method !== "POST") {
-      return new Response("Method not allowed", {
-        status: 405,
-        headers: corsHeaders,
-      });
-    }
+    console.log("📥 Parsing request body...");
     const body = await req.json() as RequestBody;
-    console.log("Request Body:", body);
-    const { scriptName, originalCreator, coAuthors, isPrivate, installationId } =
-      body;
-    if (!installationId) {
-      throw new Error("Missing installationId");
+    console.log("✅ Request Body:", JSON.stringify(body, null, 2));
+
+    const { scriptName, originalCreator, coAuthors, isPrivate, githubAccessToken } = body;
+
+    if (!githubAccessToken) {
+      throw new Error('❌ GitHub OAuth access token is required');
     }
 
-    // Retrieve GitHub App credentials
-    const appId = Deno.env.get("GITHUB_APP_ID");
-    let privateKey = Deno.env.get("GITHUB_APP_PRIVATE_KEY");
-    if (!appId || !privateKey) {
-      throw new Error("GitHub App credentials not set");
-    }
-    // Process private key: replace escaped newlines
-    privateKey = privateKey.replace(/\\n/g, "\n").trim();
-    if (!privateKey.includes("-----BEGIN PRIVATE KEY-----")) {
-      throw new Error("Invalid private key format. Must be PKCS#8.");
-    }
-    console.log("Using App ID:", appId);
-
-    // Create JWT using our proven method
-    console.log("Creating JWT...");
-    const jwt = await createJWT(appId, privateKey);
-    console.log("JWT created (first 50 chars):", jwt.substring(0, 50) + "...");
-
-    // Use JWT to get installation details (to extract account info)
-    const installationDetailsResponse = await fetch(
-      `https://api.github.com/app/installations/${installationId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      }
-    );
-    if (!installationDetailsResponse.ok) {
-      const text = await installationDetailsResponse.text();
-      throw new Error(
-        `Failed to get installation details: ${installationDetailsResponse.status} ${text}`
-      );
-    }
-    const installationDetails = await installationDetailsResponse.json();
-    console.log("Installation details:", installationDetails);
-    if (
-      !installationDetails.account ||
-      !installationDetails.account.login
-    ) {
-      throw new Error("Installation details missing account information");
-    }
-    const accountType = installationDetails.account.type;
-    const accountLogin = installationDetails.account.login;
-    console.log("Installation account type:", accountType);
-    console.log("Installation account login:", accountLogin);
-
-    // Request an installation access token
-    console.log("Requesting installation access token...");
-    const installationTokenResponse = await fetch(
-      `https://api.github.com/app/installations/${installationId}/access_tokens`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      }
-    );
-    if (!installationTokenResponse.ok) {
-      const text = await installationTokenResponse.text();
-      throw new Error(
-        `Failed to get installation token: ${installationTokenResponse.status} ${text}`
-      );
-    }
-    const installationTokenData = await installationTokenResponse.json();
-    const installationToken = installationTokenData.token;
-    console.log("Installation token obtained.");
-
-    // Use Octokit with the installation token to create the repository.
-    const { Octokit } = await import("https://esm.sh/@octokit/core");
-    const octokit = new Octokit({ auth: installationToken });
-    const repoName = `script-${scriptName}-${Date.now()}`;
-    console.log("Creating repository:", repoName);
-
-    // Choose the appropriate endpoint based on account type
-    let createRepoResponse;
-    if (accountType === "Organization") {
-      createRepoResponse = await octokit.request("POST /orgs/{org}/repos", {
-        org: accountLogin,
-        name: repoName,
-        private: isPrivate,
-        auto_init: true,
-      });
-    } else {
-      createRepoResponse = await octokit.request("POST /user/repos", {
-        name: repoName,
-        private: isPrivate,
-        auto_init: true,
-      });
-    }
-    console.log("Repository created:", createRepoResponse.data.html_url);
-
-    // Wait a short while for auto‑init to complete
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Build initial README content
-    const readmeContent = `# ${scriptName}\n\nCreated by: ${originalCreator}\n${
-      coAuthors.length
-        ? `\nContributors:\n${coAuthors.map((author) => `- ${author}`).join("\n")}`
-        : ""
-    }`;
-    // Check if README exists (it should, because auto_init is true)
-    let sha: string | undefined;
     try {
-      const getReadmeResponse = await octokit.request(
-        "GET /repos/{owner}/{repo}/contents/{path}",
-        { owner: accountLogin, repo: repoName, path: "README.md" }
-      );
-      sha = getReadmeResponse.data.sha;
-      console.log("Existing README found, SHA:", sha);
-    } catch (error: any) {
-      if (error.status === 404) {
-        console.log("README not found; will create new one.");
-      } else {
-        throw error;
-      }
-    }
-    const readmeParams: Record<string, unknown> = {
-      owner: accountLogin,
-      repo: repoName,
-      path: "README.md",
-      message: "Initial commit: Add README",
-      content: encodeBase64(readmeContent),
-      branch: "main",
-    };
-    if (sha) {
-      readmeParams.sha = sha;
-    }
-    console.log("Creating/updating README...");
-    await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", readmeParams);
-    console.log("Repository setup complete.");
+      console.log("🔐 Initializing GitHub client with OAuth token...");
+      const octokit = new Octokit({
+        auth: githubAccessToken
+      });
 
-    return new Response(
-      JSON.stringify({
+      // Verify the token by getting the authenticated user
+      console.log("🔎 Verifying GitHub OAuth token...");
+      const { data: user } = await octokit.rest.users.getAuthenticated();
+      console.log(`✅ Authenticated as GitHub user: ${user.login}`);
+
+      // Create a unique repository name
+      const repoName = `script-${scriptName}-${Date.now()}`
+      console.log(`📂 Creating repository: ${repoName}`);
+
+      // Create the repository in the user's account
+      const { data: repo } = await octokit.rest.repos.createForAuthenticatedUser({
         name: repoName,
-        owner: accountLogin,
-        html_url: createRepoResponse.data.html_url,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
-    );
-  } catch (error: any) {
-    console.error("Error:", error);
+        private: isPrivate,
+        auto_init: true,
+      });
+
+      console.log(`✅ Repository created successfully: ${repo.html_url}`);
+
+      // Wait for repository initialization
+      console.log("⏳ Waiting 1 second for repository initialization...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Create initial README content
+      const readmeContent = `# ${scriptName}\n\nCreated by: ${originalCreator}\n${
+        coAuthors.length ? `\nContributors:\n${coAuthors.map(author => `- ${author}`).join('\n')}` : ''
+      }`;
+
+      console.log("📝 Creating initial README...");
+      await octokit.rest.repos.createOrUpdateFileContents({
+        owner: user.login,
+        repo: repoName,
+        path: 'README.md',
+        message: 'Initial commit: Add README',
+        content: btoa(readmeContent),
+        branch: 'main'
+      });
+
+      console.log('🎉 Repository setup complete');
+
+      return new Response(
+        JSON.stringify({
+          name: repoName,
+          owner: user.login,
+          html_url: repo.html_url
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        },
+      );
+
+    } catch (error) {
+      console.error("❌ Error in GitHub operations:", error);
+      throw new Error(`GitHub operation failed: ${error.message}`);
+    }
+  } catch (error) {
+    console.error('❌ Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
-      }
+      },
     );
   }
 });
