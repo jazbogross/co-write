@@ -40,34 +40,20 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('github_app_installation_id')
+      .select('github_access_token')
       .eq('id', user.id)
       .single();
 
-    const installationId = profile?.github_app_installation_id;
-    if (!installationId) {
-      throw new Error('GitHub App not connected. Please check your GitHub connection in the profile settings.');
+    const accessToken = profile?.github_access_token;
+    if (!accessToken) {
+      throw new Error('GitHub not connected. Please connect your GitHub account in the profile settings.');
     }
 
-    // Verify the installation is still valid
-    const { data, error } = await supabase.functions.invoke('verify-github-installation', {
-      body: { installationId }
-    });
-
-    if (error || !data?.active) {
-      // Clear the invalid installation ID
-      await supabase
-        .from('profiles')
-        .update({ github_app_installation_id: null })
-        .eq('id', user.id);
-      throw new Error('GitHub connection is invalid. Please reconnect in the profile settings.');
-    }
-
-    return installationId;
+    return accessToken;
   };
 
   const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
-    const installationId = await verifyGitHubConnection();
+    const githubAccessToken = await verifyGitHubConnection();
 
     const { data: userData } = await supabase.auth.getUser();
     const { data: profile } = await supabase
@@ -82,7 +68,7 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         originalCreator: profile?.username || 'user',
         coAuthors: [],
         isPrivate: isPrivate,
-        installationId: installationId
+        githubAccessToken
       }
     });
 
