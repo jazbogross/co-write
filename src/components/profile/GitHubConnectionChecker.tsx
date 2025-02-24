@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Github } from "lucide-react";
@@ -17,8 +18,8 @@ export function GitHubConnectionChecker() {
       
       if (!installationId) {
         console.log("No GitHub installation ID found, redirecting to installation page");
-        const callbackUrl = encodeURIComponent(window.location.origin + "/github/callback");
-        const state = encodeURIComponent(window.location.pathname);
+        const callbackUrl = `${window.location.origin}/github/callback`;
+        const state = window.location.pathname;
         window.location.href = `https://github.com/apps/script-editor/installations/new?state=${state}&redirect_uri=${callbackUrl}`;
         return;
       }
@@ -33,8 +34,8 @@ export function GitHubConnectionChecker() {
         console.error("GitHub verification error:", error);
         localStorage.removeItem("github_app_installation_id");
         console.log("Removed invalid installation ID from localStorage");
-        const callbackUrl = encodeURIComponent(window.location.origin + "/github/callback");
-        const state = encodeURIComponent(window.location.pathname);
+        const callbackUrl = `${window.location.origin}/github/callback`;
+        const state = window.location.pathname;
         console.log("Redirecting user to GitHub App installation page...");
         window.location.href = `https://github.com/apps/script-editor/installations/new?state=${state}&redirect_uri=${callbackUrl}`;
         return;
@@ -44,8 +45,7 @@ export function GitHubConnectionChecker() {
         title: "Success",
         description: "GitHub App installation verified successfully",
       });
-      console.log("GitHub App installation verified successfully");
-    } catch (error) {
+    } catch (error: any) {
       console.error("GitHub verification error:", error);
       toast({
         title: "Error",
@@ -54,7 +54,6 @@ export function GitHubConnectionChecker() {
       });
     } finally {
       setIsChecking(false);
-      console.log("GitHub App installation check complete.");
     }
   };
 
