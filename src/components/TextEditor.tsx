@@ -1,5 +1,4 @@
-
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { Button } from '@/components/ui/button';
@@ -14,7 +13,6 @@ const modules = {
 };
 
 const formats = ['bold', 'italic', 'align'];
-const linesPerPage = 32;
 
 interface TextEditorProps {
   isAdmin: boolean;
@@ -31,44 +29,21 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 }) => {
   const quillRef = useRef(null);
   const [content, setContent] = useState(originalContent);
-  const [pages, setPages] = useState([[]]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const { toast } = useToast();
 
-  const paginateContent = () => {
-    const editor = quillRef.current?.getEditor();
-    if (!editor) return;
-
-    const allLines = editor.getLines();
-    let paginatedPages = [];
-
-    if (allLines.length === 0) {
-      paginatedPages = [[]]; // Ensure at least one empty page
-    } else {
-      for (let i = 0; i < allLines.length; i += linesPerPage) {
-        paginatedPages.push(allLines.slice(i, i + linesPerPage));
-      }
-    }
-
-    setPages(paginatedPages);
-  };
-
   const handleChange = (content: string) => {
     setContent(content);
-    paginateContent();
   };
 
   const formatText = (format: string, value: any) => {
     const editor = quillRef.current?.getEditor();
     if (editor) {
-      editor.format(format, value);
+      const format_value = editor.getFormat();
+      editor.format(format, !format_value[format]); // Toggle the format
     }
   };
-
-  useEffect(() => {
-    paginateContent();
-  }, []);
 
   const handleSubmit = async () => {
     if (content === originalContent) {
@@ -135,10 +110,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   };
 
   return (
-    <div className="flex min-h-screen bg-editor-background text-white">
+    <div className="flex min-h-screen bg-editor-background text-black">
       {/* Toolbar */}
       <div className="w-48 bg-gray-800 border-r border-gray-700 p-4 space-y-2">
-        <h3 className="text-sm font-semibold mb-4">Formatting</h3>
+        <h3 className="text-sm font-semibold mb-4 text-white">Formatting</h3>
         <div className="space-y-2">
           <Button 
             variant="outline" 
@@ -190,7 +165,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
       {/* Main Editor Area */}
       <div className="flex-1 py-8 overflow-auto">
-        <div className="w-a4 mx-auto space-y-8">
+        <div className="w-a4 mx-auto">
           <div className="bg-editor-page shadow-lg p-8 min-h-a4-page">
             <ReactQuill
               ref={quillRef}
@@ -204,36 +179,23 @@ export const TextEditor: React.FC<TextEditorProps> = ({
                 fontFamily: 'Courier New, monospace',
                 fontSize: '12px',
                 lineHeight: 1.5,
+                color: '#000000',
               }}
             />
           </div>
-          {pages.slice(1).map((page, pageIndex) => (
-            <div
-              key={pageIndex}
-              className="bg-editor-page shadow-lg p-8 min-h-a4-page"
+          <div className="mt-4">
+            <Button 
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="w-full"
             >
-              <div className="h-full">
-                {page.map((line, lineIndex) => (
-                  <div key={lineIndex} className="whitespace-pre-wrap">
-                    {line.domNode?.textContent || ''}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="w-a4 mx-auto mt-4">
-          <Button 
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="w-full"
-          >
-            {isSubmitting ? (
-              isAdmin ? "Committing..." : "Submitting..."
-            ) : (
-              isAdmin ? "Save Changes" : "Suggest Changes"
-            )}
-          </Button>
+              {isSubmitting ? (
+                isAdmin ? "Committing..." : "Submitting..."
+              ) : (
+                isAdmin ? "Save Changes" : "Suggest Changes"
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
