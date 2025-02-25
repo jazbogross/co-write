@@ -1,9 +1,11 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { SuggestionList } from './SuggestionList';
 import { supabase } from '@/integrations/supabase/client';
+import { ChevronRight, ChevronLeft } from 'lucide-react';
 
 interface TextEditorProps {
   isAdmin: boolean;
@@ -20,6 +22,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 }) => {
   const [content, setContent] = useState(originalContent);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const { toast } = useToast();
 
   const handleSubmit = async () => {
@@ -35,7 +38,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     setIsSubmitting(true);
     try {
       if (isAdmin) {
-        // Retrieve the session to get the GitHub OAuth token
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error('Not authenticated');
         const githubAccessToken = session.provider_token;
@@ -43,7 +45,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           throw new Error('GitHub OAuth access token is missing');
         }
 
-        // Call the commit-script-changes function with the GitHub token
         const response = await supabase.functions.invoke('commit-script-changes', {
           body: {
             scriptId,
@@ -60,7 +61,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           description: "Your changes have been committed successfully",
         });
       } else {
-        // Call the create-change-suggestion function for non-admin users
         const response = await supabase.functions.invoke('create-change-suggestion', {
           body: {
             scriptId,
@@ -75,7 +75,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           description: "Your suggestion has been submitted for review",
         });
         
-        // Reset content to original after successful submission
         setContent(originalContent);
       }
     } catch (error: any) {
@@ -90,28 +89,63 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   };
 
+  const pages = Math.ceil(content.split('\n').length / 32);
+
   return (
-    <div className="space-y-4">
-      <Textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        className="min-h-[200px] md:min-h-[300px] font-mono text-sm"
-        placeholder="Enter your text here..."
-      />
-      <div className="flex justify-end">
-        <Button 
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          className="w-full md:w-auto"
-        >
-          {isSubmitting ? (
-            isAdmin ? "Committing..." : "Submitting..."
-          ) : (
-            isAdmin ? "Save Changes" : "Suggest Changes"
-          )}
-        </Button>
+    <div className="flex min-h-screen bg-editor-background text-white">
+      <div className="flex-1 py-8 overflow-auto">
+        <div className="w-a4 mx-auto space-y-8">
+          {Array.from({ length: pages }).map((_, index) => (
+            <div
+              key={index}
+              className="bg-editor-page shadow-lg p-8 min-h-a4-page"
+            >
+              <Textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="w-full h-full bg-transparent border-none font-mono text-sm leading-relaxed text-black resize-none focus:outline-none focus:ring-0"
+                style={{
+                  fontFamily: 'Courier New, monospace',
+                  fontSize: '12px',
+                  lineHeight: 1.5,
+                }}
+                placeholder="Enter your text here..."
+              />
+            </div>
+          ))}
+        </div>
+        <div className="w-a4 mx-auto mt-4">
+          <Button 
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="w-full"
+          >
+            {isSubmitting ? (
+              isAdmin ? "Committing..." : "Submitting..."
+            ) : (
+              isAdmin ? "Save Changes" : "Suggest Changes"
+            )}
+          </Button>
+        </div>
       </div>
-      {isAdmin && <SuggestionList scriptId={scriptId} />}
+
+      {isAdmin && (
+        <div className={`transition-all duration-300 ${isSuggestionsOpen ? 'w-80' : 'w-12'}`}>
+          <div className="h-full bg-gray-800 border-l border-gray-700">
+            <button
+              onClick={() => setIsSuggestionsOpen(!isSuggestionsOpen)}
+              className="w-full p-3 flex items-center justify-center hover:bg-gray-700 transition-colors"
+            >
+              {isSuggestionsOpen ? <ChevronRight /> : <ChevronLeft />}
+            </button>
+            {isSuggestionsOpen && (
+              <div className="p-4">
+                <SuggestionList scriptId={scriptId} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
