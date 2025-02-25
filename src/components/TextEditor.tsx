@@ -1,14 +1,13 @@
-
 import React, { useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { SuggestionList } from './SuggestionList';
 import { supabase } from '@/integrations/supabase/client';
-import { ChevronRight, ChevronLeft, Bold, Italic, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { EditorToolbar } from './editor/EditorToolbar';
+import { LineNumbers } from './editor/LineNumbers';
+import { SuggestionsPanel } from './editor/SuggestionsPanel';
 
-// Quill configuration
 const modules = {
   toolbar: false,
 };
@@ -120,75 +119,14 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   };
 
-  const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
-
   return (
     <div className="flex min-h-screen bg-editor-background text-black">
-      {/* Toolbar */}
-      <div className="w-48 bg-gray-800 border-r border-gray-700 p-4 space-y-2">
-        <h3 className="text-sm font-semibold mb-4 text-white">Formatting</h3>
-        <div className="space-y-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full justify-start"
-            onClick={() => formatText('bold', true)}
-          >
-            <Bold className="w-4 h-4 mr-2" />
-            Bold
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full justify-start"
-            onClick={() => formatText('italic', true)}
-          >
-            <Italic className="w-4 h-4 mr-2" />
-            Italic
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full justify-start"
-            onClick={() => formatText('align', false)}
-          >
-            <AlignLeft className="w-4 h-4 mr-2" />
-            Left
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full justify-start"
-            onClick={() => formatText('align', 'center')}
-          >
-            <AlignCenter className="w-4 h-4 mr-2" />
-            Center
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full justify-start"
-            onClick={() => formatText('align', 'right')}
-          >
-            <AlignRight className="w-4 h-4 mr-2" />
-            Right
-          </Button>
-        </div>
-      </div>
+      <EditorToolbar onFormat={formatText} />
 
-      {/* Main Editor Area */}
       <div className="flex-1 py-8 overflow-auto">
         <div className="w-a4 mx-auto">
           <div className="bg-editor-page shadow-lg p-8 min-h-a4-page flex">
-            {/* Line Numbers */}
-            <div className="pr-4 select-none text-right border-r border-gray-200 mr-4" style={{ minWidth: '30px' }}>
-              {lineNumbers.map(num => (
-                <div key={num} className="text-gray-400 text-xs line-number" style={{ height: '18px' }}>
-                  {num}
-                </div>
-              ))}
-            </div>
-            {/* Editor */}
+            <LineNumbers count={lineCount} />
             <div className="flex-1">
               <ReactQuill
                 ref={quillRef}
@@ -222,23 +160,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         </div>
       </div>
 
-      {/* Suggestions Panel */}
       {isAdmin && (
-        <div className={`transition-all duration-300 ${isSuggestionsOpen ? 'w-80' : 'w-12'}`}>
-          <div className="h-full bg-gray-800 border-l border-gray-700">
-            <button
-              onClick={() => setIsSuggestionsOpen(!isSuggestionsOpen)}
-              className="w-full p-3 flex items-center justify-center hover:bg-gray-700 transition-colors"
-            >
-              {isSuggestionsOpen ? <ChevronRight /> : <ChevronLeft />}
-            </button>
-            {isSuggestionsOpen && (
-              <div className="p-4">
-                <SuggestionList scriptId={scriptId} />
-              </div>
-            )}
-          </div>
-        </div>
+        <SuggestionsPanel
+          isOpen={isSuggestionsOpen}
+          scriptId={scriptId}
+          onToggle={() => setIsSuggestionsOpen(!isSuggestionsOpen)}
+        />
       )}
     </div>
   );
