@@ -38,8 +38,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     setContent(content);
     const editor = quillRef.current?.getEditor();
     if (editor) {
-      const lines = editor.getLines(0);
-      setLineCount(lines.length);
+      // Instead of counting all visual lines, count only deliberate block-level elements.
+      // Here we assume that each <p> corresponds to a deliberate newline.
+      const blocks = editor.root.querySelectorAll('p');
+      setLineCount(blocks.length);
     }
   };
 
