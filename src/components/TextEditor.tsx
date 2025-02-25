@@ -31,7 +31,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 }) => {
   const quillRef = useRef(null);
   const [content, setContent] = useState(originalContent);
-  const [pages, setPages] = useState([]);
+  const [pages, setPages] = useState([[]]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const { toast } = useToast();
@@ -43,8 +43,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     const allLines = editor.getLines();
     let paginatedPages = [];
 
-    for (let i = 0; i < allLines.length; i += linesPerPage) {
-      paginatedPages.push(allLines.slice(i, i + linesPerPage));
+    if (allLines.length === 0) {
+      paginatedPages = [[]]; // Ensure at least one empty page
+    } else {
+      for (let i = 0; i < allLines.length; i += linesPerPage) {
+        paginatedPages.push(allLines.slice(i, i + linesPerPage));
+      }
     }
 
     setPages(paginatedPages);
@@ -187,36 +191,34 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       {/* Main Editor Area */}
       <div className="flex-1 py-8 overflow-auto">
         <div className="w-a4 mx-auto space-y-8">
-          {pages.map((page, pageIndex) => (
+          <div className="bg-editor-page shadow-lg p-8 min-h-a4-page">
+            <ReactQuill
+              ref={quillRef}
+              value={content}
+              onChange={handleChange}
+              modules={modules}
+              formats={formats}
+              className="h-full"
+              theme="snow"
+              style={{
+                fontFamily: 'Courier New, monospace',
+                fontSize: '12px',
+                lineHeight: 1.5,
+              }}
+            />
+          </div>
+          {pages.slice(1).map((page, pageIndex) => (
             <div
               key={pageIndex}
               className="bg-editor-page shadow-lg p-8 min-h-a4-page"
             >
-              {pageIndex === 0 && (
-                <ReactQuill
-                  ref={quillRef}
-                  value={content}
-                  onChange={handleChange}
-                  modules={modules}
-                  formats={formats}
-                  className="h-full"
-                  theme="snow"
-                  style={{
-                    fontFamily: 'Courier New, monospace',
-                    fontSize: '12px',
-                    lineHeight: 1.5,
-                  }}
-                />
-              )}
-              {pageIndex > 0 && (
-                <div className="h-full">
-                  {page.map((line, lineIndex) => (
-                    <div key={lineIndex} className="whitespace-pre-wrap">
-                      {line.domNode?.textContent || ''}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="h-full">
+                {page.map((line, lineIndex) => (
+                  <div key={lineIndex} className="whitespace-pre-wrap">
+                    {line.domNode?.textContent || ''}
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
