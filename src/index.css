@@ -36,9 +36,18 @@
   }
 }
 
-.textarea-page {
-  background: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin: 0 auto;
-  padding: 2rem;
+/* Quill Editor Styles */
+.ql-editor {
+  font-family: 'Courier New', monospace !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  padding: 0 !important;
+}
+
+.ql-container {
+  border: none !important;
+}
+
+.ql-toolbar {
+  display: none !important;
 }
