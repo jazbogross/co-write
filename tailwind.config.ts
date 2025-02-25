@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -25,23 +26,43 @@ export default {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         editor: {
-          suggestion: "#fef3c7",
-          approved: "#d1fae5",
-          rejected: "#fee2e2",
+          page: "#ffffff",
+          background: "#1A1F2C",
         },
         primary: {
-          DEFAULT: "#2563eb",
-          foreground: "#ffffff",
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
         },
         secondary: {
-          DEFAULT: "#f3f4f6",
-          foreground: "#1f2937",
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
         },
       },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+      width: {
+        'a4': '595px', // Standard A4 width in pixels (21cm at 72dpi)
+      },
+      minHeight: {
+        'a4-page': '842px', // Standard A4 height (29.7cm at 72dpi)
       },
     },
   },
