@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -182,7 +183,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
             {/* Line Numbers */}
             <div className="pr-4 select-none text-right border-r border-gray-200 mr-4" style={{ minWidth: '30px' }}>
               {lineNumbers.map(num => (
-                <div key={num} className="text-gray-400 text-xs" style={{ lineHeight: '1.5' }}>
+                <div key={num} className="text-gray-400 text-xs line-number" style={{ height: '18px' }}>
                   {num}
                 </div>
               ))}
@@ -195,12 +196,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
                 onChange={handleChange}
                 modules={modules}
                 formats={formats}
-                className="h-full"
                 theme="snow"
                 style={{
                   fontFamily: 'Courier New, monospace',
                   fontSize: '12px',
-                  lineHeight: 1.5,
+                  lineHeight: '18px',
                   color: '#000000',
                 }}
               />

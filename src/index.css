@@ -38,17 +38,22 @@
 
 /* Quill Editor Styles */
 .ql-editor {
-  font-family: 'Courier New, monospace' !important;
+  font-family: "Courier New", monospace !important;
   font-size: 12px !important;
-  line-height: 1.5 !important;
+  line-height: 18px !important;
   padding: 0 !important;
   color: #000000 !important;
 }
 
 .ql-container {
   border: none !important;
+  font-family: "Courier New", monospace !important;
 }
 
 .ql-toolbar {
   display: none !important;
+}
+
+.line-number {
+  font-family: "Courier New", monospace;
 }
