@@ -31,17 +31,27 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const [content, setContent] = useState(originalContent);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
+  const [lineCount, setLineCount] = useState(1);
   const { toast } = useToast();
 
   const handleChange = (content: string) => {
     setContent(content);
+    const editor = quillRef.current?.getEditor();
+    if (editor) {
+      const lines = editor.getLines(0);
+      setLineCount(lines.length);
+    }
   };
 
   const formatText = (format: string, value: any) => {
     const editor = quillRef.current?.getEditor();
     if (editor) {
       const format_value = editor.getFormat();
-      editor.format(format, !format_value[format]); // Toggle the format
+      if (format === 'align') {
+        editor.format('align', value === format_value['align'] ? false : value);
+      } else {
+        editor.format(format, !format_value[format]);
+      }
     }
   };
 
@@ -109,6 +119,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   };
 
+  const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
+
   return (
     <div className="flex min-h-screen bg-editor-background text-black">
       {/* Toolbar */}
@@ -166,22 +178,33 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       {/* Main Editor Area */}
       <div className="flex-1 py-8 overflow-auto">
         <div className="w-a4 mx-auto">
-          <div className="bg-editor-page shadow-lg p-8 min-h-a4-page">
-            <ReactQuill
-              ref={quillRef}
-              value={content}
-              onChange={handleChange}
-              modules={modules}
-              formats={formats}
-              className="h-full"
-              theme="snow"
-              style={{
-                fontFamily: 'Courier New, monospace',
-                fontSize: '12px',
-                lineHeight: 1.5,
-                color: '#000000',
-              }}
-            />
+          <div className="bg-editor-page shadow-lg p-8 min-h-a4-page flex">
+            {/* Line Numbers */}
+            <div className="pr-4 select-none text-right border-r border-gray-200 mr-4" style={{ minWidth: '30px' }}>
+              {lineNumbers.map(num => (
+                <div key={num} className="text-gray-400 text-xs" style={{ lineHeight: '1.5' }}>
+                  {num}
+                </div>
+              ))}
+            </div>
+            {/* Editor */}
+            <div className="flex-1">
+              <ReactQuill
+                ref={quillRef}
+                value={content}
+                onChange={handleChange}
+                modules={modules}
+                formats={formats}
+                className="h-full"
+                theme="snow"
+                style={{
+                  fontFamily: 'Courier New, monospace',
+                  fontSize: '12px',
+                  lineHeight: 1.5,
+                  color: '#000000',
+                }}
+              />
+            </div>
           </div>
           <div className="mt-4">
             <Button 
