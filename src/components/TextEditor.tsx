@@ -121,8 +121,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   };
 
-  const saveDraft = async () => {
-    // This function has not yet been created.
+  const saveToSupabase = async () => {
+    // This function has not yet been written.
     if (content === originalContent) {
       toast({
         title: "No changes detected",
@@ -159,7 +159,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           variant="outline"
           size="sm"
           className="justify-end"
-          onClick={saveDraft}
+          onClick={saveToSupabase}
           disabled={isSubmitting}
         >
           {isSubmitting ? "Saveing..." : "Save Draft"}
