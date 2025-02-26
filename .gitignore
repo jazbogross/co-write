@@ -17,8 +17,11 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+.aider.chat.history.md
+.aider.input.history
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+.aider*

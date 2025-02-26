@@ -39,8 +39,8 @@
 /* Quill Editor Styles */
 .ql-editor {
   font-family: "Courier New", monospace !important;
-  font-size: 12px !important;
-  line-height: 18px !important;
+  font-size: 18px !important;
+  line-height: 34px !important;
   padding: 0 !important;
   color: #000000 !important;
 }
@@ -56,4 +56,6 @@
 
 .line-number {
   font-family: "Courier New", monospace;
+  font-size: 18px !important;
+  line-height: 34px !important;
 }

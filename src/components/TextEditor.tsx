@@ -122,12 +122,14 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   };
 
   return (
-    <div className="flex min-h-screen bg-editor-background text-black">
-      <EditorToolbar onFormat={formatText} />
+    <>
+    <EditorToolbar onFormat={formatText} />
+    <div className="flex min-h-screen min-w-screen text-black">
+      
 
-      <div className="flex-1 py-8 overflow-auto">
-        <div className="w-a4 mx-auto">
-          <div className="bg-editor-page shadow-lg p-8 min-h-a4-page flex">
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto">
+          <div className="bg-editor-page p-8 min-h-a4-page flex ml-16">
             <LineNumbers count={lineCount} />
             <div className="flex-1">
               <ReactQuill
@@ -137,12 +139,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
                 modules={modules}
                 formats={formats}
                 theme="snow"
-                style={{
-                  fontFamily: 'Courier New, monospace',
-                  fontSize: '12px',
-                  lineHeight: '18px',
-                  color: '#000000',
-                }}
               />
             </div>
           </div>
@@ -170,5 +166,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         />
       )}
     </div>
+    </>
   );
 };
