@@ -121,14 +121,54 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   };
 
+  const saveDraft = async () => {
+    // This function has not yet been created.
+    if (content === originalContent) {
+      toast({
+        title: "No changes detected",
+        description: "Please make some changes before saving",
+        variant: "destructive",
+      });
+      return;
+    }
+  }
+
+
+    
   return (
     <>
-    <EditorToolbar onFormat={formatText} />
-    <div className="flex min-h-screen min-w-screen text-black">
-      
-
+    <div className='flex justify-between ml-16 mb-2'>
+      <div className='flex space-x-2'>
+        <EditorToolbar onFormat={formatText} />
+      </div>
+      <div className='flex space-x-2'>
+        <Button
+          variant="outline"
+          size="sm"
+          className="justify-end"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            isAdmin ? "Committing..." : "Submitting..."
+          ) : (
+            isAdmin ? "Save Changes" : "Suggest Changes"
+          )}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="justify-end"
+          onClick={saveDraft}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Saveing..." : "Save Draft"}
+        </Button>
+      </div>
+    </div>
+    <div className="flex min-h-screen text-black">
       <div className="flex-1 overflow-auto">
-        <div className="mx-auto">
+        <div className="mx-auto">          
           <div className="bg-editor-page p-8 min-h-a4-page flex ml-16">
             <LineNumbers count={lineCount} />
             <div className="flex-1">
@@ -141,19 +181,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
                 theme="snow"
               />
             </div>
-          </div>
-          <div className="mt-4">
-            <Button 
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="w-full"
-            >
-              {isSubmitting ? (
-                isAdmin ? "Committing..." : "Submitting..."
-              ) : (
-                isAdmin ? "Save Changes" : "Suggest Changes"
-              )}
-            </Button>
           </div>
         </div>
       </div>
