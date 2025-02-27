@@ -60,7 +60,7 @@ export const useSubmitEdits = (
             toast({
               title: "Changes saved",
               description: "Changes saved to database. GitHub commit skipped - please reconnect your GitHub account to enable commits.",
-              variant: "warning",
+              variant: "default", // Changed from "warning" to "default"
             });
           }
         } catch (commitError: any) {
@@ -69,7 +69,7 @@ export const useSubmitEdits = (
           toast({
             title: "Changes saved",
             description: "Changes saved to database, but GitHub commit failed: " + (commitError.message || "Unknown error"),
-            variant: "warning",
+            variant: "default", // Changed from "warning" to "default"
           });
         }
         
