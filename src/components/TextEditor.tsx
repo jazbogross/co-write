@@ -34,6 +34,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [lineCount, setLineCount] = useState(1);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isContentInitialized, setIsContentInitialized] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -45,17 +46,21 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     fetchUser();
   }, []);
 
-  const { lineData, setLineData, updateLineContent } = useLineData(scriptId, originalContent, userId);
+  const { lineData, updateLineContent } = useLineData(scriptId, originalContent, userId);
 
+  // Set initial content when line data is loaded
   useEffect(() => {
-    if (lineData.length > 0) {
+    if (lineData.length > 0 && !isContentInitialized) {
       const reconstructedContent = reconstructContent(lineData);
       setContent(reconstructedContent);
+      setIsContentInitialized(true);
+      setLineCount(lineData.length);
     }
-  }, [lineData]);
+  }, [lineData, isContentInitialized]);
 
+  // Update line UUIDs in the DOM
   useEffect(() => {
-    if (quillRef.current) {
+    if (quillRef.current && lineData.length > 0) {
       const editor = quillRef.current.getEditor();
       if (editor) {
         const lines = editor.getLines(0);
@@ -66,21 +71,20 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         });
       }
     }
-  }, [lineData]);
+  }, [lineData, content]);
 
   const handleChange = (newContent: string) => {
-    setContent(newContent);
     const editor = quillRef.current?.getEditor();
-    if (editor) {
-      const lines = editor.getLines(0);
-      setLineCount(lines.length);
-      
-      const currentLineContents = extractLineContents(lines);
-      currentLineContents.forEach((content, index) => {
-        // Only update the content of the line, preserving the UUID
-        updateLineContent(index, content);
-      });
-    }
+    if (!editor) return;
+
+    setContent(newContent);
+    const lines = editor.getLines(0);
+    setLineCount(lines.length);
+    
+    const currentLineContents = extractLineContents(lines);
+    currentLineContents.forEach((lineContent, index) => {
+      updateLineContent(index, lineContent);
+    });
   };
 
   const formatText = (format: string, value: any) => {
