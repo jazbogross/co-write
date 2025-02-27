@@ -50,7 +50,13 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
 
       if (error) throw error;
       
-      setSuggestions(data || []);
+      // Cast the data to ensure status is of the correct type
+      const typedSuggestions = (data || []).map((item) => ({
+        ...item,
+        status: item.status as 'pending' | 'approved' | 'rejected' | 'draft'
+      }));
+      
+      setSuggestions(typedSuggestions);
     } catch (error) {
       console.error('Error loading suggestions:', error);
       toast({
@@ -82,12 +88,20 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
 
       // Update the script_content with the suggestion
       if (suggestionData.line_uuid) {
-        // Use a raw update instead of RPC for type compatibility
+        // Use our new RPC function to append to edited_by
+        const { data: editedByArray, error: rpcError } = await supabase
+          .rpc('append_to_edited_by', { 
+            content_id: suggestionData.line_uuid,
+            user_id: suggestionData.user_id 
+          });
+          
+        if (rpcError) throw rpcError;
+
         const { error: updateError } = await supabase
           .from('script_content')
           .update({ 
             content: suggestionData.content,
-            edited_by: suggestionData.user_id ? [suggestionData.user_id] : []
+            edited_by: editedByArray
           })
           .eq('id', suggestionData.line_uuid);
 

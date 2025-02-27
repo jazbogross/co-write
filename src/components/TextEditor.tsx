@@ -71,8 +71,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
             uuid: line.id,
             lineNumber: line.line_number,
             content: line.content,
-            originalAuthor: null, // We'll add this once the column exists
-            editedBy: [] // We'll add this once the column exists
+            originalAuthor: line.original_author,
+            editedBy: line.edited_by ? Array.isArray(line.edited_by) ? line.edited_by : [] : []
           }));
           setLineData(formattedLineData);
           
@@ -237,8 +237,9 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         script_id: scriptId,
         line_number: line.lineNumber,
         content: line.content,
+        original_author: line.originalAuthor,
+        edited_by: line.editedBy,
         metadata: {}
-        // We'll add original_author and edited_by once the columns exist
       }));
 
       const { error } = await supabase
@@ -279,8 +280,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           .insert({
             script_id: scriptId,
             content: line.content,
-            user_id: userId
-            // line_uuid field will be added once it exists
+            user_id: userId,
+            line_uuid: line.uuid
           });
 
         if (error) throw error;
@@ -304,19 +305,19 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     setIsSubmitting(true);
     try {
       if (isAdmin) {
-        // For admin, save a draft snapshot using our existing script_suggestions table
-        // until script_drafts is created
-        await supabase
-          .from('script_suggestions')
+        // For admin, save a draft snapshot to the new script_drafts table
+        const { error } = await supabase
+          .from('script_drafts')
           .insert({
             script_id: scriptId,
-            content: JSON.stringify({
+            content: {
               lines: lineData,
               fullContent: content
-            }),
-            user_id: userId,
-            status: 'draft'
+            },
+            user_id: userId
           });
+
+        if (error) throw error;
 
         toast({
           title: "Draft saved",
@@ -364,8 +365,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
               script_id: scriptId,
               content: line.content,
               user_id: userId,
+              line_uuid: line.uuid,
               status: 'draft'
-              // line_uuid field will be added once it exists
             });
 
           if (error) throw error;
