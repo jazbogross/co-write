@@ -1,15 +1,14 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { EditorToolbar } from './editor/EditorToolbar';
-import { LineNumbers } from './editor/LineNumbers';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
-import { v4 as uuidv4 } from 'uuid';
 import { LineTrackingModule, EDITOR_MODULES } from './editor/LineTrackingModule';
+import { EditorContainer } from './editor/EditorContainer';
+import { EditorActions } from './editor/EditorActions';
+import { useLineData, type LineData } from '@/hooks/useLineData';
+import { extractLineContents, reconstructContent } from '@/utils/editorUtils';
 
 // Register the module
 LineTrackingModule.register(ReactQuill.Quill);
@@ -23,90 +22,38 @@ interface TextEditorProps {
   onSuggestChange: (suggestion: string) => void;
 }
 
-interface LineData {
-  uuid: string;
-  lineNumber: number;
-  content: string;
-  originalAuthor: string | null;
-  editedBy: string[];
-}
-
 export const TextEditor: React.FC<TextEditorProps> = ({
   isAdmin,
   originalContent,
   scriptId,
   onSuggestChange,
 }) => {
-  const quillRef = useRef(null);
+  const quillRef = useRef<ReactQuill>(null);
   const [content, setContent] = useState(originalContent);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [lineCount, setLineCount] = useState(1);
-  const [lineData, setLineData] = useState<LineData[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchUserAndLineData = async () => {
+    const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
       }
-
-      try {
-        const { data, error } = await supabase
-          .from('script_content')
-          .select('*')
-          .eq('script_id', scriptId)
-          .order('line_number', { ascending: true });
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          const formattedLineData = data.map(line => {
-            let editedBy: string[] = [];
-            if (line.edited_by) {
-              if (Array.isArray(line.edited_by)) {
-                editedBy = line.edited_by.map(id => String(id));
-              }
-            }
-            
-            return {
-              uuid: line.id,
-              lineNumber: line.line_number,
-              content: line.content,
-              originalAuthor: line.original_author || null,
-              editedBy: editedBy
-            };
-          });
-          
-          setLineData(formattedLineData);
-          
-          const reconstructedContent = formattedLineData.map(line => line.content).join('\n');
-          setContent(reconstructedContent);
-        } else {
-          initializeLineData();
-        }
-      } catch (error) {
-        console.error('Error fetching line data:', error);
-        initializeLineData();
-      }
     };
+    fetchUser();
+  }, []);
 
-    fetchUserAndLineData();
-  }, [scriptId, originalContent]);
+  const { lineData, setLineData, updateLineContent } = useLineData(scriptId, originalContent, userId);
 
-  const initializeLineData = () => {
-    const lines = originalContent.split('\n');
-    const initialLineData = lines.map((line, index) => ({
-      uuid: uuidv4(),
-      lineNumber: index + 1,
-      content: line,
-      originalAuthor: userId,
-      editedBy: []
-    }));
-    setLineData(initialLineData);
-  };
+  useEffect(() => {
+    if (lineData.length > 0) {
+      const reconstructedContent = reconstructContent(lineData);
+      setContent(reconstructedContent);
+    }
+  }, [lineData]);
 
   useEffect(() => {
     if (quillRef.current) {
@@ -120,7 +67,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         });
       }
     }
-  }, [lineData, content]);
+  }, [lineData]);
 
   const handleChange = (newContent: string) => {
     setContent(newContent);
@@ -129,91 +76,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       const lines = editor.getLines(0);
       setLineCount(lines.length);
       
-      // Extract the current content of each line
-      const currentLineContents = lines.map(line => {
-        return line.domNode ? line.domNode.textContent || '' : '';
+      const currentLineContents = extractLineContents(lines);
+      currentLineContents.forEach((content, index) => {
+        // Only update the content of the line, preserving the UUID
+        updateLineContent(index, content);
       });
-      
-      // Update line data preserving UUIDs when possible
-      updateLineData(currentLineContents);
     }
-  };
-
-  const updateLineData = (currentLineContents: string[]) => {
-    // Create a new line data array while preserving UUIDs
-    const newLineData: LineData[] = [];
-    
-    // Track which original lines have been matched to new lines
-    const usedOriginalLines = new Set<number>();
-    
-    // First pass: handle modifications of existing lines and additions
-    for (let i = 0; i < currentLineContents.length; i++) {
-      const currentContent = currentLineContents[i];
-      
-      // Look for exact content matches first
-      let found = false;
-      
-      for (let j = 0; j < lineData.length; j++) {
-        if (!usedOriginalLines.has(j) && lineData[j].content === currentContent) {
-          // Found exact match - preserve UUID and metadata
-          newLineData.push({
-            ...lineData[j],
-            lineNumber: i + 1
-          });
-          usedOriginalLines.add(j);
-          found = true;
-          break;
-        }
-      }
-      
-      // If no exact match, look for trimmed content matches (whitespace changes)
-      if (!found) {
-        const trimmedContent = currentContent.trim();
-        
-        for (let j = 0; j < lineData.length; j++) {
-          if (!usedOriginalLines.has(j) && lineData[j].content.trim() === trimmedContent) {
-            // Found a match with whitespace changes
-            const updatedLine = {
-              ...lineData[j],
-              lineNumber: i + 1,
-              content: currentContent
-            };
-            
-            // Add user to editedBy if not already there
-            if (userId && !updatedLine.editedBy.includes(userId)) {
-              updatedLine.editedBy = [...updatedLine.editedBy, userId];
-            }
-            
-            newLineData.push(updatedLine);
-            usedOriginalLines.add(j);
-            found = true;
-            break;
-          }
-        }
-      }
-      
-      // If still no match, this is a new line
-      if (!found) {
-        newLineData.push({
-          uuid: uuidv4(), // New UUID for brand new lines
-          lineNumber: i + 1,
-          content: currentContent,
-          originalAuthor: userId,
-          editedBy: userId ? [userId] : []
-        });
-      }
-    }
-    
-    // Second pass: any lines in original data not matched are considered deleted
-    // We don't add them to newLineData, but could track them separately if needed
-    const deletedLines = lineData.filter((_, idx) => !usedOriginalLines.has(idx));
-    
-    // For debugging - log deleted lines if any
-    if (deletedLines.length > 0) {
-      console.log('Deleted lines:', deletedLines);
-    }
-    
-    setLineData(newLineData);
   };
 
   const formatText = (format: string, value: any) => {
@@ -519,53 +387,22 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   return (
     <>
-    <div className='flex justify-between ml-16 mb-2'>
-      <div className='flex space-x-2'>
-        <EditorToolbar onFormat={formatText} />
-      </div>
-      <div className='flex space-x-2'>
-        <Button
-          variant="outline"
-          size="sm"
-          className="justify-end"
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? (
-            isAdmin ? "Committing..." : "Submitting..."
-          ) : (
-            isAdmin ? "Save Changes" : "Suggest Changes"
-          )}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="justify-end"
-          onClick={saveToSupabase}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Saving..." : "Save Draft"}
-        </Button>
-      </div>
-    </div>
-    <div className="flex min-h-screen text-black">
-      <div className="flex-1 overflow-auto">
-        <div className="mx-auto">          
-          <div className="bg-editor-page p-8 min-h-a4-page flex ml-16">
-            <LineNumbers count={lineCount} />
-            <div className="flex-1">
-              <ReactQuill
-                ref={quillRef}
-                value={content}
-                onChange={handleChange}
-                modules={EDITOR_MODULES}
-                formats={formats}
-                theme="snow"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      <EditorActions
+        isAdmin={isAdmin}
+        isSubmitting={isSubmitting}
+        onFormat={formatText}
+        onSubmit={handleSubmit}
+        onSave={saveToSupabase}
+      />
+      
+      <EditorContainer
+        content={content}
+        lineCount={lineCount}
+        quillRef={quillRef}
+        modules={EDITOR_MODULES}
+        formats={formats}
+        onChange={handleChange}
+      />
 
       {isAdmin && (
         <SuggestionsPanel
@@ -574,7 +411,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           onToggle={() => setIsSuggestionsOpen(!isSuggestionsOpen)}
         />
       )}
-    </div>
     </>
   );
 };
