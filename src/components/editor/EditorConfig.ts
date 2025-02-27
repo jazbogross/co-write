@@ -1,9 +1,6 @@
 
-import { LineTrackingModule } from './LineTrackingModule';
+import { EDITOR_MODULES } from './LineTrackingModule';
 
-export const modules = {
-  toolbar: false,
-  lineTracking: LineTrackingModule.addLineIds
-};
+export const modules = EDITOR_MODULES;
 
 export const formats = ['bold', 'italic', 'align'];

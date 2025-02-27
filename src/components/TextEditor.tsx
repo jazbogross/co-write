@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -12,11 +13,6 @@ import { LineTrackingModule, EDITOR_MODULES } from './editor/LineTrackingModule'
 
 // Register the module
 LineTrackingModule.register(ReactQuill.Quill);
-
-const modules = {
-  toolbar: false,
-  lineTracking: LineTrackingModule.addLineIds
-};
 
 const formats = ['bold', 'italic', 'align'];
 
@@ -511,7 +507,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
                 value={content}
                 onChange={handleChange}
                 modules={EDITOR_MODULES}
-                formats={['bold', 'italic', 'align']}
+                formats={formats}
                 theme="snow"
               />
             </div>
