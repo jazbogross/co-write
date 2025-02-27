@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -9,9 +8,11 @@ import { EditorToolbar } from './editor/EditorToolbar';
 import { LineNumbers } from './editor/LineNumbers';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { v4 as uuidv4 } from 'uuid';
+import { LineTrackingModule } from './editor/LineTrackingModule';
 
 const modules = {
   toolbar: false,
+  lineTracking: LineTrackingModule.addLineIds
 };
 
 const formats = ['bold', 'italic', 'align'];
@@ -46,16 +47,13 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const [userId, setUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Fetch user ID and existing line data on component mount
   useEffect(() => {
     const fetchUserAndLineData = async () => {
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
       }
 
-      // Fetch line data for this script
       try {
         const { data, error } = await supabase
           .from('script_content')
@@ -66,13 +64,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         if (error) throw error;
 
         if (data && data.length > 0) {
-          // Map the database data to our LineData format
           const formattedLineData = data.map(line => {
-            // Handle the edited_by field - ensure it's a string array
             let editedBy: string[] = [];
             if (line.edited_by) {
               if (Array.isArray(line.edited_by)) {
-                // Convert each item to string to ensure type compatibility
                 editedBy = line.edited_by.map(id => String(id));
               }
             }
@@ -88,24 +83,20 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           
           setLineData(formattedLineData);
           
-          // Reconstruct the content from the line data
           const reconstructedContent = formattedLineData.map(line => line.content).join('\n');
           setContent(reconstructedContent);
         } else {
-          // Initialize line data from the original content
           initializeLineData();
         }
       } catch (error) {
         console.error('Error fetching line data:', error);
-        // If there's an error, initialize from the original content
         initializeLineData();
       }
     };
 
     fetchUserAndLineData();
-  }, [scriptId]);
+  }, [scriptId, originalContent]);
 
-  // Initialize line data from the original content
   const initializeLineData = () => {
     const lines = originalContent.split('\n');
     const initialLineData = lines.map((line, index) => ({
@@ -118,53 +109,72 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     setLineData(initialLineData);
   };
 
-  const handleChange = (content: string) => {
-    setContent(content);
+  useEffect(() => {
+    if (quillRef.current) {
+      const editor = quillRef.current.getEditor();
+      if (editor) {
+        const lines = editor.getLines(0);
+        lines.forEach((line, index) => {
+          if (line.domNode && index < lineData.length) {
+            line.domNode.setAttribute('data-line-uuid', lineData[index].uuid);
+          }
+        });
+      }
+    }
+  }, [lineData, content]);
+
+  const handleChange = (newContent: string) => {
+    setContent(newContent);
     const editor = quillRef.current?.getEditor();
     if (editor) {
       const lines = editor.getLines(0);
       setLineCount(lines.length);
-      updateLineData(lines);
+      
+      const currentLineContents = lines.map(line => {
+        return line.domNode ? line.domNode.textContent || '' : '';
+      });
+      
+      updateLineData(currentLineContents);
     }
   };
 
-  const updateLineData = (quillLines: any[]) => {
-    // Get the current line contents from Quill
-    const currentLines = quillLines.map(line => line.domNode.textContent.trim());
+  const updateLineData = (currentLineContents: string[]) => {
+    const originalLines = originalContent.split('\n');
     
-    // Create a map of existing lines by content for quick lookup
-    const existingLineMap = new Map(
-      lineData.map(line => [line.content.trim(), line])
-    );
+    const matchedOriginalLines = new Set<number>();
     
-    // Track which existing lines we've matched
-    const usedLines = new Set();
-    
-    // Create new line data array
-    const newLines = currentLines.map((content, index) => {
-      // Try to find a matching existing line that hasn't been used yet
-      const existingLine = existingLineMap.get(content);
+    const newLineData: LineData[] = currentLineContents.map((content, index) => {
+      const trimmedContent = content.trim();
+      let foundMatch = false;
+      let matchedLineIndex = -1;
       
-      if (existingLine && !usedLines.has(existingLine.uuid)) {
-        // We found a matching line that hasn't been used yet
-        usedLines.add(existingLine.uuid);
-        return {
-          ...existingLine,
-          lineNumber: index + 1
-        };
+      for (let i = 0; i < originalLines.length; i++) {
+        if (originalLines[i].trim() === trimmedContent && !matchedOriginalLines.has(i)) {
+          matchedLineIndex = i;
+          matchedOriginalLines.add(i);
+          foundMatch = true;
+          break;
+        }
       }
       
-      // This is a new or modified line
-      return {
-        uuid: uuidv4(),
-        lineNumber: index + 1,
-        content: content,
-        originalAuthor: userId,
-        editedBy: userId ? [userId] : []
-      };
+      if (foundMatch && matchedLineIndex >= 0 && matchedLineIndex < lineData.length) {
+        return {
+          ...lineData[matchedLineIndex],
+          lineNumber: index + 1,
+          content: content
+        };
+      } else {
+        return {
+          uuid: uuidv4(),
+          lineNumber: index + 1,
+          content: content,
+          originalAuthor: userId,
+          editedBy: userId ? [userId] : []
+        };
+      }
     });
     
-    setLineData(newLines);
+    setLineData(newLineData);
   };
 
   const formatText = (format: string, value: any) => {
@@ -199,10 +209,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           throw new Error('GitHub OAuth access token is missing');
         }
 
-        // Save line data to database first
         await saveLinesToDatabase();
 
-        // Then commit to GitHub
         const response = await supabase.functions.invoke('commit-script-changes', {
           body: {
             scriptId,
@@ -219,7 +227,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           description: "Your changes have been committed successfully",
         });
       } else {
-        // For non-admins, save suggestions
         await saveSuggestions();
         
         toast({
@@ -243,13 +250,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   const saveLinesToDatabase = async () => {
     try {
-      // Delete existing lines for this script
       await supabase
         .from('script_content')
         .delete()
         .eq('script_id', scriptId);
       
-      // Insert new lines
       const linesToInsert = lineData.map(line => ({
         id: line.uuid,
         script_id: scriptId,
@@ -266,7 +271,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
       if (error) throw error;
 
-      // Update script content
       const { error: scriptError } = await supabase
         .from('scripts')
         .update({ content })
@@ -281,47 +285,62 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   const saveSuggestions = async () => {
     try {
-      // Compare current lines with original content lines
-      const originalLines = originalContent.split('\n').map(line => line.trim());
-      const currentLines = lineData.map(line => line.content.trim());
+      const originalLines = originalContent.split('\n');
       
-      // Find modified, added, and deleted lines
       const changes: Array<{
         type: 'modified' | 'added' | 'deleted';
         lineNumber: number;
+        originalLineNumber?: number;
         content: string;
         uuid?: string;
       }> = [];
       
-      // Check for modified and added lines
-      currentLines.forEach((content, index) => {
-        if (index < originalLines.length) {
-          if (content !== originalLines[index]) {
+      for (let i = 0; i < lineData.length; i++) {
+        const currentLine = lineData[i];
+        
+        if (i < originalLines.length) {
+          if (currentLine.content.trim() !== originalLines[i].trim()) {
             changes.push({
               type: 'modified',
-              lineNumber: index + 1,
-              content,
-              uuid: lineData[index].uuid
+              lineNumber: currentLine.lineNumber,
+              originalLineNumber: i + 1,
+              content: currentLine.content,
+              uuid: currentLine.uuid
             });
           }
         } else {
           changes.push({
             type: 'added',
-            lineNumber: index + 1,
-            content,
-            uuid: lineData[index].uuid
+            lineNumber: currentLine.lineNumber,
+            content: currentLine.content,
+            uuid: currentLine.uuid
           });
         }
-      });
+      }
       
-      // Check for deleted lines
-      if (currentLines.length < originalLines.length) {
-        for (let i = currentLines.length; i < originalLines.length; i++) {
-          changes.push({
-            type: 'deleted',
-            lineNumber: i + 1,
-            content: '',
-          });
+      if (lineData.length < originalLines.length) {
+        const matchedOriginalLines = new Set<number>();
+        
+        for (let i = 0; i < lineData.length; i++) {
+          const currentLine = lineData[i].content.trim();
+          
+          for (let j = 0; j < originalLines.length; j++) {
+            if (!matchedOriginalLines.has(j) && currentLine === originalLines[j].trim()) {
+              matchedOriginalLines.add(j);
+              break;
+            }
+          }
+        }
+        
+        for (let i = 0; i < originalLines.length; i++) {
+          if (!matchedOriginalLines.has(i)) {
+            changes.push({
+              type: 'deleted',
+              lineNumber: i + 1,
+              originalLineNumber: i + 1,
+              content: '',
+            });
+          }
         }
       }
 
@@ -329,7 +348,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         throw new Error('No changes detected');
       }
 
-      // Create suggestions only for changed lines
+      console.log('Detected changes:', changes);
+
       for (const change of changes) {
         const suggestionData = {
           script_id: scriptId,
@@ -339,7 +359,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           status: 'pending',
           metadata: { 
             changeType: change.type,
-            lineNumber: change.lineNumber
+            lineNumber: change.lineNumber,
+            originalLineNumber: change.originalLineNumber
           }
         };
 
@@ -368,8 +389,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     setIsSubmitting(true);
     try {
       if (isAdmin) {
-        // For admin, save a draft snapshot to the new script_drafts table
-        // Convert LineData to a serializable object for Supabase
         const serializableData = {
           lines: lineData.map(line => ({
             uuid: line.uuid,
@@ -396,7 +415,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           description: "Your draft has been saved successfully",
         });
       } else {
-        // For non-admin, save line-by-line draft suggestions
         await saveLineDrafts();
 
         toast({
@@ -418,7 +436,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   const saveLineDrafts = async () => {
     try {
-      // Delete existing line drafts for this user and script
       await supabase
         .from('script_suggestions')
         .delete()
@@ -426,7 +443,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         .eq('user_id', userId)
         .eq('status', 'draft');
       
-      // Insert new line drafts
       for (const line of lineData) {
         const originalLine = originalContent.split('\n')[line.lineNumber - 1] || '';
         
