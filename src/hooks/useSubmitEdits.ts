@@ -30,31 +30,53 @@ export const useSubmitEdits = (
     setIsSubmitting(true);
     try {
       if (isAdmin) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('Not authenticated');
-        const githubAccessToken = session.provider_token;
-        if (!githubAccessToken) {
-          throw new Error('GitHub OAuth access token is missing');
-        }
-
+        // Save to database first regardless of GitHub commit
         await saveLinesToDatabase(scriptId, lineData, content);
+        
+        try {
+          // Try to get GitHub token and commit changes
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          if (session?.provider_token) {
+            // If we have a token, try to commit changes
+            const response = await supabase.functions.invoke('commit-script-changes', {
+              body: {
+                scriptId,
+                content,
+                githubAccessToken: session.provider_token,
+              }
+            });
 
-        const response = await supabase.functions.invoke('commit-script-changes', {
-          body: {
-            scriptId,
-            content,
-            githubAccessToken,
+            if (response.error) {
+              throw response.error;
+            }
+            
+            toast({
+              title: "Changes saved and committed",
+              description: "Your changes have been saved to the database and committed to GitHub",
+            });
+          } else {
+            // If no token, just notify that changes were saved but not committed
+            toast({
+              title: "Changes saved",
+              description: "Changes saved to database. GitHub commit skipped - please reconnect your GitHub account to enable commits.",
+              variant: "warning",
+            });
           }
-        });
-
-        if (response.error) throw response.error;
-
+        } catch (commitError: any) {
+          console.error('Error committing to GitHub:', commitError);
+          // Still notify that changes were saved even if GitHub commit failed
+          toast({
+            title: "Changes saved",
+            description: "Changes saved to database, but GitHub commit failed: " + (commitError.message || "Unknown error"),
+            variant: "warning",
+          });
+        }
+        
+        // Update the script content in the parent component
         onSuggestChange(content);
-        toast({
-          title: "Changes saved",
-          description: "Your changes have been committed successfully",
-        });
       } else {
+        // Non-admin user submitting suggestions
         await saveSuggestions(scriptId, lineData, originalContent, userId);
         
         toast({
