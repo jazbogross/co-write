@@ -1,9 +1,9 @@
 
-import { Quill } from 'react-quill';
+import Quill from 'quill';
 
 export const LineTrackingModule = {
   addLineIds: {
-    setup: function(quill: typeof Quill) {
+    setup: function(quill: Quill) { // Use instance type here
       quill.on('text-change', function() {
         const lines = quill.getLines(0);
         lines.forEach((line, index) => {
