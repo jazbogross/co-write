@@ -11,7 +11,7 @@ export const LineTrackingModule = {
         lines.forEach((line: any, index: number) => {
           if (line.domNode) {
             line.domNode.setAttribute('data-line-index', String(index));
-            line.domNode.classList.add(`quill-line-${index}`);
+            // Removed the class addition to avoid unnecessary classes
           }
         });
       });

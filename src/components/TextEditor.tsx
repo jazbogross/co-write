@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -138,39 +137,45 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   };
 
   const updateLineData = (currentLineContents: string[]) => {
-    const originalLines = originalContent.split('\n');
+    const prevLineData = [...lineData];
     
-    const matchedOriginalLines = new Set<number>();
+    const matchedLines = new Set<number>();
     
     const newLineData: LineData[] = currentLineContents.map((content, index) => {
-      const trimmedContent = content.trim();
-      let foundMatch = false;
-      let matchedLineIndex = -1;
+      const exactMatchIndex = prevLineData.findIndex((line, i) => 
+        !matchedLines.has(i) && line.content === content
+      );
       
-      for (let i = 0; i < originalLines.length; i++) {
-        if (originalLines[i].trim() === trimmedContent && !matchedOriginalLines.has(i)) {
-          matchedLineIndex = i;
-          matchedOriginalLines.add(i);
-          foundMatch = true;
-          break;
-        }
+      if (exactMatchIndex >= 0) {
+        matchedLines.add(exactMatchIndex);
+        return {
+          ...prevLineData[exactMatchIndex],
+          lineNumber: index + 1,
+        };
       }
       
-      if (foundMatch && matchedLineIndex >= 0 && matchedLineIndex < lineData.length) {
+      const trimmedContent = content.trim();
+      const trimMatchIndex = prevLineData.findIndex((line, i) => 
+        !matchedLines.has(i) && line.content.trim() === trimmedContent
+      );
+      
+      if (trimMatchIndex >= 0) {
+        matchedLines.add(trimMatchIndex);
+        const previousLine = prevLineData[trimMatchIndex];
         return {
-          ...lineData[matchedLineIndex],
+          ...previousLine,
           lineNumber: index + 1,
           content: content
         };
-      } else {
-        return {
-          uuid: uuidv4(),
-          lineNumber: index + 1,
-          content: content,
-          originalAuthor: userId,
-          editedBy: userId ? [userId] : []
-        };
       }
+      
+      return {
+        uuid: uuidv4(),
+        lineNumber: index + 1,
+        content: content,
+        originalAuthor: userId,
+        editedBy: userId ? [userId] : []
+      };
     });
     
     setLineData(newLineData);
