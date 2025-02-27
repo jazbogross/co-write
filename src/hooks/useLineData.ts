@@ -34,7 +34,8 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
             lineNumber: line.line_number,
             content: line.content,
             originalAuthor: line.original_author || null,
-            editedBy: Array.isArray(line.edited_by) ? line.edited_by : []
+            // Ensure editedBy is always a string array
+            editedBy: Array.isArray(line.edited_by) ? line.edited_by.map(String) : []
           }));
           
           setLineData(formattedLineData);
