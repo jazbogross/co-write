@@ -82,15 +82,12 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
 
       // Update the script_content with the suggestion
       if (suggestionData.line_uuid) {
+        // Use a raw update instead of RPC for type compatibility
         const { error: updateError } = await supabase
           .from('script_content')
           .update({ 
             content: suggestionData.content,
-            // Add current user to edited_by if not already there
-            edited_by: supabase.rpc('append_to_edited_by', { 
-              content_id: suggestionData.line_uuid,
-              user_id: suggestionData.user_id 
-            })
+            edited_by: suggestionData.user_id ? [suggestionData.user_id] : []
           })
           .eq('id', suggestionData.line_uuid);
 
