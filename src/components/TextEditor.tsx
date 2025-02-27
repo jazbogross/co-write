@@ -124,40 +124,46 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     if (editor) {
       const lines = editor.getLines(0);
       setLineCount(lines.length);
-      
-      // Update line data based on the new content
       updateLineData(lines);
     }
   };
 
   const updateLineData = (quillLines: any[]) => {
-    // Extract text content from each Quill line
-    const newLines = quillLines.map((line, index) => {
-      const lineContent = line.domNode.innerHTML;
-      const existingLine = lineData.find((l, i) => i === index);
+    // Get the current line contents from Quill
+    const currentLines = quillLines.map(line => line.domNode.textContent.trim());
+    
+    // Create a map of existing lines by content for quick lookup
+    const existingLineMap = new Map(
+      lineData.map(line => [line.content.trim(), line])
+    );
+    
+    // Track which existing lines we've matched
+    const usedLines = new Set();
+    
+    // Create new line data array
+    const newLines = currentLines.map((content, index) => {
+      // Try to find a matching existing line that hasn't been used yet
+      const existingLine = existingLineMap.get(content);
       
-      if (existingLine) {
-        // Update existing line
+      if (existingLine && !usedLines.has(existingLine.uuid)) {
+        // We found a matching line that hasn't been used yet
+        usedLines.add(existingLine.uuid);
         return {
           ...existingLine,
-          lineNumber: index + 1,
-          content: lineContent,
-          editedBy: existingLine.content !== lineContent && !existingLine.editedBy.includes(userId as string) && userId
-            ? [...existingLine.editedBy, userId]
-            : existingLine.editedBy
-        };
-      } else {
-        // Create new line
-        return {
-          uuid: uuidv4(),
-          lineNumber: index + 1,
-          content: lineContent,
-          originalAuthor: userId,
-          editedBy: []
+          lineNumber: index + 1
         };
       }
+      
+      // This is a new or modified line
+      return {
+        uuid: uuidv4(),
+        lineNumber: index + 1,
+        content: content,
+        originalAuthor: userId,
+        editedBy: userId ? [userId] : []
+      };
     });
-
+    
     setLineData(newLines);
   };
 
@@ -275,26 +281,71 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   const saveSuggestions = async () => {
     try {
-      // Get changed lines
-      const changedLines = lineData.filter(line => {
-        const originalLine = originalContent.split('\n')[line.lineNumber - 1] || '';
-        return line.content !== originalLine;
+      // Compare current lines with original content lines
+      const originalLines = originalContent.split('\n').map(line => line.trim());
+      const currentLines = lineData.map(line => line.content.trim());
+      
+      // Find modified, added, and deleted lines
+      const changes: Array<{
+        type: 'modified' | 'added' | 'deleted';
+        lineNumber: number;
+        content: string;
+        uuid?: string;
+      }> = [];
+      
+      // Check for modified and added lines
+      currentLines.forEach((content, index) => {
+        if (index < originalLines.length) {
+          if (content !== originalLines[index]) {
+            changes.push({
+              type: 'modified',
+              lineNumber: index + 1,
+              content,
+              uuid: lineData[index].uuid
+            });
+          }
+        } else {
+          changes.push({
+            type: 'added',
+            lineNumber: index + 1,
+            content,
+            uuid: lineData[index].uuid
+          });
+        }
       });
+      
+      // Check for deleted lines
+      if (currentLines.length < originalLines.length) {
+        for (let i = currentLines.length; i < originalLines.length; i++) {
+          changes.push({
+            type: 'deleted',
+            lineNumber: i + 1,
+            content: '',
+          });
+        }
+      }
 
-      if (changedLines.length === 0) {
+      if (changes.length === 0) {
         throw new Error('No changes detected');
       }
 
-      // Create suggestions for each changed line
-      for (const line of changedLines) {
+      // Create suggestions only for changed lines
+      for (const change of changes) {
+        const suggestionData = {
+          script_id: scriptId,
+          content: change.content,
+          user_id: userId,
+          line_uuid: change.uuid,
+          status: 'pending',
+          metadata: { 
+            changeType: change.type,
+            lineNumber: change.lineNumber
+          }
+        };
+
         const { error } = await supabase
           .from('script_suggestions')
-          .insert({
-            script_id: scriptId,
-            content: line.content,
-            user_id: userId,
-            line_uuid: line.uuid
-          });
+          .insert(suggestionData);
 
         if (error) throw error;
       }
