@@ -126,36 +126,91 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          edited_by: Json | null
           id: string
           line_number: number
           metadata: Json
+          original_author: string | null
           script_id: string | null
           updated_at: string
         }
         Insert: {
           content: string
           created_at?: string
+          edited_by?: Json | null
           id?: string
           line_number: number
           metadata?: Json
+          original_author?: string | null
           script_id?: string | null
           updated_at?: string
         }
         Update: {
           content?: string
           created_at?: string
+          edited_by?: Json | null
           id?: string
           line_number?: number
           metadata?: Json
+          original_author?: string | null
           script_id?: string | null
           updated_at?: string
         }
         Relationships: [
           {
+            foreignKeyName: "script_content_original_author_fkey"
+            columns: ["original_author"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "script_content_script_id_fkey"
             columns: ["script_id"]
             isOneToOne: false
             referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      script_drafts: {
+        Row: {
+          content: Json
+          created_at: string
+          id: string
+          script_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          id?: string
+          script_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          id?: string
+          script_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_drafts_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "script_drafts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -208,6 +263,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          line_uuid: string | null
           rejection_reason: string | null
           script_id: string
           status: string
@@ -219,6 +275,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          line_uuid?: string | null
           rejection_reason?: string | null
           script_id: string
           status?: string
@@ -230,6 +287,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          line_uuid?: string | null
           rejection_reason?: string | null
           script_id?: string
           status?: string

@@ -71,8 +71,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
             uuid: line.id,
             lineNumber: line.line_number,
             content: line.content,
-            originalAuthor: line.original_author,
-            editedBy: line.edited_by || []
+            originalAuthor: line.original_author || null,
+            editedBy: line.edited_by ? Array.isArray(line.edited_by) ? line.edited_by : [] : []
           }));
           setLineData(formattedLineData);
           
@@ -306,11 +306,17 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     try {
       if (isAdmin) {
         // For admin, save a draft snapshot
+        // We need to convert the content to a JSON-compatible string
+        const draftContent = {
+          lines: lineData,
+          fullContent: content
+        };
+
         const { error } = await supabase
           .from('script_drafts')
           .insert({
             script_id: scriptId,
-            content: { lines: lineData, fullContent: content },
+            content: draftContent,
             user_id: userId
           });
 

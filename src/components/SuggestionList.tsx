@@ -50,12 +50,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
 
       if (error) throw error;
       
-      const typedData = (data || []).map(item => ({
-        ...item,
-        status: item.status as 'pending' | 'approved' | 'rejected' | 'draft'
-      }));
-      
-      setSuggestions(typedData);
+      setSuggestions(data || []);
     } catch (error) {
       console.error('Error loading suggestions:', error);
       toast({
