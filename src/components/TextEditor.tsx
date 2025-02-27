@@ -8,7 +8,10 @@ import { EditorToolbar } from './editor/EditorToolbar';
 import { LineNumbers } from './editor/LineNumbers';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { v4 as uuidv4 } from 'uuid';
-import { LineTrackingModule } from './editor/LineTrackingModule';
+import { LineTrackingModule, EDITOR_MODULES } from './editor/LineTrackingModule';
+
+// Register the module
+LineTrackingModule.register(ReactQuill.Quill);
 
 const modules = {
   toolbar: false,
@@ -507,8 +510,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
                 ref={quillRef}
                 value={content}
                 onChange={handleChange}
-                modules={modules}
-                formats={formats}
+                modules={EDITOR_MODULES}
+                formats={['bold', 'italic', 'align']}
                 theme="snow"
               />
             </div>
