@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,8 +9,9 @@ import { RejectionDialog } from './suggestions/RejectionDialog';
 interface Suggestion {
   id: string;
   content: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'draft';
   rejection_reason?: string;
+  line_uuid?: string;
   profiles: {
     username: string;
   };
@@ -37,18 +39,20 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
           content,
           status,
           rejection_reason,
+          line_uuid,
           profiles (
             username
           )
         `)
         .eq('script_id', scriptId)
+        .neq('status', 'draft')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
       const typedData = (data || []).map(item => ({
         ...item,
-        status: item.status as 'pending' | 'approved' | 'rejected'
+        status: item.status as 'pending' | 'approved' | 'rejected' | 'draft'
       }));
       
       setSuggestions(typedData);
@@ -71,22 +75,49 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
   const handleApprove = async (id: string) => {
     setIsProcessing(true);
     try {
-      const response = await supabase.functions.invoke('handle-suggestion-status', {
-        body: {
-          suggestionId: id,
-          status: 'approved'
-        }
-      });
+      // Get the suggestion details first
+      const { data: suggestionData, error: suggestionError } = await supabase
+        .from('script_suggestions')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-      if (response.error) throw response.error;
+      if (suggestionError) throw suggestionError;
+      if (!suggestionData) throw new Error('Suggestion not found');
 
+      // Update the script_content with the suggestion
+      if (suggestionData.line_uuid) {
+        const { error: updateError } = await supabase
+          .from('script_content')
+          .update({ 
+            content: suggestionData.content,
+            // Add current user to edited_by if not already there
+            edited_by: supabase.rpc('append_to_edited_by', { 
+              content_id: suggestionData.line_uuid,
+              user_id: suggestionData.user_id 
+            })
+          })
+          .eq('id', suggestionData.line_uuid);
+
+        if (updateError) throw updateError;
+      }
+
+      // Update suggestion status
+      const { error: statusError } = await supabase
+        .from('script_suggestions')
+        .update({ status: 'approved' })
+        .eq('id', id);
+
+      if (statusError) throw statusError;
+
+      // Update the local state
       setSuggestions(suggestions.map(suggestion =>
         suggestion.id === id ? { ...suggestion, status: 'approved' } : suggestion
       ));
 
       toast({
         title: "Success",
-        description: "Suggestion approved and changes merged",
+        description: "Suggestion approved and changes applied",
       });
     } catch (error) {
       console.error('Error approving suggestion:', error);
@@ -105,15 +136,15 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
 
     setIsProcessing(true);
     try {
-      const response = await supabase.functions.invoke('handle-suggestion-status', {
-        body: {
-          suggestionId: selectedSuggestionId,
+      const { error } = await supabase
+        .from('script_suggestions')
+        .update({ 
           status: 'rejected',
-          rejectionReason: rejectionReason
-        }
-      });
+          rejection_reason: rejectionReason
+        })
+        .eq('id', selectedSuggestionId);
 
-      if (response.error) throw response.error;
+      if (error) throw error;
 
       setSuggestions(suggestions.map(suggestion =>
         suggestion.id === selectedSuggestionId

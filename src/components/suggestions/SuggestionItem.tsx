@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, X } from 'lucide-react';
@@ -6,8 +7,9 @@ interface SuggestionItemProps {
   suggestion: {
     id: string;
     content: string;
-    status: 'pending' | 'approved' | 'rejected';
+    status: 'pending' | 'approved' | 'rejected' | 'draft';
     rejection_reason?: string;
+    line_uuid?: string;
     profiles: {
       username: string;
     };
@@ -23,6 +25,8 @@ export const SuggestionItem = ({ suggestion, onApprove, onReject }: SuggestionIt
         return 'bg-green-100';
       case 'rejected':
         return 'bg-red-100';
+      case 'draft':
+        return 'bg-gray-100';
       default:
         return 'bg-yellow-50';
     }
@@ -38,6 +42,11 @@ export const SuggestionItem = ({ suggestion, onApprove, onReject }: SuggestionIt
           <span className="ml-2 text-sm text-muted-foreground capitalize">
             {suggestion.status}
           </span>
+          {suggestion.line_uuid && (
+            <span className="ml-2 text-xs text-gray-500">
+              Line ID: {suggestion.line_uuid.substring(0, 8)}...
+            </span>
+          )}
         </div>
         {suggestion.status === 'pending' && (
           <div className="flex gap-2">
