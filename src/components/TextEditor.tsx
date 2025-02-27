@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -128,55 +129,89 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       const lines = editor.getLines(0);
       setLineCount(lines.length);
       
+      // Extract the current content of each line
       const currentLineContents = lines.map(line => {
         return line.domNode ? line.domNode.textContent || '' : '';
       });
       
+      // Update line data preserving UUIDs when possible
       updateLineData(currentLineContents);
     }
   };
 
   const updateLineData = (currentLineContents: string[]) => {
-    const prevLineData = [...lineData];
+    // Create a new line data array while preserving UUIDs
+    const newLineData: LineData[] = [];
     
-    const matchedLines = new Set<number>();
+    // Track which original lines have been matched to new lines
+    const usedOriginalLines = new Set<number>();
     
-    const newLineData: LineData[] = currentLineContents.map((content, index) => {
-      const exactMatchIndex = prevLineData.findIndex((line, i) => 
-        !matchedLines.has(i) && line.content === content
-      );
+    // First pass: handle modifications of existing lines and additions
+    for (let i = 0; i < currentLineContents.length; i++) {
+      const currentContent = currentLineContents[i];
       
-      if (exactMatchIndex >= 0) {
-        matchedLines.add(exactMatchIndex);
-        return {
-          ...prevLineData[exactMatchIndex],
-          lineNumber: index + 1,
-        };
+      // Look for exact content matches first
+      let found = false;
+      
+      for (let j = 0; j < lineData.length; j++) {
+        if (!usedOriginalLines.has(j) && lineData[j].content === currentContent) {
+          // Found exact match - preserve UUID and metadata
+          newLineData.push({
+            ...lineData[j],
+            lineNumber: i + 1
+          });
+          usedOriginalLines.add(j);
+          found = true;
+          break;
+        }
       }
       
-      const trimmedContent = content.trim();
-      const trimMatchIndex = prevLineData.findIndex((line, i) => 
-        !matchedLines.has(i) && line.content.trim() === trimmedContent
-      );
-      
-      if (trimMatchIndex >= 0) {
-        matchedLines.add(trimMatchIndex);
-        const previousLine = prevLineData[trimMatchIndex];
-        return {
-          ...previousLine,
-          lineNumber: index + 1,
-          content: content
-        };
+      // If no exact match, look for trimmed content matches (whitespace changes)
+      if (!found) {
+        const trimmedContent = currentContent.trim();
+        
+        for (let j = 0; j < lineData.length; j++) {
+          if (!usedOriginalLines.has(j) && lineData[j].content.trim() === trimmedContent) {
+            // Found a match with whitespace changes
+            const updatedLine = {
+              ...lineData[j],
+              lineNumber: i + 1,
+              content: currentContent
+            };
+            
+            // Add user to editedBy if not already there
+            if (userId && !updatedLine.editedBy.includes(userId)) {
+              updatedLine.editedBy = [...updatedLine.editedBy, userId];
+            }
+            
+            newLineData.push(updatedLine);
+            usedOriginalLines.add(j);
+            found = true;
+            break;
+          }
+        }
       }
       
-      return {
-        uuid: uuidv4(),
-        lineNumber: index + 1,
-        content: content,
-        originalAuthor: userId,
-        editedBy: userId ? [userId] : []
-      };
-    });
+      // If still no match, this is a new line
+      if (!found) {
+        newLineData.push({
+          uuid: uuidv4(), // New UUID for brand new lines
+          lineNumber: i + 1,
+          content: currentContent,
+          originalAuthor: userId,
+          editedBy: userId ? [userId] : []
+        });
+      }
+    }
+    
+    // Second pass: any lines in original data not matched are considered deleted
+    // We don't add them to newLineData, but could track them separately if needed
+    const deletedLines = lineData.filter((_, idx) => !usedOriginalLines.has(idx));
+    
+    // For debugging - log deleted lines if any
+    if (deletedLines.length > 0) {
+      console.log('Deleted lines:', deletedLines);
+    }
     
     setLineData(newLineData);
   };
@@ -254,13 +289,15 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   const saveLinesToDatabase = async () => {
     try {
+      // Delete all existing line content
       await supabase
         .from('script_content')
         .delete()
         .eq('script_id', scriptId);
       
+      // Create batch of lines to insert
       const linesToInsert = lineData.map(line => ({
-        id: line.uuid,
+        id: line.uuid, // Preserve the UUIDs
         script_id: scriptId,
         line_number: line.lineNumber,
         content: line.content,
@@ -269,12 +306,14 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         metadata: {}
       }));
 
+      // Insert all lines
       const { error } = await supabase
         .from('script_content')
         .insert(linesToInsert);
 
       if (error) throw error;
 
+      // Update the script content as a whole
       const { error: scriptError } = await supabase
         .from('scripts')
         .update({ content })
@@ -289,8 +328,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   const saveSuggestions = async () => {
     try {
+      // Get original content lines
       const originalLines = originalContent.split('\n');
       
+      // Track all changes: additions, modifications, deletions
       const changes: Array<{
         type: 'modified' | 'added' | 'deleted';
         lineNumber: number;
@@ -299,6 +340,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         uuid?: string;
       }> = [];
       
+      // Find modified lines and added lines
       for (let i = 0; i < lineData.length; i++) {
         const currentLine = lineData[i];
         
@@ -322,28 +364,32 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         }
       }
       
+      // Find deleted lines
       if (lineData.length < originalLines.length) {
-        const matchedOriginalLines = new Set<number>();
+        // Create a map of all line UUIDs currently in use
+        const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
         
-        for (let i = 0; i < lineData.length; i++) {
-          const currentLine = lineData[i].content.trim();
+        // Get original line data from Supabase to find UUIDs of deleted lines
+        const { data: originalLineData, error } = await supabase
+          .from('script_content')
+          .select('id, line_number, content')
+          .eq('script_id', scriptId)
+          .order('line_number', { ascending: true });
           
-          for (let j = 0; j < originalLines.length; j++) {
-            if (!matchedOriginalLines.has(j) && currentLine === originalLines[j].trim()) {
-              matchedOriginalLines.add(j);
-              break;
-            }
-          }
-        }
+        if (error) throw error;
         
-        for (let i = 0; i < originalLines.length; i++) {
-          if (!matchedOriginalLines.has(i)) {
-            changes.push({
-              type: 'deleted',
-              lineNumber: i + 1,
-              originalLineNumber: i + 1,
-              content: '',
-            });
+        if (originalLineData) {
+          for (const line of originalLineData) {
+            // If a line UUID from the database is not in our current line UUIDs, it was deleted
+            if (!currentLineUUIDs.has(line.id)) {
+              changes.push({
+                type: 'deleted',
+                lineNumber: line.line_number,
+                originalLineNumber: line.line_number,
+                content: '', // Empty content for deletion
+                uuid: line.id
+              });
+            }
           }
         }
       }
@@ -354,6 +400,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
       console.log('Detected changes:', changes);
 
+      // Submit all changes as suggestions
       for (const change of changes) {
         const suggestionData = {
           script_id: scriptId,
