@@ -88,15 +88,29 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
 
       // Update the script_content with the suggestion
       if (suggestionData.line_uuid) {
-        // Use our new RPC function to append to edited_by
-        const { data: editedByArray, error: rpcError } = await supabase
-          .rpc('append_to_edited_by', { 
-            content_id: suggestionData.line_uuid,
-            user_id: suggestionData.user_id 
-          });
+        // Update directly without the RPC function for now
+        // Get the current content to inspect existing edited_by
+        const { data: contentData, error: contentError } = await supabase
+          .from('script_content')
+          .select('edited_by')
+          .eq('id', suggestionData.line_uuid)
+          .single();
           
-        if (rpcError) throw rpcError;
-
+        if (contentError) throw contentError;
+        
+        // Make sure we have an array
+        let editedByArray = [];
+        if (contentData && contentData.edited_by) {
+          editedByArray = Array.isArray(contentData.edited_by) ? contentData.edited_by : [];
+          
+          // Only add the user if not already in the array
+          if (!editedByArray.includes(suggestionData.user_id)) {
+            editedByArray.push(suggestionData.user_id);
+          }
+        } else {
+          editedByArray = [suggestionData.user_id];
+        }
+        
         const { error: updateError } = await supabase
           .from('script_content')
           .update({ 

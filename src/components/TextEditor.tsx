@@ -67,13 +67,25 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
         if (data && data.length > 0) {
           // Map the database data to our LineData format
-          const formattedLineData = data.map(line => ({
-            uuid: line.id,
-            lineNumber: line.line_number,
-            content: line.content,
-            originalAuthor: line.original_author,
-            editedBy: line.edited_by ? Array.isArray(line.edited_by) ? line.edited_by : [] : []
-          }));
+          const formattedLineData = data.map(line => {
+            // Handle the edited_by field - ensure it's a string array
+            let editedBy: string[] = [];
+            if (line.edited_by) {
+              if (Array.isArray(line.edited_by)) {
+                // Convert each item to string to ensure type compatibility
+                editedBy = line.edited_by.map(id => String(id));
+              }
+            }
+            
+            return {
+              uuid: line.id,
+              lineNumber: line.line_number,
+              content: line.content,
+              originalAuthor: line.original_author || null,
+              editedBy: editedBy
+            };
+          });
+          
           setLineData(formattedLineData);
           
           // Reconstruct the content from the line data
@@ -306,14 +318,23 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     try {
       if (isAdmin) {
         // For admin, save a draft snapshot to the new script_drafts table
+        // Convert LineData to a serializable object for Supabase
+        const serializableData = {
+          lines: lineData.map(line => ({
+            uuid: line.uuid,
+            lineNumber: line.lineNumber,
+            content: line.content,
+            originalAuthor: line.originalAuthor,
+            editedBy: line.editedBy
+          })),
+          fullContent: content
+        };
+
         const { error } = await supabase
           .from('script_drafts')
           .insert({
             script_id: scriptId,
-            content: {
-              lines: lineData,
-              fullContent: content
-            },
+            content: serializableData,
             user_id: userId
           });
 
