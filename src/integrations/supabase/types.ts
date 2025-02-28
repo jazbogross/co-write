@@ -126,10 +126,11 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          draft: string | null
           edited_by: Json | null
           id: string
           line_number: number
-          metadata: Json
+          line_number_draft: number | null
           original_author: string | null
           script_id: string | null
           updated_at: string
@@ -137,10 +138,11 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string
+          draft?: string | null
           edited_by?: Json | null
           id?: string
           line_number: number
-          metadata?: Json
+          line_number_draft?: number | null
           original_author?: string | null
           script_id?: string | null
           updated_at?: string
@@ -148,10 +150,11 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string
+          draft?: string | null
           edited_by?: Json | null
           id?: string
           line_number?: number
-          metadata?: Json
+          line_number_draft?: number | null
           original_author?: string | null
           script_id?: string | null
           updated_at?: string
@@ -262,7 +265,10 @@ export type Database = {
           branch_name: string | null
           content: string
           created_at: string
+          draft: string | null
           id: string
+          line_number: number | null
+          line_number_draft: number | null
           line_uuid: string | null
           rejection_reason: string | null
           script_id: string
@@ -274,7 +280,10 @@ export type Database = {
           branch_name?: string | null
           content: string
           created_at?: string
+          draft?: string | null
           id?: string
+          line_number?: number | null
+          line_number_draft?: number | null
           line_uuid?: string | null
           rejection_reason?: string | null
           script_id: string
@@ -286,7 +295,10 @@ export type Database = {
           branch_name?: string | null
           content?: string
           created_at?: string
+          draft?: string | null
           id?: string
+          line_number?: number | null
+          line_number_draft?: number | null
           line_uuid?: string | null
           rejection_reason?: string | null
           script_id?: string
