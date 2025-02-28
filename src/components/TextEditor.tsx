@@ -36,6 +36,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const [userId, setUserId] = useState<string | null>(null);
   const [isContentInitialized, setIsContentInitialized] = useState(false);
   const [lineUuidsInitialized, setLineUuidsInitialized] = useState(false);
+  const uuidInitializationAttempts = useRef(0);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -67,9 +68,45 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [lineData, isContentInitialized, originalContent]);
 
+  // Initialize line UUIDs after React has rendered them to the DOM
+  // Try multiple times with increasing delays until successful
+  useEffect(() => {
+    if (!quillRef.current || lineData.length === 0 || lineUuidsInitialized) {
+      return;
+    }
+
+    // We'll try to initialize UUIDs multiple times with increasing delay
+    // to ensure React has had time to render the UUIDs into the DOM
+    const initializeUuidsWithRetry = () => {
+      const editor = quillRef.current?.getEditor();
+      if (!editor || !editor.lineTracking || uuidInitializationAttempts.current >= 5) {
+        return;
+      }
+
+      const success = editor.lineTracking.initializeUuids();
+      
+      if (success) {
+        console.log("UUID initialization successful");
+        setLineUuidsInitialized(true);
+      } else {
+        // Retry with increasing delay up to 5 attempts
+        const attemptNumber = ++uuidInitializationAttempts.current;
+        const delay = Math.min(100 * Math.pow(2, attemptNumber), 3000); // Exponential backoff capped at 3s
+        console.log(`UUID initialization failed, retrying in ${delay}ms (attempt ${attemptNumber})`);
+        
+        setTimeout(initializeUuidsWithRetry, delay);
+      }
+    };
+
+    // Only attempt if we have lineData and the component is fully initialized
+    if (lineData.length > 0 && isContentInitialized) {
+      setTimeout(initializeUuidsWithRetry, 100); // Initial delay
+    }
+  }, [lineData, isContentInitialized, lineUuidsInitialized]);
+
   // Set line UUIDs in the DOM ONLY ONCE after initial load
   useEffect(() => {
-    if (quillRef.current && lineData.length > 0 && !lineUuidsInitialized) {
+    if (quillRef.current && lineData.length > 0 && !lineUuidsInitialized && isContentInitialized) {
       const editor = quillRef.current.getEditor();
       if (editor) {
         const lines = editor.getLines(0);
@@ -85,12 +122,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
               }
             }
           });
-          // Mark as initialized so we never update all UUIDs again
-          setLineUuidsInitialized(true);
         }
       }
     }
-  }, [lineData, lineUuidsInitialized]);
+  }, [lineData, lineUuidsInitialized, isContentInitialized]);
 
   const handleChange = (newContent: string) => {
     const editor = quillRef.current?.getEditor();

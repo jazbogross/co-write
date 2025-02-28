@@ -10,32 +10,41 @@ export const LineTrackingModule = {
       let lineUuids: Map<number, string> = new Map();
       let isInitialized = false;
       
-      // Initialize the UUID map from the DOM on first load
+      // Remove the setTimeout and initializeUuids will be called
+      // only when we explicitly call quill.lineTracking.initializeUuids
       const initializeUuids = () => {
-        if (isInitialized) return;
-        
+        // Don't early return if already initialized - allow forced reinitialization
         const lines = quill.getLines(0);
+        let foundUuids = false;
+        
         lines.forEach((line: any, index: number) => {
           if (line.domNode) {
             const uuid = line.domNode.getAttribute('data-line-uuid');
             if (uuid) {
               lineUuids.set(index, uuid);
+              foundUuids = true;
             }
           }
         });
         
-        isInitialized = true;
+        // Only mark as initialized if we actually found UUIDs
+        if (foundUuids) {
+          isInitialized = true;
+          console.log('LineTracking: Initialized with UUIDs', Array.from(lineUuids.entries()));
+        } else {
+          console.log('LineTracking: No UUIDs found during initialization');
+        }
+        
+        return foundUuids;
       };
-      
-      // Wait for the editor to be fully ready before initializing
-      setTimeout(initializeUuids, 100);
       
       quill.on('text-change', function() {
         if (isUpdating) return;
         isUpdating = true;
         
         try {
-          // Make sure UUIDs are initialized
+          // Make sure UUIDs are initialized, but don't force it
+          // This will attempt to initialize only if not already initialized
           if (!isInitialized) {
             initializeUuids();
           }
@@ -79,11 +88,18 @@ export const LineTrackingModule = {
       
       // Expose methods to get and set line UUIDs
       quill.lineTracking = {
+        // Add explicit initialization method that can be called by React component
+        // when it has finished rendering with database UUIDs
+        initializeUuids: function() {
+          return initializeUuids();
+        },
+        
         // Convert from 1-based (external) to 0-based (internal) when getting UUIDs
         getLineUuid: function(oneBasedIndex: number) {
           const zeroBasedIndex = oneBasedIndex - 1;
           return lineUuids.get(zeroBasedIndex);
         },
+        
         // Convert from 1-based (external) to 0-based (internal) when setting UUIDs
         setLineUuid: function(oneBasedIndex: number, uuid: string) {
           const zeroBasedIndex = oneBasedIndex - 1;
@@ -98,6 +114,11 @@ export const LineTrackingModule = {
               }
             }
           }
+        },
+        
+        // Get the current state of UUID map for debugging
+        getUuidMap: function() {
+          return Array.from(lineUuids.entries());
         }
       };
     });
