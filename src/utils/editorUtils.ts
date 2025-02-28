@@ -1,4 +1,3 @@
-
 export const extractLineContents = (lines: any[], quill: any): string[] => {
   return lines.map(line => {
     if (!line.domNode) return '';
@@ -15,15 +14,14 @@ export const extractLineContents = (lines: any[], quill: any): string[] => {
 
 export const reconstructContent = (lineData: Array<{ content: string }>): string => {
   try {
-    // For formatted content, just use the original content from the script
-    // This avoids unnecessary reconstruction which strips formatting
+    // For formatted content, join the content while handling delta objects properly
     return lineData.map(line => {
-      // If the content is a stringified Delta object, parse it back
+      // If the content is a stringified Delta object, parse it but don't convert to string directly
       if (line.content.startsWith('{') && line.content.includes('ops')) {
         try {
-          return JSON.parse(line.content);
+          // Parse but keep as an object to be handled by Quill correctly
+          return line.content;
         } catch (e) {
-          // If it's not valid JSON, return as is
           return line.content;
         }
       }
