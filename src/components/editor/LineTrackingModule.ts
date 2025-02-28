@@ -17,15 +17,17 @@ export const LineTrackingModule = {
           const lines = quill.getLines(0);
           lines.forEach((line: any, index: number) => {
             if (line.domNode) {
-              // Only set data-line-index if it hasn't been set or has changed
+              // Set data-line-index to be 1-based (index + 1) to match Supabase's line_number
+              const oneBasedIndex = index + 1;
               const currentIndex = line.domNode.getAttribute('data-line-index');
-              if (currentIndex !== String(index)) {
-                line.domNode.setAttribute('data-line-index', String(index));
+              if (currentIndex !== String(oneBasedIndex)) {
+                line.domNode.setAttribute('data-line-index', String(oneBasedIndex));
               }
               
               // Get the existing UUID if available
               const uuid = line.domNode.getAttribute('data-line-uuid');
               if (uuid) {
+                // Store in map using 0-based index for internal use
                 lineUuids.set(index, uuid);
               }
             }
@@ -44,14 +46,18 @@ export const LineTrackingModule = {
       
       // Expose methods to get and set line UUIDs
       quill.lineTracking = {
-        getLineUuid: function(index: number) {
-          return lineUuids.get(index);
+        // Convert from 1-based (external) to 0-based (internal) when getting UUIDs
+        getLineUuid: function(oneBasedIndex: number) {
+          const zeroBasedIndex = oneBasedIndex - 1;
+          return lineUuids.get(zeroBasedIndex);
         },
-        setLineUuid: function(index: number, uuid: string) {
-          lineUuids.set(index, uuid);
+        // Convert from 1-based (external) to 0-based (internal) when setting UUIDs
+        setLineUuid: function(oneBasedIndex: number, uuid: string) {
+          const zeroBasedIndex = oneBasedIndex - 1;
+          lineUuids.set(zeroBasedIndex, uuid);
           const lines = quill.getLines(0);
-          if (lines[index] && lines[index].domNode) {
-            lines[index].domNode.setAttribute('data-line-uuid', uuid);
+          if (lines[zeroBasedIndex] && lines[zeroBasedIndex].domNode) {
+            lines[zeroBasedIndex].domNode.setAttribute('data-line-uuid', uuid);
           }
         }
       };
