@@ -44,13 +44,11 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           previousContentRef.current = formattedLineData.map(line => line.content);
         } else {
           // Initialize with original content if no data in database
-          // Here, instead of splitting by newline which would strip formatting,
-          // we'll create a single line to preserve the original formatting
-          // This prevents formatting loss for new content
+          // Create a single line to preserve the original formatting
           const initialLineData = [{
             uuid: uuidv4(),
             lineNumber: 1,
-            content: originalContent, // Preserve the entire original content with formatting
+            content: originalContent,
             originalAuthor: userId,
             editedBy: []
           }];
