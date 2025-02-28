@@ -12,7 +12,8 @@ export const useSubmitEdits = (
   content: string,
   lineData: LineData[],
   userId: string | null,
-  onSuggestChange: (suggestion: string) => void
+  onSuggestChange: (suggestion: string) => void,
+  loadDraftsForCurrentUser?: () => Promise<void> // Accept this from useLineData
 ) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -60,7 +61,7 @@ export const useSubmitEdits = (
             toast({
               title: "Changes saved",
               description: "Changes saved to database. GitHub commit skipped - please reconnect your GitHub account to enable commits.",
-              variant: "default", // Changed from "warning" to "default"
+              variant: "default", 
             });
           }
         } catch (commitError: any) {
@@ -69,7 +70,7 @@ export const useSubmitEdits = (
           toast({
             title: "Changes saved",
             description: "Changes saved to database, but GitHub commit failed: " + (commitError.message || "Unknown error"),
-            variant: "default", // Changed from "warning" to "default"
+            variant: "default", 
           });
         }
         
@@ -110,18 +111,24 @@ export const useSubmitEdits = (
     try {
       if (isAdmin) {
         await saveDraft(scriptId, lineData, content, userId);
-
+        
         toast({
           title: "Draft saved",
           description: "Your draft has been saved successfully",
         });
       } else {
         await saveLineDrafts(scriptId, lineData, originalContent, userId);
-
+        
         toast({
           title: "Draft saved",
           description: "Your draft suggestions have been saved",
         });
+      }
+      
+      // Only load drafts AFTER saving to get the latest state
+      if (loadDraftsForCurrentUser) {
+        console.log("Loading drafts after save...");
+        await loadDraftsForCurrentUser();
       }
     } catch (error: any) {
       console.error('Error saving draft:', error);

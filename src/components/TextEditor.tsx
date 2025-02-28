@@ -47,7 +47,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     fetchUser();
   }, []);
 
-  const { lineData, updateLineContents } = useLineData(scriptId, originalContent, userId);
+  const { lineData, updateLineContents, loadDraftsForCurrentUser } = useLineData(scriptId, originalContent, userId);
 
   // Set initial content - ONLY original content, never reconstructed
   useEffect(() => {
@@ -67,7 +67,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [lineData, isContentInitialized, originalContent]);
 
-  // Update line UUIDs in the DOM ONLY ONCE after initial load
+  // Set line UUIDs in the DOM ONLY ONCE after initial load
   useEffect(() => {
     if (quillRef.current && lineData.length > 0 && !lineUuidsInitialized) {
       const editor = quillRef.current.getEditor();
@@ -76,9 +76,13 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         
         // Only update line UUIDs if we have lines in the editor
         if (lines.length > 0) {
+          // Set UUIDs only once, and only for lines that don't have them
           lines.forEach((line, index) => {
             if (line.domNode && index < lineData.length) {
-              line.domNode.setAttribute('data-line-uuid', lineData[index].uuid);
+              // Only set if the DOM element doesn't already have a uuid
+              if (!line.domNode.getAttribute('data-line-uuid')) {
+                line.domNode.setAttribute('data-line-uuid', lineData[index].uuid);
+              }
             }
           });
           // Mark as initialized so we never update all UUIDs again
@@ -123,7 +127,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     content,
     lineData,
     userId,
-    onSuggestChange
+    onSuggestChange,
+    loadDraftsForCurrentUser // Pass the function to be called after save
   );
 
   return (

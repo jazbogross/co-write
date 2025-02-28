@@ -50,8 +50,7 @@ export const LineTrackingModule = {
                 line.domNode.setAttribute('data-line-index', String(oneBasedIndex));
               }
               
-              // For UUID handling, only restore missing UUIDs from our map
-              // NEVER update the map from the DOM after initialization
+              // ONLY RESTORE missing UUIDs - NEVER REASSIGN existing ones
               const uuid = line.domNode.getAttribute('data-line-uuid');
               if (!uuid) {
                 // If the line doesn't have a UUID in the DOM, check if we have one in our map
@@ -60,8 +59,10 @@ export const LineTrackingModule = {
                   // Restore the UUID to the DOM if we have one
                   line.domNode.setAttribute('data-line-uuid', existingUuid);
                 }
+                // If we don't have a UUID for this line, leave it blank - it will be assigned
+                // in the updateLineContents function when needed
               }
-              // Do NOT update the map here anymore - that caused the first-edit issue
+              // NEVER update the map here - the UUIDs should only be assigned once
             }
           });
         } finally {
@@ -86,10 +87,16 @@ export const LineTrackingModule = {
         // Convert from 1-based (external) to 0-based (internal) when setting UUIDs
         setLineUuid: function(oneBasedIndex: number, uuid: string) {
           const zeroBasedIndex = oneBasedIndex - 1;
-          lineUuids.set(zeroBasedIndex, uuid);
-          const lines = quill.getLines(0);
-          if (lines[zeroBasedIndex] && lines[zeroBasedIndex].domNode) {
-            lines[zeroBasedIndex].domNode.setAttribute('data-line-uuid', uuid);
+          // Only set UUID if it doesn't already exist in the map or DOM
+          if (!lineUuids.has(zeroBasedIndex)) {
+            lineUuids.set(zeroBasedIndex, uuid);
+            const lines = quill.getLines(0);
+            if (lines[zeroBasedIndex] && lines[zeroBasedIndex].domNode) {
+              // Only set if the DOM element doesn't already have a uuid
+              if (!lines[zeroBasedIndex].domNode.getAttribute('data-line-uuid')) {
+                lines[zeroBasedIndex].domNode.setAttribute('data-line-uuid', uuid);
+              }
+            }
           }
         }
       };
