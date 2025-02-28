@@ -5,7 +5,7 @@ const Quill = ReactQuill.Quill;
 export const LineTrackingModule = {
   name: 'lineTracking',
   register: function(Quill: any) {
-    Quill.register('modules/lineTracking', function(quill: any) {
+    Quill.register('modules/lineTracking', function(quill: ReactQuill.Quill) {
       let isUpdating = false;
       let lineUuids: Map<number, string> = new Map();
       let isInitialized = false;
