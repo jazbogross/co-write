@@ -35,6 +35,13 @@ export const LineTrackingModule = {
         }
       });
       
+      // Get the delta content for a specific line
+      quill.getContent = function(index: number, length: number) {
+        // Get the Delta format for better formatting preservation
+        const delta = quill.getContents(index, length);
+        return JSON.stringify(delta);
+      };
+      
       // Expose methods to get and set line UUIDs
       quill.lineTracking = {
         getLineUuid: function(index: number) {
@@ -55,5 +62,9 @@ export const LineTrackingModule = {
 // This is how we'll configure the module in TextEditor
 export const EDITOR_MODULES = {
   toolbar: false,
-  lineTracking: true
+  lineTracking: true,
+  clipboard: {
+    // Allow paste with formatting
+    matchVisual: true,
+  },
 };

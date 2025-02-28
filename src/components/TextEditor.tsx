@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -9,7 +8,7 @@ import { EditorContainer } from './editor/EditorContainer';
 import { EditorActions } from './editor/EditorActions';
 import { useLineData, type LineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
-import { extractLineContents, reconstructContent } from '@/utils/editorUtils';
+import { extractLineContents, reconstructContent, preserveFormattedContent } from '@/utils/editorUtils';
 
 // Register the module
 LineTrackingModule.register(ReactQuill.Quill);
@@ -35,6 +34,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const [lineCount, setLineCount] = useState(1);
   const [userId, setUserId] = useState<string | null>(null);
   const [isContentInitialized, setIsContentInitialized] = useState(false);
+  const [hasBeenEdited, setHasBeenEdited] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -48,15 +48,22 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   const { lineData, updateLineContents } = useLineData(scriptId, originalContent, userId);
 
-  // Set initial content when line data is loaded
+  // Set initial content when line data is loaded - but ONLY if we've made edits
   useEffect(() => {
     if (lineData.length > 0 && !isContentInitialized) {
-      const reconstructedContent = reconstructContent(lineData);
-      setContent(reconstructedContent);
+      // Only reconstruct content if there are actual changes or it wasn't loaded from the database
+      // This prevents stripping formatting on first load
+      if (hasBeenEdited) {
+        const reconstructedContent = reconstructContent(lineData);
+        setContent(reconstructedContent);
+      } else {
+        // Otherwise, use the original formatted content
+        setContent(originalContent);
+      }
       setIsContentInitialized(true);
       setLineCount(lineData.length);
     }
-  }, [lineData, isContentInitialized]);
+  }, [lineData, isContentInitialized, originalContent, hasBeenEdited]);
 
   // Update line UUIDs in the DOM
   useEffect(() => {
@@ -77,7 +84,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     const editor = quillRef.current?.getEditor();
     if (!editor) return;
 
+    // Mark content as edited - this ensures reconstruction preserves formatting for edits
+    setHasBeenEdited(true);
     setContent(newContent);
+    
     const lines = editor.getLines(0);
     setLineCount(lines.length);
     
@@ -97,6 +107,9 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       } else {
         editor.format(format, !format_value[format]);
       }
+      
+      // Mark content as edited when formatting is applied
+      setHasBeenEdited(true);
     }
   };
 

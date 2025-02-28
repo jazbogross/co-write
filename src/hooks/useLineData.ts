@@ -44,17 +44,20 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           previousContentRef.current = formattedLineData.map(line => line.content);
         } else {
           // Initialize with original content if no data in database
-          const lines = originalContent.split('\n');
-          const initialLineData = lines.map((line, index) => ({
+          // Here, instead of splitting by newline which would strip formatting,
+          // we'll create a single line to preserve the original formatting
+          // This prevents formatting loss for new content
+          const initialLineData = [{
             uuid: uuidv4(),
-            lineNumber: index + 1,
-            content: line,
+            lineNumber: 1,
+            content: originalContent, // Preserve the entire original content with formatting
             originalAuthor: userId,
             editedBy: []
-          }));
+          }];
+          
           setLineData(initialLineData);
-          // Store the current content lines for future reference
-          previousContentRef.current = lines;
+          // Store the current content for future reference
+          previousContentRef.current = [originalContent];
         }
         setInitialized(true);
       } catch (error) {
