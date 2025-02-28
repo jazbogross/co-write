@@ -9,12 +9,108 @@ export interface LineData {
   content: string;
   originalAuthor: string | null;
   editedBy: string[];
+  draft?: string | null;
+  lineNumberDraft?: number | null;
 }
 
 export const useLineData = (scriptId: string, originalContent: string, userId: string | null) => {
   const [lineData, setLineData] = useState<LineData[]>([]);
   const [initialized, setInitialized] = useState(false);
   const previousContentRef = useRef<string[]>([]);
+  const isLoadingDrafts = useRef<boolean>(false);
+
+  // Function to load drafts for the current user
+  const loadDraftsForCurrentUser = async () => {
+    if (!scriptId || !userId || isLoadingDrafts.current) return;
+    
+    isLoadingDrafts.current = true;
+    try {
+      if (userId) {
+        let draftData;
+        
+        if (userId) {
+          // Try to fetch admin drafts (script_content)
+          const { data: adminDrafts, error: adminError } = await supabase
+            .from('script_content')
+            .select('id, line_number, line_number_draft, content, draft')
+            .eq('script_id', scriptId)
+            .eq('original_author', userId)
+            .order('line_number_draft', { ascending: true, nullsLast: true });
+            
+          if (adminError) throw adminError;
+          
+          if (adminDrafts && adminDrafts.length > 0 && adminDrafts.some(draft => draft.draft !== null)) {
+            draftData = adminDrafts;
+          } else {
+            // Try to fetch editor drafts (script_suggestions)
+            const { data: editorDrafts, error: editorError } = await supabase
+              .from('script_suggestions')
+              .select('id, line_uuid, line_number, line_number_draft, content, draft')
+              .eq('script_id', scriptId)
+              .eq('user_id', userId)
+              .eq('status', 'pending')
+              .order('line_number_draft', { ascending: true, nullsLast: true });
+              
+            if (editorError) throw editorError;
+            
+            if (editorDrafts && editorDrafts.length > 0 && editorDrafts.some(draft => draft.draft !== null)) {
+              draftData = editorDrafts;
+            }
+          }
+        }
+        
+        // If we have draft data, update the lineData with draft content
+        if (draftData && draftData.length > 0) {
+          setLineData(prevData => {
+            const newData = [...prevData];
+            
+            // Update existing lines with draft content
+            draftData.forEach(draft => {
+              const lineId = draft.id || draft.line_uuid;
+              const lineIndex = newData.findIndex(line => line.uuid === lineId);
+              
+              if (lineIndex >= 0) {
+                // Line exists - update its content if there's a draft
+                if (draft.draft && draft.draft !== '{deleted-uuid}') {
+                  newData[lineIndex] = {
+                    ...newData[lineIndex],
+                    content: draft.draft,
+                    lineNumber: draft.line_number_draft || newData[lineIndex].lineNumber,
+                  };
+                } else if (draft.draft === '{deleted-uuid}') {
+                  // Line was deleted in draft - remove it
+                  newData.splice(lineIndex, 1);
+                }
+              } else if (draft.draft && draft.draft !== '{deleted-uuid}') {
+                // This is a new line added in draft
+                newData.push({
+                  uuid: draft.id || draft.line_uuid || uuidv4(),
+                  lineNumber: draft.line_number_draft || newData.length + 1,
+                  content: draft.draft,
+                  originalAuthor: userId,
+                  editedBy: []
+                });
+              }
+            });
+            
+            // Sort lines by lineNumber
+            newData.sort((a, b) => a.lineNumber - b.lineNumber);
+            
+            // Update line numbers to be sequential
+            newData.forEach((line, index) => {
+              line.lineNumber = index + 1;
+            });
+            
+            return newData;
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading drafts:', error);
+    } finally {
+      isLoadingDrafts.current = false;
+    }
+  };
 
   useEffect(() => {
     const fetchLineData = async () => {
@@ -36,7 +132,9 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
             content: line.content,
             originalAuthor: line.original_author || null,
             // Ensure editedBy is always a string array
-            editedBy: Array.isArray(line.edited_by) ? line.edited_by.map(String) : []
+            editedBy: Array.isArray(line.edited_by) ? line.edited_by.map(String) : [],
+            draft: line.draft,
+            lineNumberDraft: line.line_number_draft
           }));
           
           setLineData(formattedLineData);
@@ -58,6 +156,9 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           previousContentRef.current = [originalContent];
         }
         setInitialized(true);
+        
+        // After initializing line data, try to load drafts
+        loadDraftsForCurrentUser();
       } catch (error) {
         console.error('Error fetching line data:', error);
         setInitialized(true);

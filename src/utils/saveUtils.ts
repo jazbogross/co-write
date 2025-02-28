@@ -22,7 +22,8 @@ export const saveLinesToDatabase = async (
       content: line.content,
       original_author: line.originalAuthor,
       edited_by: line.editedBy,
-      metadata: {}
+      line_number_draft: line.lineNumber, // Initialize draft line number to match current
+      draft: null // No draft content initially
     }));
 
     // Insert all lines
@@ -132,6 +133,7 @@ export const saveSuggestions = async (
         user_id: userId,
         line_uuid: change.uuid,
         status: 'pending',
+        line_number: change.originalLineNumber,
         metadata: { 
           changeType: change.type,
           lineNumber: change.lineNumber,
@@ -158,28 +160,77 @@ export const saveLineDrafts = async (
   userId: string | null
 ) => {
   try {
-    await supabase
+    // First, get current line data from database
+    const { data: existingLines, error: fetchError } = await supabase
       .from('script_suggestions')
-      .delete()
+      .select('id, line_uuid, line_number, content, draft')
       .eq('script_id', scriptId)
       .eq('user_id', userId)
-      .eq('status', 'draft');
-    
-    for (const line of lineData) {
-      const originalLine = originalContent.split('\n')[line.lineNumber - 1] || '';
+      .eq('status', 'pending');
       
-      if (line.content !== originalLine) {
+    if (fetchError) throw fetchError;
+    
+    // Create a map of existing line UUIDs for quick lookup
+    const existingLineMap = new Map();
+    if (existingLines) {
+      existingLines.forEach(line => {
+        if (line.line_uuid) {
+          existingLineMap.set(line.line_uuid, line);
+        }
+      });
+    }
+    
+    // Get all current line UUIDs in the editor
+    const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
+    
+    // First, update draft position for all lines
+    for (const line of lineData) {
+      const existingLine = existingLineMap.get(line.uuid);
+      
+      if (existingLine) {
+        // Line exists - update its draft content and draft line number
+        const { error } = await supabase
+          .from('script_suggestions')
+          .update({
+            draft: line.content !== existingLine.content ? line.content : existingLine.draft,
+            line_number_draft: line.lineNumber
+          })
+          .eq('id', existingLine.id);
+          
+        if (error) throw error;
+      } else {
+        // New line - create a suggestion entry with draft content
         const { error } = await supabase
           .from('script_suggestions')
           .insert({
             script_id: scriptId,
-            content: line.content,
+            content: '',  // Original content is empty for new lines
+            draft: line.content,
             user_id: userId,
             line_uuid: line.uuid,
-            status: 'draft'
+            status: 'pending',
+            line_number: null,  // No original line number for new lines
+            line_number_draft: line.lineNumber
           });
-
+          
         if (error) throw error;
+      }
+    }
+    
+    // Handle deleted lines (lines that exist in DB but not in editor)
+    if (existingLines) {
+      for (const existingLine of existingLines) {
+        if (existingLine.line_uuid && !currentLineUUIDs.has(existingLine.line_uuid)) {
+          // Line was deleted - mark it as deleted in draft
+          const { error } = await supabase
+            .from('script_suggestions')
+            .update({
+              draft: '{deleted-uuid}'
+            })
+            .eq('id', existingLine.id);
+            
+          if (error) throw error;
+        }
       }
     }
   } catch (error) {
@@ -194,24 +245,79 @@ export const saveDraft = async (
   content: string, 
   userId: string | null
 ) => {
-  const serializableData = {
-    lines: lineData.map(line => ({
-      uuid: line.uuid,
-      lineNumber: line.lineNumber,
-      content: line.content,
-      originalAuthor: line.originalAuthor,
-      editedBy: line.editedBy
-    })),
-    fullContent: content
-  };
-
-  const { error } = await supabase
-    .from('script_drafts')
-    .insert({
-      script_id: scriptId,
-      content: serializableData,
-      user_id: userId
+  try {
+    // First get all existing lines for this script
+    const { data: existingLines, error: fetchError } = await supabase
+      .from('script_content')
+      .select('id, line_number, content, draft')
+      .eq('script_id', scriptId)
+      .order('line_number', { ascending: true });
+      
+    if (fetchError) throw fetchError;
+    
+    if (!existingLines || existingLines.length === 0) {
+      throw new Error('No existing content found');
+    }
+    
+    // Create a map of existing line UUIDs for quick lookup
+    const existingLineMap = new Map();
+    existingLines.forEach(line => {
+      existingLineMap.set(line.id, line);
     });
-
-  if (error) throw error;
+    
+    // Get all current line UUIDs in the editor
+    const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
+    
+    // First, update draft position for all lines in lineData
+    for (const line of lineData) {
+      const existingLine = existingLineMap.get(line.uuid);
+      
+      if (existingLine) {
+        // Line exists - update its draft content and draft line number
+        const { error } = await supabase
+          .from('script_content')
+          .update({
+            draft: line.content !== existingLine.content ? line.content : existingLine.draft,
+            line_number_draft: line.lineNumber
+          })
+          .eq('id', line.uuid);
+          
+        if (error) throw error;
+      } else {
+        // New line - add it to script_content with both regular and draft content
+        const { error } = await supabase
+          .from('script_content')
+          .insert({
+            id: line.uuid,
+            script_id: scriptId,
+            line_number: null,  // No original line number for new lines
+            line_number_draft: line.lineNumber,
+            content: '',  // Original content is empty for new lines
+            draft: line.content,
+            original_author: userId,
+            edited_by: userId ? [userId] : []
+          });
+          
+        if (error) throw error;
+      }
+    }
+    
+    // Handle deleted lines (lines that exist in DB but not in editor)
+    for (const existingLine of existingLines) {
+      if (!currentLineUUIDs.has(existingLine.id)) {
+        // Line was deleted - mark it as deleted in draft
+        const { error } = await supabase
+          .from('script_content')
+          .update({
+            draft: '{deleted-uuid}'
+          })
+          .eq('id', existingLine.id);
+          
+        if (error) throw error;
+      }
+    }
+  } catch (error) {
+    console.error('Error saving draft:', error);
+    throw error;
+  }
 };

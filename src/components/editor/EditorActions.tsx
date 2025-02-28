@@ -2,6 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { EditorToolbar } from './EditorToolbar';
+import { Save } from 'lucide-react';
 
 interface EditorActionsProps {
   isAdmin: boolean;
@@ -40,10 +41,11 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
         <Button
           variant="outline"
           size="sm"
-          className="justify-end"
+          className="justify-end flex items-center"
           onClick={onSave}
           disabled={isSubmitting}
         >
+          <Save className="mr-1 h-4 w-4" />
           {isSubmitting ? "Saving..." : "Save Draft"}
         </Button>
       </div>
