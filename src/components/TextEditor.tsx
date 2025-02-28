@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -48,20 +49,28 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   const { lineData, updateLineContents } = useLineData(scriptId, originalContent, userId);
 
-  // Set initial content when line data is loaded - but ONLY if we've made edits
+  // Set initial content when line data is loaded
   useEffect(() => {
     if (lineData.length > 0 && !isContentInitialized) {
-      // Only reconstruct content if there are actual changes or it wasn't loaded from the database
-      // This prevents stripping formatting on first load
-      if (hasBeenEdited) {
-        const reconstructedContent = reconstructContent(lineData);
-        setContent(reconstructedContent);
-      } else {
-        // Otherwise, use the original formatted content
+      try {
+        // For first load, don't modify the content at all
+        // This preserves all formatting on initial load
+        if (!hasBeenEdited) {
+          setContent(originalContent);
+        } else {
+          // If edited, reconstruct from line data
+          const reconstructedContent = reconstructContent(lineData);
+          setContent(reconstructedContent);
+        }
+        
+        setIsContentInitialized(true);
+        setLineCount(lineData.length);
+      } catch (error) {
+        console.error("Error setting initial content:", error);
+        // Fallback to original content
         setContent(originalContent);
+        setIsContentInitialized(true);
       }
-      setIsContentInitialized(true);
-      setLineCount(lineData.length);
     }
   }, [lineData, isContentInitialized, originalContent, hasBeenEdited]);
 

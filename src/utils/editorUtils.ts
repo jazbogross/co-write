@@ -1,3 +1,4 @@
+
 export const extractLineContents = (lines: any[], quill: any): string[] => {
   return lines.map(line => {
     if (!line.domNode) return '';
@@ -14,19 +15,31 @@ export const extractLineContents = (lines: any[], quill: any): string[] => {
 
 export const reconstructContent = (lineData: Array<{ content: string }>): string => {
   try {
-    // For formatted content, join the content while handling delta objects properly
-    return lineData.map(line => {
-      // If the content is a stringified Delta object, parse it but don't convert to string directly
-      if (line.content.startsWith('{') && line.content.includes('ops')) {
-        try {
-          // Parse but keep as an object to be handled by Quill correctly
-          return line.content;
-        } catch (e) {
-          return line.content;
+    // For first load, don't reconstruct at all, just return the original content
+    if (lineData.length === 1 && lineData[0].content.includes('\n') === false) {
+      return lineData[0].content;
+    }
+    
+    // For edited content, create a properly formatted delta object
+    const ops = lineData.flatMap(line => {
+      try {
+        // Try to parse the content as a delta object
+        if (line.content.startsWith('{') && line.content.includes('ops')) {
+          const delta = JSON.parse(line.content);
+          // Return the ops array from each delta
+          return delta.ops || [];
         }
+      } catch (e) {
+        // If parsing fails, treat as plain text
+        console.error('Error parsing delta:', e);
       }
-      return line.content;
-    }).join('\n');
+      
+      // Fallback: treat as plain text
+      return [{ insert: line.content + '\n' }];
+    });
+    
+    // Create a single delta object with all ops
+    return JSON.stringify({ ops });
   } catch (error) {
     console.error('Error reconstructing content:', error);
     // Fallback to original behavior
