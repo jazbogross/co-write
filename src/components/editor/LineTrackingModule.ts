@@ -8,12 +8,38 @@ export const LineTrackingModule = {
     Quill.register('modules/lineTracking', function(quill: any) {
       let isUpdating = false;
       let lineUuids: Map<number, string> = new Map();
+      let isInitialized = false;
+      
+      // Initialize the UUID map from the DOM on first load
+      const initializeUuids = () => {
+        if (isInitialized) return;
+        
+        const lines = quill.getLines(0);
+        lines.forEach((line: any, index: number) => {
+          if (line.domNode) {
+            const uuid = line.domNode.getAttribute('data-line-uuid');
+            if (uuid) {
+              lineUuids.set(index, uuid);
+            }
+          }
+        });
+        
+        isInitialized = true;
+      };
+      
+      // Wait for the editor to be fully ready before initializing
+      setTimeout(initializeUuids, 100);
       
       quill.on('text-change', function() {
         if (isUpdating) return;
         isUpdating = true;
         
         try {
+          // Make sure UUIDs are initialized
+          if (!isInitialized) {
+            initializeUuids();
+          }
+          
           const lines = quill.getLines(0);
           lines.forEach((line: any, index: number) => {
             if (line.domNode) {
@@ -24,26 +50,18 @@ export const LineTrackingModule = {
                 line.domNode.setAttribute('data-line-index', String(oneBasedIndex));
               }
               
-              // For UUID handling, we want to:
-              // 1. Preserve existing UUIDs from the DOM
-              // 2. Only update the lineUuids Map if this is a new line without a UUID
+              // For UUID handling, only restore missing UUIDs from our map
+              // NEVER update the map from the DOM after initialization
               const uuid = line.domNode.getAttribute('data-line-uuid');
-              
-              if (uuid) {
-                // If the line already has a UUID in the DOM, just make sure
-                // our Map has this UUID at the current index, but don't rewrite to DOM
-                lineUuids.set(index, uuid);
-              } else {
-                // If this is a new line (no UUID), check if we have a UUID at this index
-                // in our Map - if not, we don't need to do anything as it will be assigned
-                // by external code later
+              if (!uuid) {
+                // If the line doesn't have a UUID in the DOM, check if we have one in our map
                 const existingUuid = lineUuids.get(index);
                 if (existingUuid) {
-                  // If we have a UUID for this index in our Map but not in the DOM,
-                  // restore it to the DOM
+                  // Restore the UUID to the DOM if we have one
                   line.domNode.setAttribute('data-line-uuid', existingUuid);
                 }
               }
+              // Do NOT update the map here anymore - that caused the first-edit issue
             }
           });
         } finally {
