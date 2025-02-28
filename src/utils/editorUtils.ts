@@ -8,7 +8,7 @@ export const extractLineContents = (lines: any[], quill: any): string[] => {
     const endIndex = line.next ? quill.getIndex(line.next) : quill.getLength();
     
     // Extract the content while preserving formatting
-    return quill.getText(startIndex, endIndex - startIndex).trim();
+    return quill.getContent(startIndex, endIndex - startIndex).trim();
   });
 };
 
