@@ -35,6 +35,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const [lineCount, setLineCount] = useState(1);
   const [userId, setUserId] = useState<string | null>(null);
   const [isContentInitialized, setIsContentInitialized] = useState(false);
+  const [lineUuidsInitialized, setLineUuidsInitialized] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -66,9 +67,9 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [lineData, isContentInitialized, originalContent]);
 
-  // Update line UUIDs in the DOM
+  // Update line UUIDs in the DOM ONLY ONCE after initial load
   useEffect(() => {
-    if (quillRef.current && lineData.length > 0) {
+    if (quillRef.current && lineData.length > 0 && !lineUuidsInitialized) {
       const editor = quillRef.current.getEditor();
       if (editor) {
         const lines = editor.getLines(0);
@@ -80,10 +81,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
               line.domNode.setAttribute('data-line-uuid', lineData[index].uuid);
             }
           });
+          // Mark as initialized so we never update all UUIDs again
+          setLineUuidsInitialized(true);
         }
       }
     }
-  }, [lineData, content]);
+  }, [lineData, lineUuidsInitialized]);
 
   const handleChange = (newContent: string) => {
     const editor = quillRef.current?.getEditor();

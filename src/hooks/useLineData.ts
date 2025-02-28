@@ -18,6 +18,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
   const [initialized, setInitialized] = useState(false);
   const previousContentRef = useRef<string[]>([]);
   const isLoadingDrafts = useRef<boolean>(false);
+  const originalUuidsRef = useRef<Map<string, string>>(new Map());
 
   // Function to load drafts for the current user
   const loadDraftsForCurrentUser = async () => {
@@ -62,29 +63,28 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
         // If we have draft data, update the lineData with draft content
         if (draftData && draftData.length > 0) {
           setLineData(prevData => {
+            // Make a copy of the current data
             const newData = [...prevData];
+            const newDataMap = new Map(newData.map(line => [line.uuid, line]));
             
-            // Update existing lines with draft content
+            // For each draft line, update or add to the data without changing UUIDs
             draftData.forEach(draft => {
               const lineId = draft.id || draft.line_uuid;
-              const lineIndex = newData.findIndex(line => line.uuid === lineId);
               
-              if (lineIndex >= 0) {
-                // Line exists - update its content if there's a draft
+              if (lineId && newDataMap.has(lineId)) {
+                // Line exists - update its content if there's a draft but don't change UUID
+                const line = newDataMap.get(lineId)!;
                 if (draft.draft && draft.draft !== '{deleted-uuid}') {
-                  newData[lineIndex] = {
-                    ...newData[lineIndex],
-                    content: draft.draft,
-                    lineNumber: draft.line_number_draft || newData[lineIndex].lineNumber,
-                  };
+                  line.content = draft.draft;
+                  line.lineNumber = draft.line_number_draft || line.lineNumber;
                 } else if (draft.draft === '{deleted-uuid}') {
-                  // Line was deleted in draft - remove it
-                  newData.splice(lineIndex, 1);
+                  // Mark for deletion by removing from map
+                  newDataMap.delete(lineId);
                 }
               } else if (draft.draft && draft.draft !== '{deleted-uuid}') {
                 // This is a new line added in draft
-                newData.push({
-                  uuid: draft.id || draft.line_uuid || uuidv4(),
+                newDataMap.set(lineId || uuidv4(), {
+                  uuid: lineId || uuidv4(),
                   lineNumber: draft.line_number_draft || newData.length + 1,
                   content: draft.draft,
                   originalAuthor: userId,
@@ -93,15 +93,18 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
               }
             });
             
+            // Convert map back to array
+            const updatedData = Array.from(newDataMap.values());
+            
             // Sort lines by lineNumber
-            newData.sort((a, b) => a.lineNumber - b.lineNumber);
+            updatedData.sort((a, b) => a.lineNumber - b.lineNumber);
             
             // Update line numbers to be sequential
-            newData.forEach((line, index) => {
+            updatedData.forEach((line, index) => {
               line.lineNumber = index + 1;
             });
             
-            return newData;
+            return updatedData;
           });
         }
       }
@@ -137,6 +140,11 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
             lineNumberDraft: line.line_number_draft
           }));
           
+          // Store the original UUIDs in our ref
+          formattedLineData.forEach(line => {
+            originalUuidsRef.current.set(line.uuid, line.uuid);
+          });
+          
           setLineData(formattedLineData);
           // Store the current content lines for future reference
           previousContentRef.current = formattedLineData.map(line => line.content);
@@ -150,6 +158,9 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
             originalAuthor: userId,
             editedBy: []
           }];
+          
+          // Store the initial UUID
+          originalUuidsRef.current.set(initialLineData[0].uuid, initialLineData[0].uuid);
           
           setLineData(initialLineData);
           // Store the current content for future reference
@@ -243,13 +254,19 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           });
         } else {
           // Create a new line
+          const newUuid = uuidv4();
           newData.push({
-            uuid: uuidv4(),
+            uuid: newUuid,
             lineNumber: i + 1,
             content,
             originalAuthor: userId,
             editedBy: []
           });
+          
+          // Set the UUID on the corresponding line in the editor
+          if (quill && quill.lineTracking) {
+            quill.lineTracking.setLineUuid(i + 1, newUuid);
+          }
         }
       }
       
