@@ -46,7 +46,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     fetchUser();
   }, []);
 
-  const { lineData, updateLineContent } = useLineData(scriptId, originalContent, userId);
+  const { lineData, updateLineContents } = useLineData(scriptId, originalContent, userId);
 
   // Set initial content when line data is loaded
   useEffect(() => {
@@ -81,10 +81,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     const lines = editor.getLines(0);
     setLineCount(lines.length);
     
-    const currentLineContents = extractLineContents(lines);
-    currentLineContents.forEach((lineContent, index) => {
-      updateLineContent(index, lineContent);
-    });
+    // Extract line contents with formatting
+    const currentLineContents = extractLineContents(lines, editor);
+    
+    // Update line data with proper UUID tracking
+    updateLineContents(currentLineContents, editor);
   };
 
   const formatText = (format: string, value: any) => {

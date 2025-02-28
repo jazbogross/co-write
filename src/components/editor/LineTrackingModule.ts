@@ -7,6 +7,7 @@ export const LineTrackingModule = {
   register: function(Quill: any) {
     Quill.register('modules/lineTracking', function(quill: any) {
       let isUpdating = false;
+      let lineUuids: Map<number, string> = new Map();
       
       quill.on('text-change', function() {
         if (isUpdating) return;
@@ -21,12 +22,32 @@ export const LineTrackingModule = {
               if (currentIndex !== String(index)) {
                 line.domNode.setAttribute('data-line-index', String(index));
               }
+              
+              // Get the existing UUID if available
+              const uuid = line.domNode.getAttribute('data-line-uuid');
+              if (uuid) {
+                lineUuids.set(index, uuid);
+              }
             }
           });
         } finally {
           isUpdating = false;
         }
       });
+      
+      // Expose methods to get and set line UUIDs
+      quill.lineTracking = {
+        getLineUuid: function(index: number) {
+          return lineUuids.get(index);
+        },
+        setLineUuid: function(index: number, uuid: string) {
+          lineUuids.set(index, uuid);
+          const lines = quill.getLines(0);
+          if (lines[index] && lines[index].domNode) {
+            lines[index].domNode.setAttribute('data-line-uuid', uuid);
+          }
+        }
+      };
     });
   }
 };
