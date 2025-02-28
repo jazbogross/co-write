@@ -35,7 +35,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
             .select('id, line_number, line_number_draft, content, draft')
             .eq('script_id', scriptId)
             .eq('original_author', userId)
-            .order('line_number_draft', { ascending: true, nullsLast: true });
+            .order('line_number_draft', { ascending: true, nullsFirst: false });
             
           if (adminError) throw adminError;
           
@@ -49,7 +49,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
               .eq('script_id', scriptId)
               .eq('user_id', userId)
               .eq('status', 'pending')
-              .order('line_number_draft', { ascending: true, nullsLast: true });
+              .order('line_number_draft', { ascending: true, nullsFirst: false });
               
             if (editorError) throw editorError;
             
