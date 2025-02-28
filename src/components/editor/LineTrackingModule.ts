@@ -24,11 +24,25 @@ export const LineTrackingModule = {
                 line.domNode.setAttribute('data-line-index', String(oneBasedIndex));
               }
               
-              // Get the existing UUID if available
+              // For UUID handling, we want to:
+              // 1. Preserve existing UUIDs from the DOM
+              // 2. Only update the lineUuids Map if this is a new line without a UUID
               const uuid = line.domNode.getAttribute('data-line-uuid');
+              
               if (uuid) {
-                // Store in map using 0-based index for internal use
+                // If the line already has a UUID in the DOM, just make sure
+                // our Map has this UUID at the current index, but don't rewrite to DOM
                 lineUuids.set(index, uuid);
+              } else {
+                // If this is a new line (no UUID), check if we have a UUID at this index
+                // in our Map - if not, we don't need to do anything as it will be assigned
+                // by external code later
+                const existingUuid = lineUuids.get(index);
+                if (existingUuid) {
+                  // If we have a UUID for this index in our Map but not in the DOM,
+                  // restore it to the DOM
+                  line.domNode.setAttribute('data-line-uuid', existingUuid);
+                }
               }
             }
           });
