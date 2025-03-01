@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { LineData } from '@/types/lineTypes';
@@ -6,7 +5,7 @@ import { findBestMatchingLine, fetchLineDataFromSupabase, formatLineDataFromSupa
 import { useDrafts } from './useDrafts';
 import { useEditorInit } from './useEditorInit';
 
-export { LineData } from '@/types/lineTypes';
+export type { LineData } from '@/types/lineTypes';
 
 export const useLineData = (scriptId: string, originalContent: string, userId: string | null) => {
   const [lineData, setLineData] = useState<LineData[]>([]);
@@ -20,7 +19,6 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
   const { loadDraftsForCurrentUser } = useDrafts();
   const { initializeEditor } = useEditorInit(lineData, isDataReady);
 
-  // Fetch line data from Supabase
   useEffect(() => {
     const fetchLineData = async () => {
       if (!scriptId || initialized) {
@@ -158,7 +156,6 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
     });
   };
 
-  // Wrapper for loadDraftsForCurrentUser to include the contentToUuidMapRef
   const loadDrafts = useCallback(() => {
     return loadDraftsForCurrentUser(scriptId, userId, setLineData, contentToUuidMapRef);
   }, [scriptId, userId, loadDraftsForCurrentUser]);
