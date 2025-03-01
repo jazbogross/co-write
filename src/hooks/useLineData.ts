@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -15,11 +16,48 @@ export interface LineData {
 export const useLineData = (scriptId: string, originalContent: string, userId: string | null) => {
   const [lineData, setLineData] = useState<LineData[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [isDataReady, setIsDataReady] = useState(false);
   const previousContentRef = useRef<string[]>([]);
   const isLoadingDrafts = useRef<boolean>(false);
   
   const originalUuidsRef = useRef<Map<string, string>>(new Map());
   const contentToUuidMapRef = useRef<Map<string, string>>(new Map());
+
+  // This function will be called by TextEditor when it's ready to initialize
+  // Returns true if data is ready, false if still loading
+  const initializeEditor = useCallback((editor: any): boolean => {
+    if (!isDataReady || !editor) return false;
+    
+    console.log('**** UseLineData.ts **** Initializing editor with UUIDs from database');
+    
+    try {
+      // Only assign UUIDs to DOM elements if we have them from the database
+      const lines = editor.getLines(0);
+      lines.forEach((line: any, index: number) => {
+        if (line.domNode && index < lineData.length) {
+          const uuid = lineData[index].uuid;
+          // Only set if the DOM element doesn't already have a uuid or has a wrong one
+          const currentUuid = line.domNode.getAttribute('data-line-uuid');
+          if (!currentUuid || currentUuid !== uuid) {
+            console.log(`**** UseLineData.ts **** Setting line ${index + 1} UUID: ${uuid}`);
+            line.domNode.setAttribute('data-line-uuid', uuid);
+            
+            // Also set the line index attribute
+            line.domNode.setAttribute('data-line-index', String(index + 1));
+          }
+          
+          // Ensure our tracking maps are updated
+          if (editor.lineTracking) {
+            editor.lineTracking.setLineUuid(index + 1, uuid);
+          }
+        }
+      });
+      return true;
+    } catch (error) {
+      console.error('**** UseLineData.ts **** Error initializing editor UUIDs:', error);
+      return false;
+    }
+  }, [isDataReady, lineData]);
 
   const loadDraftsForCurrentUser = async () => {
     if (!scriptId || !userId || isLoadingDrafts.current) return;
@@ -107,8 +145,14 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
 
   useEffect(() => {
     const fetchLineData = async () => {
-      if (!scriptId || initialized) return;
-
+      if (!scriptId || initialized) {
+        console.log('**** UseLineData.ts **** fetchLineData aborted because either no scriptId or already initialized.');
+        return;
+      }
+      
+      console.log('**** UseLineData.ts **** fetchLineData called. scriptId:', scriptId, 'initialized:', initialized);
+      setIsDataReady(false); // Reset ready state while loading
+      
       try {
         const { data, error } = await supabase
           .from('script_content')
@@ -119,6 +163,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
         if (error) throw error;
 
         if (data && data.length > 0) {
+          console.log('**** UseLineData.ts **** Data fetched successfully. Lines count:', data.length);
           const formattedLineData = data.map(line => ({
             uuid: line.id,
             lineNumber: line.line_number,
@@ -130,6 +175,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           }));
           
           formattedLineData.forEach(line => {
+            console.log(`**** UseLineData.ts **** Fetched data for line ${line.lineNumber} (zero-indexed): ${JSON.stringify(line)}`);
             originalUuidsRef.current.set(line.uuid, line.uuid);
             contentToUuidMapRef.current.set(line.content, line.uuid);
           });
@@ -137,6 +183,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           setLineData(formattedLineData);
           previousContentRef.current = formattedLineData.map(line => line.content);
         } else {
+          console.log('**** UseLineData.ts **** No data found, creating initial line data');
           const initialUuid = uuidv4();
           const initialLineData = [{
             uuid: initialUuid,
@@ -153,9 +200,24 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           previousContentRef.current = [originalContent];
         }
         setInitialized(true);
+        setIsDataReady(true); // Mark data as ready for TextEditor to use
+        console.log('**** UseLineData.ts **** Data is now ready for editor to use');
       } catch (error) {
-        console.error('Error fetching line data:', error);
+        console.error('**** UseLineData.ts **** Error fetching line data:', error);
         setInitialized(true);
+        
+        // Even if there's an error, try to initialize with some data
+        if (lineData.length === 0) {
+          const initialUuid = uuidv4();
+          setLineData([{
+            uuid: initialUuid,
+            lineNumber: 1,
+            content: originalContent,
+            originalAuthor: userId,
+            editedBy: []
+          }]);
+          setIsDataReady(true);
+        }
       }
     };
 
@@ -298,6 +360,8 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
     setLineData, 
     updateLineContent, 
     updateLineContents,
-    loadDraftsForCurrentUser
+    loadDraftsForCurrentUser,
+    isDataReady,
+    initializeEditor
   };
 };

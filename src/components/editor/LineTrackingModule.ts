@@ -10,16 +10,19 @@ export const LineTrackingModule = {
       let lineUuids: Map<number, string> = new Map();
       let isInitialized = false;
       
-      // Initialize the UUID map from the DOM on first load
+      // Initialize the UUID map from the DOM on first load - but don't set UUIDs
+      // This will only map existing UUIDs that were set by useLineData
       const initializeUuids = () => {
         if (isInitialized) return;
         
+        console.log('**** LineTrackingModule **** Reading existing UUIDs from DOM');
         const lines = quill.getLines(0);
         lines.forEach((line: any, index: number) => {
           if (line.domNode) {
             const uuid = line.domNode.getAttribute('data-line-uuid');
             if (uuid) {
               lineUuids.set(index, uuid);
+              console.log(`**** LineTrackingModule **** Mapped line ${index + 1} to UUID ${uuid}`);
             }
           }
         });
@@ -28,7 +31,7 @@ export const LineTrackingModule = {
       };
       
       // Wait for the editor to be fully ready before initializing
-      setTimeout(initializeUuids, 100);
+      setTimeout(initializeUuids, 300);
       
       quill.on('text-change', function() {
         if (isUpdating) return;
@@ -58,6 +61,7 @@ export const LineTrackingModule = {
                 if (existingUuid) {
                   // Restore the UUID to the DOM if we have one
                   line.domNode.setAttribute('data-line-uuid', existingUuid);
+                  console.log(`**** LineTrackingModule **** Restored UUID ${existingUuid} to line ${index + 1}`);
                 }
                 // If we don't have a UUID for this line, leave it blank - it will be assigned
                 // in the updateLineContents function when needed
@@ -87,16 +91,15 @@ export const LineTrackingModule = {
         // Convert from 1-based (external) to 0-based (internal) when setting UUIDs
         setLineUuid: function(oneBasedIndex: number, uuid: string) {
           const zeroBasedIndex = oneBasedIndex - 1;
-          // Only set UUID if it doesn't already exist in the map or DOM
-          if (!lineUuids.has(zeroBasedIndex)) {
-            lineUuids.set(zeroBasedIndex, uuid);
-            const lines = quill.getLines(0);
-            if (lines[zeroBasedIndex] && lines[zeroBasedIndex].domNode) {
-              // Only set if the DOM element doesn't already have a uuid
-              if (!lines[zeroBasedIndex].domNode.getAttribute('data-line-uuid')) {
-                lines[zeroBasedIndex].domNode.setAttribute('data-line-uuid', uuid);
-              }
-            }
+          console.log(`**** LineTrackingModule **** Setting UUID ${uuid} for line ${oneBasedIndex} (${zeroBasedIndex} zero-based)`);
+          
+          // Update the map
+          lineUuids.set(zeroBasedIndex, uuid);
+          
+          // Update the DOM element if it exists
+          const lines = quill.getLines(0);
+          if (lines[zeroBasedIndex] && lines[zeroBasedIndex].domNode) {
+            lines[zeroBasedIndex].domNode.setAttribute('data-line-uuid', uuid);
           }
         }
       };
