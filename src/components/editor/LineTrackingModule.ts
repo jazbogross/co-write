@@ -91,7 +91,7 @@ export const LineTrackingModule = {
         // Convert from 1-based (external) to 0-based (internal) when setting UUIDs
         setLineUuid: function(oneBasedIndex: number, uuid: string) {
           const zeroBasedIndex = oneBasedIndex - 1;
-          console.log(`**** LineTrackingModule **** Setting UUID ${uuid} for line ${oneBasedIndex} (${zeroBasedIndex} zero-based)`);
+          // console.log(`**** LineTrackingModule **** Setting UUID ${uuid} for line ${oneBasedIndex} (${zeroBasedIndex} zero-based)`);
           
           // Update the map
           lineUuids.set(zeroBasedIndex, uuid);
