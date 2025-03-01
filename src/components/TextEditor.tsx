@@ -35,24 +35,34 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const [lineCount, setLineCount] = useState(1);
   const [userId, setUserId] = useState<string | null>(null);
   const [isContentInitialized, setIsContentInitialized] = useState(false);
-  const [lineUuidsInitialized, setLineUuidsInitialized] = useState(false);
+  const [editorInitialized, setEditorInitialized] = useState(false);
 
   useEffect(() => {
+    console.log('**** TextEditor.tsx **** Content changed.');
+    console.log('**** TextEditor.tsx **** Fetching user...');
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        console.log('**** TextEditor.tsx **** User fetched:', user.id);
         setUserId(user.id);
       }
     };
     fetchUser();
   }, []);
 
-  const { lineData, updateLineContents, loadDraftsForCurrentUser } = useLineData(scriptId, originalContent, userId);
+  const { 
+    lineData, 
+    updateLineContents, 
+    loadDraftsForCurrentUser, 
+    isDataReady,
+    initializeEditor 
+  } = useLineData(scriptId, originalContent, userId);
 
   // Set initial content - ONLY original content, never reconstructed
   useEffect(() => {
     if (lineData.length > 0 && !isContentInitialized) {
       // Always use original content to maintain formatting
+      console.log('**** TextEditor.tsx **** Setting initial content');
       setContent(originalContent);
       setIsContentInitialized(true);
       
@@ -60,6 +70,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       const editor = quillRef.current?.getEditor();
       if (editor) {
         const lines = editor.getLines(0);
+        console.log('**** TextEditor.tsx **** Initial line count from editor:', lines.length);
         setLineCount(lines.length || lineData.length);
       } else {
         setLineCount(lineData.length);
@@ -67,32 +78,42 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [lineData, isContentInitialized, originalContent]);
 
-  // Set line UUIDs in the DOM ONLY ONCE after initial load
+  // Initialize editor ONLY once LineData is ready
   useEffect(() => {
-    if (quillRef.current && lineData.length > 0 && !lineUuidsInitialized) {
+    if (quillRef.current && isDataReady && !editorInitialized) {
       const editor = quillRef.current.getEditor();
       if (editor) {
-        const lines = editor.getLines(0);
+        console.log('**** TextEditor.tsx **** LineData is ready, initializing editor...');
+        // Use the initializeEditor function from useLineData to set UUIDs correctly
+        const success = initializeEditor(editor);
         
-        // Only update line UUIDs if we have lines in the editor
-        if (lines.length > 0) {
-          // Set UUIDs only once, and only for lines that don't have them
-          lines.forEach((line, index) => {
-            if (line.domNode && index < lineData.length) {
-              // Only set if the DOM element doesn't already have a uuid
-              if (!line.domNode.getAttribute('data-line-uuid')) {
-                line.domNode.setAttribute('data-line-uuid', lineData[index].uuid);
-              }
-            }
-          });
-          // Mark as initialized so we never update all UUIDs again
-          setLineUuidsInitialized(true);
+        if (success) {
+          console.log('**** TextEditor.tsx **** Editor successfully initialized');
+          setEditorInitialized(true);
+          
+          // Count lines again to make sure we're in sync
+          const lines = editor.getLines(0);
+          setLineCount(lines.length);
+          
+          if (lines.length > 0 && lines[0].domNode) {
+            console.log('**** TextEditor.tsx **** First line UUID:', 
+              lines[0].domNode.getAttribute('data-line-uuid'));
+          }
+        } else {
+          console.error('**** TextEditor.tsx **** Failed to initialize editor');
         }
       }
     }
-  }, [lineData, lineUuidsInitialized]);
+  }, [isDataReady, editorInitialized, initializeEditor]);
 
   const handleChange = (newContent: string) => {
+    // Only allow changes once editor is properly initialized
+    if (!editorInitialized) {
+      console.log('**** TextEditor.tsx **** Ignoring content change before editor initialization');
+      return;
+    }
+    
+    console.log('**** TextEditor.tsx **** Content changed.');
     const editor = quillRef.current?.getEditor();
     if (!editor) return;
 
@@ -130,6 +151,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     onSuggestChange,
     loadDraftsForCurrentUser // Pass the function to be called after save
   );
+
+  // Don't render editor until data is ready
+  if (!isDataReady) {
+    return <div className="flex items-center justify-center p-8">Loading editor data...</div>;
+  }
 
   return (
     <>
