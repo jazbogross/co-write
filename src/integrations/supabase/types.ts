@@ -270,6 +270,7 @@ export type Database = {
           line_number: number | null
           line_number_draft: number | null
           line_uuid: string | null
+          metadata: Json | null
           rejection_reason: string | null
           script_id: string
           status: string
@@ -285,6 +286,7 @@ export type Database = {
           line_number?: number | null
           line_number_draft?: number | null
           line_uuid?: string | null
+          metadata?: Json | null
           rejection_reason?: string | null
           script_id: string
           status?: string
@@ -300,6 +302,7 @@ export type Database = {
           line_number?: number | null
           line_number_draft?: number | null
           line_uuid?: string | null
+          metadata?: Json | null
           rejection_reason?: string | null
           script_id?: string
           status?: string

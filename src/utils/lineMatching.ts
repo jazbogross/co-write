@@ -51,10 +51,10 @@ export const calculateTextSimilarity = (a: string, b: string): number => {
 
 /**
  * Finds best matching line across multiple strategies:
- * 1. Direct UUID lookup (best)
- * 2. Exact content match
- * 3. Similar content with high threshold
- * 4. Position-based matching
+ * 1. Exact content match (best)
+ * 2. Similar content with high threshold
+ * 3. Direct UUID lookup from DOM (fallback)
+ * 4. Position-based matching (last resort)
  */
 export const findBestMatchingLine = (
   content: string,
@@ -65,7 +65,77 @@ export const findBestMatchingLine = (
   positionBasedFallback: boolean = true,
   domUuidMap?: Map<number, string>
 ): { index: number; similarity: number; matchStrategy: string } | null => {
-  // Strategy 1: Check if we have a line UUID from the DOM that matches a UUID in prevLineData
+  // For empty lines, prioritize position-based matching
+  const isEmptyLine = !content || content.trim() === '';
+  
+  if (!isEmptyLine) {
+    // Strategy 1: Direct content equality (highest priority for non-empty lines)
+    const exactContentIndex = prevLineData.findIndex(
+      (line, idx) => line.content === content && !excludeIndices.has(idx)
+    );
+    
+    if (exactContentIndex >= 0) {
+      return { index: exactContentIndex, similarity: 1, matchStrategy: 'exact-content' };
+    }
+    
+    // Strategy 2: Check for exact content match using contentToUuidMap
+    const existingUuid = contentToUuidMap.get(content);
+    if (existingUuid) {
+      const exactMatchIndex = prevLineData.findIndex(line => line.uuid === existingUuid);
+      if (exactMatchIndex >= 0 && !excludeIndices.has(exactMatchIndex)) {
+        return { index: exactMatchIndex, similarity: 1, matchStrategy: 'content-uuid' };
+      }
+    }
+    
+    // Strategy 3: Look for lines with similar content
+    let bestMatch = { index: -1, similarity: 0, matchStrategy: 'none' };
+    
+    // First check lines near the current position (most likely matches)
+    const nearbyRange = 3; // Check 3 lines before and after
+    const startIndex = Math.max(0, lineIndex - nearbyRange);
+    const endIndex = Math.min(prevLineData.length - 1, lineIndex + nearbyRange);
+    
+    // First pass - check nearby lines
+    for (let i = startIndex; i <= endIndex; i++) {
+      if (excludeIndices.has(i)) continue;
+      
+      const similarity = calculateTextSimilarity(content, prevLineData[i].content);
+      
+      if (similarity > bestMatch.similarity && similarity >= 0.7) {
+        bestMatch = { index: i, similarity, matchStrategy: 'nearby-similar' };
+        
+        // Early exit for very good matches
+        if (similarity >= 0.9) {
+          return bestMatch;
+        }
+      }
+    }
+    
+    // Second pass - check all lines if we didn't find a good match nearby
+    if (bestMatch.similarity < 0.7) {
+      for (let i = 0; i < prevLineData.length; i++) {
+        // Skip lines we already checked in the nearby pass
+        if (excludeIndices.has(i) || (i >= startIndex && i <= endIndex)) continue;
+        
+        const similarity = calculateTextSimilarity(content, prevLineData[i].content);
+        
+        if (similarity > bestMatch.similarity && similarity >= 0.6) {
+          bestMatch = { index: i, similarity, matchStrategy: 'global-similar' };
+          
+          // Early exit for very good matches
+          if (similarity >= 0.9) {
+            break;
+          }
+        }
+      }
+    }
+    
+    if (bestMatch.index >= 0) {
+      return bestMatch;
+    }
+  }
+  
+  // For empty lines or if content matching failed, try DOM UUID matching
   if (domUuidMap && domUuidMap.has(lineIndex)) {
     const uuid = domUuidMap.get(lineIndex);
     const uuidMatchIndex = prevLineData.findIndex(line => line.uuid === uuid);
@@ -75,69 +145,8 @@ export const findBestMatchingLine = (
     }
   }
   
-  // Strategy 2: Check for exact content match using contentToUuidMap
-  const existingUuid = contentToUuidMap.get(content);
-  if (existingUuid) {
-    const exactMatchIndex = prevLineData.findIndex(line => line.uuid === existingUuid);
-    if (exactMatchIndex >= 0 && !excludeIndices.has(exactMatchIndex)) {
-      return { index: exactMatchIndex, similarity: 1, matchStrategy: 'content-uuid' };
-    }
-  }
-  
-  // Strategy 3: Direct content equality
-  const exactContentIndex = prevLineData.findIndex(
-    (line, idx) => line.content === content && !excludeIndices.has(idx)
-  );
-  
-  if (exactContentIndex >= 0) {
-    return { index: exactContentIndex, similarity: 1, matchStrategy: 'exact-content' };
-  }
-  
-  // Strategy 4: Look for lines with similar content
-  let bestMatch = { index: -1, similarity: 0, matchStrategy: 'none' };
-  
-  // First check lines near the current position (most likely matches)
-  const nearbyRange = 3; // Check 3 lines before and after
-  const startIndex = Math.max(0, lineIndex - nearbyRange);
-  const endIndex = Math.min(prevLineData.length - 1, lineIndex + nearbyRange);
-  
-  // First pass - check nearby lines
-  for (let i = startIndex; i <= endIndex; i++) {
-    if (excludeIndices.has(i)) continue;
-    
-    const similarity = calculateTextSimilarity(content, prevLineData[i].content);
-    
-    if (similarity > bestMatch.similarity && similarity >= 0.7) {
-      bestMatch = { index: i, similarity, matchStrategy: 'nearby-similar' };
-      
-      // Early exit for very good matches
-      if (similarity >= 0.9) {
-        return bestMatch;
-      }
-    }
-  }
-  
-  // Second pass - check all lines if we didn't find a good match nearby
-  if (bestMatch.similarity < 0.7) {
-    for (let i = 0; i < prevLineData.length; i++) {
-      // Skip lines we already checked in the nearby pass
-      if (excludeIndices.has(i) || (i >= startIndex && i <= endIndex)) continue;
-      
-      const similarity = calculateTextSimilarity(content, prevLineData[i].content);
-      
-      if (similarity > bestMatch.similarity && similarity >= 0.6) {
-        bestMatch = { index: i, similarity, matchStrategy: 'global-similar' };
-        
-        // Early exit for very good matches
-        if (similarity >= 0.9) {
-          break;
-        }
-      }
-    }
-  }
-  
-  // Strategy 5: Position-based fallback - try to match lines at similar positions
-  if (positionBasedFallback && bestMatch.similarity < 0.6) {
+  // Last resort: Position-based fallback - try to match lines at similar positions
+  if (positionBasedFallback) {
     // Only apply position-based matching if the line count hasn't changed drastically
     const positionTolerance = 3; // Allow matching within +/- 3 lines
     const idealPosition = lineIndex; 
@@ -149,17 +158,19 @@ export const findBestMatchingLine = (
           // For position-based matching, use a lower similarity threshold
           const positionSimilarity = calculateTextSimilarity(content, prevLineData[pos].content);
           
-          // If it's reasonably similar, accept the position-based match
-          if (positionSimilarity > 0.3 && positionSimilarity > bestMatch.similarity) {
-            bestMatch = { index: pos, similarity: positionSimilarity, matchStrategy: 'position-based' };
-            break;
+          // If it's reasonably similar or if both are empty lines, accept the position-based match
+          if ((positionSimilarity > 0.3 && positionSimilarity > 0) || 
+              (isEmptyLine && !prevLineData[pos].content.trim())) {
+            return { 
+              index: pos, 
+              similarity: positionSimilarity, 
+              matchStrategy: 'position-based' 
+            };
           }
         }
       }
-      
-      if (bestMatch.matchStrategy === 'position-based') break;
     }
   }
   
-  return bestMatch.index >= 0 ? bestMatch : null;
+  return null;
 };

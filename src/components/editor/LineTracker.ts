@@ -1,4 +1,3 @@
-
 import ReactQuill from 'react-quill';
 const Quill = ReactQuill.Quill;
 
@@ -11,12 +10,13 @@ export class LineTracker {
   private lastKnownLines: number = 0;
   private changeHistory: Map<string, {content: string, timestamp: number}[]> = new Map();
   private changeHistoryLimit: number = 5;
-  
+  private contentHistory: Map<string, string> = new Map();
+
   constructor(quill: any) {
     this.quill = quill;
     this.setupEventListeners();
   }
-  
+
   private setupEventListeners() {
     // Handle text changes
     this.quill.on('text-change', () => {
@@ -34,7 +34,7 @@ export class LineTracker {
     // Initialize UUIDs from DOM on first load
     setTimeout(() => this.initialize(), 300);
   }
-  
+
   public initialize() {
     if (this.isInitialized) return;
     console.log('**** LineTracker **** Initializing line tracking');
@@ -48,7 +48,11 @@ export class LineTracker {
         if (uuid) {
           this.lineUuids.set(index, uuid);
           const content = this.getLineContent(line);
+          
+          // Track content in both directions
           this.contentToUuid.set(content, uuid);
+          this.contentHistory.set(uuid, content);
+          
           console.log(`**** LineTracker **** Mapped line ${index + 1} to UUID ${uuid}`);
         }
       }
@@ -56,11 +60,11 @@ export class LineTracker {
     
     this.isInitialized = true;
   }
-  
+
   private getLineContent(line: any): string {
     return line.cache?.delta?.ops?.[0]?.insert || '';
   }
-  
+
   private updateLineIndexAttributes() {
     const lines = this.quill.getLines(0);
     lines.forEach((line: any, index: number) => {
@@ -73,34 +77,68 @@ export class LineTracker {
         line.domNode.setAttribute('data-line-index', String(oneBasedIndex));
       }
       
-      // We don't assign UUIDs here - that's handled by the LineData system
-      // We just read them from the DOM and maintain our map
+      // Read the UUID from DOM and update our maps
       const uuid = line.domNode.getAttribute('data-line-uuid');
       if (uuid) {
+        const content = this.getLineContent(line);
+        const previousContent = this.contentHistory.get(uuid);
+        
+        // Update our position-based map
         this.lineUuids.set(index, uuid);
         
         // Update content mapping if needed
-        const content = this.getLineContent(line);
         if (content && content.trim() !== '') {
-          this.contentToUuid.set(content, uuid);
+          // Track historical association so we can find lines that move
+          this.contentHistory.set(uuid, content);
           
-          // Add to change history
-          this.recordChange(uuid, content);
+          // If content changed, update the content-to-UUID map
+          if (content !== previousContent) {
+            this.contentToUuid.set(content, uuid);
+            
+            // If there was previous content, we might want to keep that mapping too
+            // for a short period to help with line movement detection
+            if (previousContent && previousContent.trim() !== '') {
+              this.recordChange(uuid, content);
+            }
+          }
+        }
+      }
+    });
+    
+    // Detect if the UUID is missing on any line and try to find it based on content
+    lines.forEach((line: any, index: number) => {
+      if (!line.domNode || line.domNode.getAttribute('data-line-uuid')) return;
+      
+      const content = this.getLineContent(line);
+      if (content && content.trim() !== '') {
+        const uuid = this.contentToUuid.get(content);
+        if (uuid) {
+          console.log(`**** LineTracker **** Restoring UUID for moved content at line ${index + 1}`);
+          line.domNode.setAttribute('data-line-uuid', uuid);
+          this.lineUuids.set(index, uuid);
         }
       }
     });
   }
-  
+
   private detectLineCountChanges() {
     const lines = this.quill.getLines(0);
     const currentLineCount = lines.length;
     
     if (currentLineCount !== this.lastKnownLines) {
       console.log(`**** LineTracker **** Line count changed: ${this.lastKnownLines} -> ${currentLineCount}`);
+      
+      // Simple detection of line insertion/deletion
+      if (currentLineCount > this.lastKnownLines) {
+        console.log(`**** LineTracker **** Lines inserted: ${currentLineCount - this.lastKnownLines}`);
+      } else {
+        console.log(`**** LineTracker **** Lines deleted: ${this.lastKnownLines - currentLineCount}`);
+      }
+      
       this.lastKnownLines = currentLineCount;
     }
   }
-  
+
   private recordChange(uuid: string, content: string) {
     if (!this.changeHistory.has(uuid)) {
       this.changeHistory.set(uuid, []);
@@ -121,12 +159,12 @@ export class LineTracker {
       }
     }
   }
-  
+
   public getLineUuid(oneBasedIndex: number): string | undefined {
     const zeroBasedIndex = oneBasedIndex - 1;
     return this.lineUuids.get(zeroBasedIndex);
   }
-  
+
   public setLineUuid(oneBasedIndex: number, uuid: string) {
     const zeroBasedIndex = oneBasedIndex - 1;
     this.lineUuids.set(zeroBasedIndex, uuid);
@@ -135,13 +173,20 @@ export class LineTracker {
     const lines = this.quill.getLines(0);
     if (lines[zeroBasedIndex] && lines[zeroBasedIndex].domNode) {
       lines[zeroBasedIndex].domNode.setAttribute('data-line-uuid', uuid);
+      
+      // Also update content mapping
+      const content = this.getLineContent(lines[zeroBasedIndex]);
+      if (content && content.trim() !== '') {
+        this.contentToUuid.set(content, uuid);
+        this.contentHistory.set(uuid, content);
+      }
     }
   }
-  
+
   public getContentToUuidMap(): Map<string, string> {
     return this.contentToUuid;
   }
-  
+
   public getDomUuidMap(): Map<number, string> {
     const map = new Map<number, string>();
     const lines = this.quill.getLines(0);
@@ -157,7 +202,7 @@ export class LineTracker {
     
     return map;
   }
-  
+
   public getChangeHistory(uuid: string): {content: string, timestamp: number}[] {
     return this.changeHistory.get(uuid) || [];
   }
