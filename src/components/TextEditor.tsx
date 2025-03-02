@@ -10,6 +10,7 @@ import { EditorActions } from './editor/EditorActions';
 import { useLineData, type LineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { extractLineContents } from '@/utils/editorUtils';
+import { useContentBuffer } from '@/hooks/useContentBuffer';
 
 // Register the module
 LineTrackingModule.register(ReactQuill.Quill);
@@ -57,6 +58,18 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     isDataReady,
     initializeEditor 
   } = useLineData(scriptId, originalContent, userId);
+  
+  // Set up content buffer to debounce updates
+  const { updateContent: updateBufferedContent, flushUpdate } = useContentBuffer(
+    [originalContent],
+    (lines) => {
+      const editor = quillRef.current?.getEditor();
+      if (editor) {
+        updateLineContents(lines, editor);
+      }
+    },
+    { debounceTime: 300, minChangeInterval: 200 }
+  );
 
   // Set initial content - ONLY original content, never reconstructed
   useEffect(() => {
@@ -126,7 +139,9 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     // Extract line contents with formatting for later saving
     // but don't update the editor content with these
     const currentLineContents = extractLineContents(lines, editor);
-    updateLineContents(currentLineContents, editor);
+    
+    // Update through the buffer to debounce changes
+    updateBufferedContent(currentLineContents);
   };
 
   const formatText = (format: string, value: any) => {
@@ -151,6 +166,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     onSuggestChange,
     loadDraftsForCurrentUser // Pass the function to be called after save
   );
+  
+  // Make sure we flush any pending updates when saving
+  const handleSave = useCallback(() => {
+    flushUpdate(); // First flush any pending content updates
+    saveToSupabase(); // Then save to Supabase
+  }, [flushUpdate, saveToSupabase]);
 
   // Don't render editor until data is ready
   if (!isDataReady) {
@@ -163,8 +184,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         isAdmin={isAdmin}
         isSubmitting={isSubmitting}
         onFormat={formatText}
-        onSubmit={handleSubmit}
-        onSave={saveToSupabase}
+        onSubmit={() => {
+          flushUpdate();
+          handleSubmit();
+        }}
+        onSave={handleSave}
       />
       
       <EditorContainer

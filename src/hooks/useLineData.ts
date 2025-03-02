@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { LineData } from '@/types/lineTypes';
-import { findBestMatchingLine, fetchLineDataFromSupabase, formatLineDataFromSupabase, createInitialLineData } from '@/utils/lineDataUtils';
+import { fetchLineDataFromSupabase, formatLineDataFromSupabase, createInitialLineData } from '@/utils/lineDataUtils';
+import { findBestMatchingLine } from '@/utils/lineMatching';
 import { useDrafts } from './useDrafts';
 import { useEditorInit } from './useEditorInit';
+import { useContentBuffer } from './useContentBuffer';
 
 export type { LineData } from '@/types/lineTypes';
 
@@ -15,6 +17,14 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
   
   const originalUuidsRef = useRef<Map<string, string>>(new Map());
   const contentToUuidMapRef = useRef<Map<string, string>>(new Map());
+  
+  const lastLineCountRef = useRef<number>(0);
+  
+  const uuidAssignmentStats = useRef({
+    preserved: 0,
+    regenerated: 0,
+    matchStrategy: {} as Record<string, number>
+  });
 
   const { loadDraftsForCurrentUser } = useDrafts();
   const { initializeEditor } = useEditorInit(lineData, isDataReady);
@@ -37,13 +47,13 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           const formattedLineData = formatLineDataFromSupabase(data);
           
           formattedLineData.forEach(line => {
-            console.log(`**** UseLineData **** Fetched data for line ${line.lineNumber} (zero-indexed): ${JSON.stringify(line)}`);
             originalUuidsRef.current.set(line.uuid, line.uuid);
             contentToUuidMapRef.current.set(line.content, line.uuid);
           });
           
           setLineData(formattedLineData);
           previousContentRef.current = formattedLineData.map(line => line.content);
+          lastLineCountRef.current = formattedLineData.length;
         } else {
           console.log('**** UseLineData **** No data found, creating initial line data');
           const initialLineData = createInitialLineData(originalContent, userId);
@@ -53,6 +63,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           
           setLineData(initialLineData);
           previousContentRef.current = [originalContent];
+          lastLineCountRef.current = 1;
         }
         setInitialized(true);
         setIsDataReady(true); // Mark data as ready for TextEditor to use
@@ -61,11 +72,11 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
         console.error('**** UseLineData **** Error fetching line data:', error);
         setInitialized(true);
         
-        // Even if there's an error, try to initialize with some data
         if (lineData.length === 0) {
           const initialLineData = createInitialLineData(originalContent, userId);
           setLineData(initialLineData);
           setIsDataReady(true);
+          lastLineCountRef.current = 1;
         }
       }
     };
@@ -73,19 +84,57 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
     fetchLineData();
   }, [scriptId, originalContent, userId, initialized, lineData.length]);
 
-  const updateLineContents = (newContents: string[], quill: any) => {
+  const updateLineContents = useCallback((newContents: string[], quill: any) => {
+    if (!quill || !quill.lineTracking) {
+      console.log('**** UseLineData **** updateLineContents: Line tracking not available.');
+      return;
+    }
+
     setLineData(prevData => {
+      if (newContents.length === 0) {
+        console.log('**** UseLineData **** Empty content received, preserving existing data');
+        return prevData;
+      }
+
+      uuidAssignmentStats.current = {
+        preserved: 0,
+        regenerated: 0,
+        matchStrategy: {}
+      };
+      
       const usedIndices = new Set<number>();
       const newData: LineData[] = [];
+      
+      const domUuidMap = quill.lineTracking.getDomUuidMap();
+      
+      const lineCountDiff = Math.abs(newContents.length - lastLineCountRef.current);
+      if (lineCountDiff > 3) {
+        console.log(`**** UseLineData **** Line count changed significantly: ${lastLineCountRef.current} -> ${newContents.length}`);
+      }
+      lastLineCountRef.current = newContents.length;
       
       for (let i = 0; i < newContents.length; i++) {
         const content = newContents[i];
         
-        const match = findBestMatchingLine(content, prevData, usedIndices, contentToUuidMapRef.current);
+        const match = findBestMatchingLine(
+          content, 
+          i, 
+          prevData, 
+          usedIndices, 
+          contentToUuidMapRef.current,
+          true, 
+          domUuidMap
+        );
         
         if (match) {
           const matchIndex = match.index;
           usedIndices.add(matchIndex);
+          
+          const strategy = match.matchStrategy;
+          uuidAssignmentStats.current.matchStrategy[strategy] = 
+            (uuidAssignmentStats.current.matchStrategy[strategy] || 0) + 1;
+          
+          uuidAssignmentStats.current.preserved++;
           
           const existingLine = prevData[matchIndex];
           newData.push({
@@ -99,7 +148,13 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           });
           
           contentToUuidMapRef.current.set(content, existingLine.uuid);
+          
+          if (quill && quill.lineTracking) {
+            quill.lineTracking.setLineUuid(i + 1, existingLine.uuid);
+          }
         } else {
+          uuidAssignmentStats.current.regenerated++;
+          
           const newUuid = uuidv4();
           newData.push({
             uuid: newUuid,
@@ -117,11 +172,19 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
         }
       }
       
+      if (uuidAssignmentStats.current.regenerated > 0) {
+        console.log(
+          `**** UseLineData **** UUID stats: preserved=${uuidAssignmentStats.current.preserved}, ` +
+          `regenerated=${uuidAssignmentStats.current.regenerated}, ` +
+          `strategies=${JSON.stringify(uuidAssignmentStats.current.matchStrategy)}`
+        );
+      }
+      
       previousContentRef.current = newContents;
       
       return newData;
     });
-  };
+  }, [userId]);
 
   const updateLineContent = (lineIndex: number, newContent: string) => {
     setLineData(prevData => {
