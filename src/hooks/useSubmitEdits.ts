@@ -1,9 +1,13 @@
-
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/hooks/useLineData';
-import { saveLinesToDatabase, saveSuggestions, saveDraft, saveLineDrafts } from '@/utils/saveUtils';
+import { 
+  saveLinesToDatabase, 
+  saveSuggestions, 
+  saveDraft, 
+  saveLineDrafts 
+} from '@/utils/saveUtils';
 
 export const useSubmitEdits = (
   isAdmin: boolean,
@@ -18,7 +22,7 @@ export const useSubmitEdits = (
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (content === originalContent) {
       toast({
         title: "No changes detected",
@@ -95,9 +99,9 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isAdmin, scriptId, lineData, content, originalContent, userId, onSuggestChange]);
 
-  const saveToSupabase = async () => {
+  const saveToSupabase = useCallback(async () => {
     if (content === originalContent) {
       toast({
         title: "No changes detected",
@@ -140,7 +144,7 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isAdmin, scriptId, lineData, content, originalContent, userId, loadDraftsForCurrentUser]);
 
   return { isSubmitting, handleSubmit, saveToSupabase };
 };
