@@ -151,12 +151,12 @@ export const useLineMatching = (userId: string | null) => {
     }
 
         // Ensure we maintain the content to UUID mapping
-      //  for (let i = 0; i < newData.length; i++) {
-      //    const line = newData[i];
-      //    if (line && line.content && line.content.trim() !== '') {
-      //      contentToUuidMap.set(line.content, line.uuid);
-      //    }
-      //  }
+        for (let i = 0; i < newData.length; i++) {
+          const line = newData[i];
+          if (line && line.content && line.content.trim() !== '') {
+            contentToUuidMap.set(line.content, line.uuid);
+          }
+        }
     
 
     return { newData, stats };
