@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -6,10 +7,11 @@ import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule, EDITOR_MODULES } from './editor/LineTrackingModule';
 import { EditorContainer } from './editor/EditorContainer';
 import { EditorActions } from './editor/EditorActions';
-import { useLineData, type LineData } from '@/hooks/useLineData';
+import { useLineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { extractLineContents } from '@/utils/editorUtils';
-import { useContentBuffer } from '@/hooks/useContentBuffer';
+import { useTextEditor } from '@/hooks/useTextEditor';
+import { useEditorFormatting } from './editor/EditorFormatting';
 
 // Register the module
 LineTrackingModule.register(ReactQuill.Quill);
@@ -30,131 +32,55 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   onSuggestChange,
 }) => {
   const quillRef = useRef<ReactQuill>(null);
-  const [content, setContent] = useState(originalContent);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
-  const [lineCount, setLineCount] = useState(1);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isContentInitialized, setIsContentInitialized] = useState(false);
-  const [editorInitialized, setEditorInitialized] = useState(false);
 
-  useEffect(() => {
-    console.log('**** TextEditor.tsx **** Content changed.');
-    console.log('**** TextEditor.tsx **** Fetching user...');
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        console.log('**** TextEditor.tsx **** User fetched:', user.id);
-        setUserId(user.id);
-      }
-    };
-    fetchUser();
-  }, []);
-
+  // Load line data and prepare editor
   const { 
     lineData, 
     updateLineContents, 
     loadDraftsForCurrentUser, 
     isDataReady,
     initializeEditor 
-  } = useLineData(scriptId, originalContent, userId);
-  
-  // Set up content buffer to debounce updates
-  const { updateContent: updateBufferedContent, flushUpdate } = useContentBuffer(
-    [originalContent],
-    (lines) => {
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        updateLineContents(lines, editor);
-      }
-    },
-    { debounceTime: 300, minChangeInterval: 200 }
+  } = useLineData(scriptId, originalContent, null); // Pass null initially, will update with userId
+
+  // Set up and initialize text editor
+  const {
+    content,
+    setContent,
+    userId,
+    lineCount,
+    editorInitialized,
+    handleChange
+  } = useTextEditor(
+    originalContent, 
+    scriptId, 
+    quillRef, 
+    lineData, 
+    isDataReady, 
+    initializeEditor,
+    updateLineContents
   );
 
-  // Set initial content - ONLY original content, never reconstructed
-  useEffect(() => {
-    if (lineData.length > 0 && !isContentInitialized) {
-      // Always use original content to maintain formatting
-      console.log('**** TextEditor.tsx **** Setting initial content');
-      setContent(originalContent);
-      setIsContentInitialized(true);
-      
-      // Update line count based on what's in the editor
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        const lines = editor.getLines(0);
-        console.log('**** TextEditor.tsx **** Initial line count from editor:', lines.length);
-        setLineCount(lines.length || lineData.length);
-      } else {
-        setLineCount(lineData.length);
-      }
-    }
-  }, [lineData, isContentInitialized, originalContent]);
+  // Set up editor formatting and content processing
+  const { 
+    formatText, 
+    processContentChange, 
+    flushUpdate 
+  } = useEditorFormatting({
+    quillRef,
+    updateLineContents,
+    editorInitialized
+  });
 
-  // Initialize editor ONLY once LineData is ready
-  useEffect(() => {
-    if (quillRef.current && isDataReady && !editorInitialized) {
-      const editor = quillRef.current.getEditor();
-      if (editor) {
-        console.log('**** TextEditor.tsx **** LineData is ready, initializing editor...');
-        // Use the initializeEditor function from useLineData to set UUIDs correctly
-        const success = initializeEditor(editor);
-        
-        if (success) {
-          console.log('**** TextEditor.tsx **** Editor successfully initialized');
-          setEditorInitialized(true);
-          
-          // Count lines again to make sure we're in sync
-          const lines = editor.getLines(0);
-          setLineCount(lines.length);
-          
-          if (lines.length > 0 && lines[0].domNode) {
-            console.log('**** TextEditor.tsx **** First line UUID:', 
-              lines[0].domNode.getAttribute('data-line-uuid'));
-          }
-        } else {
-          console.error('**** TextEditor.tsx **** Failed to initialize editor');
-        }
-      }
-    }
-  }, [isDataReady, editorInitialized, initializeEditor]);
-
-  const handleChange = (newContent: string) => {
-    // Only allow changes once editor is properly initialized
-    if (!editorInitialized) {
-      console.log('**** TextEditor.tsx **** Ignoring content change before editor initialization');
-      return;
-    }
-    
-    console.log('**** TextEditor.tsx **** Content changed.');
-    const editor = quillRef.current?.getEditor();
-    if (!editor) return;
-
-    // Simply update the content directly - no JSON reconstruction
-    setContent(newContent);
-    
-    const lines = editor.getLines(0);
-    setLineCount(lines.length);
-    
-    // Extract line contents with formatting for later saving
-    // but don't update the editor content with these
-    const currentLineContents = extractLineContents(lines, editor);
-    
-    // Update through the buffer to debounce changes
-    updateBufferedContent(currentLineContents);
-  };
-
-  const formatText = (format: string, value: any) => {
-    const editor = quillRef.current?.getEditor();
-    if (editor) {
-      const format_value = editor.getFormat();
-      if (format === 'align') {
-        editor.format('align', value === format_value['align'] ? false : value);
-      } else {
-        editor.format(format, !format_value[format]);
-      }
+  // Handler for content changes
+  const handleContentChange = (newContent: string) => {
+    const result = handleChange(newContent);
+    if (result && result.editor) {
+      processContentChange(result.editor, result.lines);
     }
   };
 
+  // Set up submission and saving functionality
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
     scriptId,
@@ -163,7 +89,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     lineData,
     userId,
     onSuggestChange,
-    loadDraftsForCurrentUser // Pass the function to be called after save
+    loadDraftsForCurrentUser
   );
   
   // Make sure we flush any pending updates when saving
@@ -196,7 +122,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         quillRef={quillRef}
         modules={EDITOR_MODULES}
         formats={formats}
-        onChange={handleChange}
+        onChange={handleContentChange}
       />
 
       {isAdmin && (
