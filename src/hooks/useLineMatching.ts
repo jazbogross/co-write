@@ -22,17 +22,24 @@ export const useLineMatching = (userId: string | null) => {
     // First pass: match all non-empty lines to preserve content UUIDs
     for (let i = 0; i < newContents.length; i++) {
       const content = newContents[i];
-      if (content && content.trim() !== '') {
-        // Only process non-empty lines in first pass
-        const match = findBestMatchingLine(
-          content, 
-          i, 
-          prevData, 
-          usedIndices, 
-          contentToUuidMap,
-          false, // No position fallback in first pass
-          domUuidMap
-        );
+      const wasEmpty = i < prevData.length && (!prevData[i].content || !prevData[i].content.trim());
+      const isEmpty = !content || !content.trim();
+      
+      // Skip empty lines in first pass
+      if (isEmpty) {
+        newData[i] = null as any;
+        continue;
+      }
+
+      const match = findBestMatchingLine(
+        content,
+        i,
+        prevData,
+        usedIndices,
+        contentToUuidMap,
+        false,
+        domUuidMap
+      );
         
         if (match) {
           const matchIndex = match.index;
@@ -65,27 +72,34 @@ export const useLineMatching = (userId: string | null) => {
           // If no match found, leave a gap for the second pass
           newData[i] = null as any;
         }
-      } else {
-        // Empty line - leave for second pass
-        newData[i] = null as any;
       }
-    }
     
-    // Second pass: fill in any empty lines or unfilled slots
+    // Second pass: handle empty lines and unmatched content
     for (let i = 0; i < newContents.length; i++) {
       if (!newData[i]) {
         const content = newContents[i];
+        const isEmpty = !content || !content.trim();
         
-        // Try to find a match again, this time with position-based fallback enabled
-        const match = findBestMatchingLine(
-          content, 
-          i, 
-          prevData, 
-          usedIndices, 
-          contentToUuidMap,
-          true, // Use position fallback
-          domUuidMap
-        );
+        // For empty lines, try to find if they existed before
+        const match = isEmpty ? 
+          findBestMatchingLine(
+            content,
+            i,
+            prevData,
+            usedIndices,
+            contentToUuidMap,
+            false, // Don't use position fallback for empty lines
+            domUuidMap
+          ) : 
+          findBestMatchingLine(
+            content,
+            i,
+            prevData,
+            usedIndices,
+            contentToUuidMap,
+            true,
+            domUuidMap
+          );
         
         if (match) {
           const matchIndex = match.index;
@@ -114,9 +128,8 @@ export const useLineMatching = (userId: string | null) => {
             quill.lineTracking.setLineUuid(i + 1, existingLine.uuid);
           }
         } else {
-          // No match found - create a new line with new UUID
+          // Generate new UUID for unmatched lines
           stats.regenerated++;
-          
           const newUuid = crypto.randomUUID();
           newData[i] = {
             uuid: newUuid,
@@ -126,23 +139,26 @@ export const useLineMatching = (userId: string | null) => {
             editedBy: []
           };
           
-          contentToUuidMap.set(content, newUuid);
+          if (!isEmpty) {
+            contentToUuidMap.set(content, newUuid);
+          }
           
-          if (quill && quill.lineTracking) {
+          if (quill?.lineTracking) {
             quill.lineTracking.setLineUuid(i + 1, newUuid);
           }
         }
       }
     }
+
+        // Ensure we maintain the content to UUID mapping
+      //  for (let i = 0; i < newData.length; i++) {
+      //    const line = newData[i];
+      //    if (line && line.content && line.content.trim() !== '') {
+      //      contentToUuidMap.set(line.content, line.uuid);
+      //    }
+      //  }
     
-    // Ensure we maintain the content to UUID mapping
-    for (let i = 0; i < newData.length; i++) {
-      const line = newData[i];
-      if (line && line.content && line.content.trim() !== '') {
-        contentToUuidMap.set(line.content, line.uuid);
-      }
-    }
-    
+
     return { newData, stats };
   }, [userId]);
 

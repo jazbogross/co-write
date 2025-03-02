@@ -65,8 +65,14 @@ export const findBestMatchingLine = (
   positionBasedFallback: boolean = true,
   domUuidMap?: Map<number, string>
 ): { index: number; similarity: number; matchStrategy: string } | null => {
-  // For empty lines, prioritize position-based matching
+  // For empty lines that are newly created (at Enter press), 
+  // we should always generate a new UUID
   const isEmptyLine = !content || content.trim() === '';
+  const isNewLine = isEmptyLine && !prevLineData[lineIndex]?.content.trim();
+  
+  if (isNewLine) {
+    return null; // Force new UUID generation for new empty lines
+  }
   
   if (!isEmptyLine) {
     // Strategy 1: Direct content equality (highest priority for non-empty lines)
@@ -132,6 +138,22 @@ export const findBestMatchingLine = (
     
     if (bestMatch.index >= 0) {
       return bestMatch;
+    }
+  }
+
+  // For existing empty lines, try content and position matching
+  if (isEmptyLine && !isNewLine) {
+    // Try to find an existing empty line that hasn't been matched
+    const emptyLineIndex = prevLineData.findIndex(
+      (line, idx) => !line.content.trim() && !excludeIndices.has(idx)
+    );
+    
+    if (emptyLineIndex >= 0) {
+      return { 
+        index: emptyLineIndex, 
+        similarity: 1, 
+        matchStrategy: 'empty-line-match' 
+      };
     }
   }
   
