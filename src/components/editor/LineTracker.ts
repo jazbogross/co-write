@@ -90,13 +90,14 @@ export class LineTracker {
 // Modified module registration
 export const LineTrackingModule = {
   name: 'lineTracking',
-  register: function(Quill: any) {
-    Quill.register('modules/lineTracking', function(quill: any) {
+  register: function(Quill: any) { // This Quill is no longer needed.
+    ReactQuill.Quill.register('modules/lineTracking', function(quill: any) { // This is now correct.
       const tracker = new LineTracker(quill);
-      
+
       quill.lineTracking = tracker;
-      
+
       return tracker;
     });
   }
 };
+

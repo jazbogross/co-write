@@ -7,6 +7,12 @@ import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { TextEditorActions } from './editor/TextEditorActions';
 import { TextEditorContent } from './editor/TextEditorContent';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
+import { LineTrackingModule } from './editor/LineTracker'; // Import the module
+import ReactQuill from 'react-quill';
+
+
+// Register the module before you use it
+ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
 
 interface TextEditorProps {
   isAdmin: boolean;
