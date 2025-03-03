@@ -1,3 +1,4 @@
+
 import ReactQuill from 'react-quill';
 const Quill = ReactQuill.Quill;
 
@@ -11,6 +12,8 @@ export class LineTracker {
   private changeHistory: Map<string, {content: string, timestamp: number}[]> = new Map();
   private changeHistoryLimit: number = 5;
   private contentHistory: Map<string, string> = new Map();
+  private lastCursorPosition: { index: number, line: number } | null = null;
+  private lastOperation: { type: string, lineIndex: number, movedContent?: string } | null = null;
 
   constructor(quill: any) {
     this.quill = quill;
@@ -18,12 +21,25 @@ export class LineTracker {
   }
 
   private setupEventListeners() {
+    // Track cursor position changes
+    this.quill.on('selection-change', (range: any) => {
+      if (range) {
+        const lineIndex = this.getLineIndexFromPosition(range.index);
+        this.lastCursorPosition = {
+          index: range.index,
+          line: lineIndex
+        };
+      }
+    });
+
     // Handle text changes
-    this.quill.on('text-change', () => {
+    this.quill.on('text-change', (delta: any) => {
       if (this.isUpdating) return;
       this.isUpdating = true;
       
       try {
+        // Analyze delta to detect line operations
+        this.analyzeTextChange(delta);
         this.updateLineIndexAttributes();
         this.detectLineCountChanges();
       } finally {
@@ -33,6 +49,51 @@ export class LineTracker {
     
     // Initialize UUIDs from DOM on first load
     setTimeout(() => this.initialize(), 300);
+  }
+
+  private getLineIndexFromPosition(position: number): number {
+    const [line] = this.quill.getLeaf(position);
+    if (!line) return 0;
+    
+    const lines = this.quill.getLines(0);
+    return lines.findIndex((l: any) => l === line.parent);
+  }
+
+  private analyzeTextChange(delta: any): void {
+    // Reset last operation
+    this.lastOperation = null;
+    
+    if (!delta || !delta.ops || !this.lastCursorPosition) return;
+    
+    // Check for "\n" insertion (Enter key press)
+    const isEnterPress = delta.ops.some((op: any) => 
+      op.insert && op.insert === "\n"
+    );
+    
+    if (isEnterPress) {
+      const cursorLineIndex = this.lastCursorPosition.line;
+      const cursorPosition = this.lastCursorPosition.index;
+      const lines = this.quill.getLines(0);
+      
+      if (cursorLineIndex >= 0 && cursorLineIndex < lines.length) {
+        const line = lines[cursorLineIndex];
+        const lineStart = this.quill.getIndex(line);
+        
+        // Check if cursor was at position 0 of the line
+        if (cursorPosition === lineStart) {
+          const lineContent = this.getLineContent(line);
+          
+          this.lastOperation = {
+            type: 'enter-at-position-0',
+            lineIndex: cursorLineIndex,
+            movedContent: lineContent
+          };
+          
+          console.log(`**** LineTracker **** Detected Enter at position 0 of line ${cursorLineIndex + 1}`);
+          console.log(`**** LineTracker **** Content "${lineContent}" will move to line ${cursorLineIndex + 2}`);
+        }
+      }
+    }
   }
 
   public initialize() {
@@ -201,6 +262,10 @@ export class LineTracker {
     });
     
     return map;
+  }
+
+  public getLastOperation(): { type: string, lineIndex: number, movedContent?: string } | null {
+    return this.lastOperation;
   }
 
   public getChangeHistory(uuid: string): {content: string, timestamp: number}[] {
