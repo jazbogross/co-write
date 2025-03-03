@@ -52,16 +52,17 @@ export const saveDraft = async (
           throw error;
         }
       } else {
-        // New line - add it to script_content with both regular and draft content
-        // Important: Set line_number to a default value (same as line_number_draft) to satisfy not-null constraint
+        // New line - add it to script_content with draft content only
+        // Set line_number to minimum default (0) to satisfy not-null constraint
+        // but use line_number_draft for actual draft positioning
         const { error } = await supabase
           .from('script_content')
           .insert({
             id: line.uuid,
             script_id: scriptId,
-            line_number: line.lineNumber,  // Set to current line number instead of null
+            line_number: 0,  // Minimal placeholder to satisfy not-null constraint
             line_number_draft: line.lineNumber,
-            content: line.content,  // Set content same as draft for new lines
+            content: '',     // Empty content for unpublished lines
             draft: line.content,
             original_author: userId,
             edited_by: userId ? [userId] : []
