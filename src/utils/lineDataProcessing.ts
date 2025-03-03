@@ -6,7 +6,8 @@ import { isDeltaObject, extractPlainTextFromDelta, logDeltaStructure, safelyPars
  */
 export const processLinesData = (
   allLines: any[],
-  contentToUuidMapRef: React.MutableRefObject<Map<string, string>>
+  contentToUuidMapRef: React.MutableRefObject<Map<string, string>>,
+  isAdmin: boolean = false // Added isAdmin parameter with default false
 ): LineData[] => {
   if (!allLines || allLines.length === 0) {
     return [];
@@ -23,8 +24,9 @@ export const processLinesData = (
     }
     
     // Determine the effective line number and content to use
-    const useLineNumberDraft = line.line_number_draft !== null;
-    const useDraftContent = line.draft !== null;
+    // For non-admins, never use draft values
+    const useLineNumberDraft = isAdmin && line.line_number_draft !== null;
+    const useDraftContent = isAdmin && line.draft !== null;
     
     // Get the effective line number
     const effectiveLineNumber = useLineNumberDraft ? line.line_number_draft : line.line_number;

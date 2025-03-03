@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import ReactQuill from 'react-quill';
 import { useTextEditor } from '@/hooks/useTextEditor';
@@ -31,7 +30,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   scriptId,
   onSuggestChange,
 }) => {
-  console.log('📋 TextEditor: Initializing with scriptId:', scriptId);
+  console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin);
   
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
@@ -39,7 +38,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   // Get user data
   const { userId } = useUserData();
 
-  // Initialize line data
+  // Initialize line data - pass isAdmin flag
   const { 
     lineData, 
     setLineData,
@@ -47,7 +46,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     loadDraftsForCurrentUser, 
     isDataReady,
     initializeEditor 
-  } = useLineData(scriptId, "", userId);
+  } = useLineData(scriptId, "", userId, isAdmin);
 
   // Initialize text editor
   const { 

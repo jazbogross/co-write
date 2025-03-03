@@ -10,8 +10,13 @@ import { isDeltaObject } from '@/utils/editor';
 
 export type { LineData } from '@/types/lineTypes';
 
-export const useLineData = (scriptId: string, originalContent: string, userId: string | null) => {
-  console.log('🔠 useLineData: Hook called with', { scriptId, userId });
+export const useLineData = (
+  scriptId: string, 
+  originalContent: string, 
+  userId: string | null,
+  isAdmin: boolean = false // Added isAdmin parameter with default false
+) => {
+  console.log('🔠 useLineData: Hook called with', { scriptId, userId, isAdmin });
   
   const previousContentRef = useRef<string[]>([]);
   const uuidAssignmentStats = useRef({
@@ -20,7 +25,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
     matchStrategy: {} as Record<string, number>
   });
 
-  // Use the updated modularized hooks
+  // Use the updated modularized hooks and pass isAdmin flag
   const { 
     lineData, 
     setLineData, 
@@ -28,7 +33,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
     contentToUuidMapRef,
     lastLineCountRef,
     loadDrafts 
-  } = useLineDataInit(scriptId, originalContent, userId);
+  } = useLineDataInit(scriptId, originalContent, userId, isAdmin);
   
   const { matchAndAssignLines } = useLineMatching(userId);
   const { loadDraftsForCurrentUser } = useDrafts();

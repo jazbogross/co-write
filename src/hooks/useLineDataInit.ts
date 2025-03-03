@@ -9,9 +9,10 @@ import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 export const useLineDataInit = (
   scriptId: string, 
   originalContent: string, // Kept for compatibility but not used
-  userId: string | null
+  userId: string | null,
+  isAdmin: boolean = false // Added isAdmin parameter with default false
 ) => {
-  console.log('📊 useLineDataInit: Hook called with', { scriptId, userId });
+  console.log('📊 useLineDataInit: Hook called with', { scriptId, userId, isAdmin });
   
   const [lineData, setLineData] = useState<LineData[]>([]);
   const [initialized, setInitialized] = useState(false);
@@ -51,8 +52,8 @@ export const useLineDataInit = (
             });
           });
           
-          // Process the line data
-          const processedLines = processLinesData(allLines, contentToUuidMapRef);
+          // Process the line data, passing the isAdmin flag
+          const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin);
           
           console.log('📊 useLineDataInit: Processed line data:', processedLines.length, 'lines');
           
@@ -99,7 +100,7 @@ export const useLineDataInit = (
     };
 
     fetchLineData();
-  }, [scriptId, userId, initialized, lineData.length]);
+  }, [scriptId, userId, initialized, lineData.length, isAdmin]);
 
   // Function to handle loading drafts - now with protection against duplicate calls
   const loadDrafts = async (userId: string | null) => {
