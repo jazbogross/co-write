@@ -1,9 +1,19 @@
 
 /**
- * Main export file for editor utilities
+ * Editor utility exports
  */
+
+// Export from delta utilities
 export * from './deltaUtils';
-export * from './content/contentUtils';
+
+// Export text extraction utilities
+export * from './content/textExtraction';
+
+// Export editor utilities
 export * from './editorUtils';
+
+// Export reconstruction utilities
 export * from './reconstructUtils';
+
+// Re-export types
 export * from './types';
