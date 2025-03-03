@@ -35,6 +35,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
+  const [draftApplied, setDraftApplied] = useState(false);
   
   // Load user ID first
   useEffect(() => {
@@ -60,7 +61,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     setContent,
     lineCount,
     editorInitialized,
-    handleChange
+    handleChange,
+    updateEditorContent
   } = useTextEditor(
     originalContent, 
     scriptId, 
@@ -120,28 +122,26 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   // Force editor content update when lineData changes due to draft loading
   useEffect(() => {
-    if (editorInitialized && draftLoadAttempted && lineData.length > 0) {
+    if (editorInitialized && draftLoadAttempted && lineData.length > 0 && !draftApplied) {
       const editor = quillRef.current?.getEditor();
       if (editor) {
-        // Combine all line content
-        const combinedContent = lineData.map(line => line.content).join('\n');
+        // Combine all line content as plain text
+        const combinedContent = lineData.map(line => {
+          // Ensure we have plain text content, not Delta objects
+          return line.content;
+        }).join('\n');
         
         // Only update if content is different
         if (combinedContent !== content) {
           console.log('TextEditor: Updating editor content from loaded drafts');
-          setContent(combinedContent);
           
-          // Manually update the editor content
-          const currentLength = editor.getLength();
-          editor.deleteText(0, currentLength);
-          editor.insertText(0, combinedContent);
-          
-          // Re-initialize the editor to ensure line UUIDs are set correctly
-          initializeEditor(editor);
+          // Use the controlled update method to prevent loops
+          updateEditorContent(combinedContent);
+          setDraftApplied(true);
         }
       }
     }
-  }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, setContent, initializeEditor]);
+  }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent]);
 
   // Don't render editor until data is ready
   if (!isDataReady) {

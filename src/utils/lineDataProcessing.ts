@@ -37,10 +37,10 @@ export const processLinesData = (
       // If we have draft content, use it (parse delta if needed)
       if (isDeltaObject(line.draft)) {
         finalContent = extractPlainTextFromDelta(line.draft);
-        // Debug log Delta structure
-        logDeltaStructure(line.draft);
+        console.log(`Line ${effectiveLineNumber} draft content is a Delta:`, finalContent);
       } else {
         finalContent = line.draft || '';
+        console.log(`Line ${effectiveLineNumber} draft content is plain text:`, finalContent);
       }
     }
     
