@@ -103,9 +103,11 @@ export class LineTracker {
     lines.forEach((line: any, index: number) => {
       if (line.domNode && this.preservedUuids.has(index)) {
         const uuid = this.preservedUuids.get(index);
-        line.domNode.setAttribute('data-line-uuid', uuid || '');
-        line.domNode.setAttribute('data-line-index', (index + 1).toString());
-        restoredCount++;
+        if (uuid) {
+          line.domNode.setAttribute('data-line-uuid', uuid);
+          line.domNode.setAttribute('data-line-index', (index + 1).toString());
+          restoredCount++;
+        }
       }
     });
 
@@ -196,6 +198,16 @@ export class LineTracker {
   // Get change history for a UUID
   public getChangeHistory(uuid: string): { content: string; timestamp: number }[] {
     return this.changeHistory.getChangeHistory(uuid);
+  }
+  
+  // Refresh UUIDs from lineData - new method
+  public refreshLineUuids(lineData: any[]) {
+    console.log('🔍 LineTracker refreshing UUIDs from lineData');
+    if (this.linePosition && typeof this.linePosition.refreshLineUuids === 'function') {
+      this.linePosition.refreshLineUuids(lineData);
+    } else {
+      console.error('🔍 LineTracker missing linePosition or refreshLineUuids method');
+    }
   }
 }
 

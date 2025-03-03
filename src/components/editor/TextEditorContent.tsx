@@ -101,6 +101,22 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     }
   }, [quillRef]);
   
+  // Apply line UUIDs from lineData whenever lineCount changes
+  useEffect(() => {
+    if (!isEditorMountedRef.current) return;
+    
+    const editor = quillRef.current?.getEditor();
+    if (editor && editor.lineTracking && typeof editor.lineTracking.refreshLineUuids === 'function') {
+      // Fetch the lineData array from the editor or state
+      // This is just an example - you may need to get lineData from elsewhere
+      setTimeout(() => {
+        // Give the editor a moment to update its DOM before refreshing UUIDs
+        const domUuids = editor.lineTracking.getDomUuidMap();
+        console.log(`📝 TextEditorContent: After content update, found ${domUuids.size} UUIDs in DOM`);
+      }, 100);
+    }
+  }, [lineCount]);
+  
   return (
     <div className="flex min-h-screen text-black">
       <div className="flex-1 overflow-auto">

@@ -15,26 +15,35 @@ export const useEditorInit = (lineData: LineData[], isDataReady: boolean) => {
       const lines = editor.getLines(0);
       let appliedCount = 0;
       
-      lines.forEach((line: any, index: number) => {
-        if (line.domNode && index < lineData.length) {
+      // Check if lineData and lines arrays match in length
+      if (lines.length !== lineData.length) {
+        console.log(`**** UseLineData **** Warning: Line count mismatch - DOM lines: ${lines.length}, lineData: ${lineData.length}`);
+      }
+      
+      // Apply UUIDs to all available lines
+      const minLength = Math.min(lines.length, lineData.length);
+      
+      // First pass: Apply UUIDs to DOM elements
+      for (let index = 0; index < minLength; index++) {
+        if (lines[index].domNode && lineData[index]) {
           const uuid = lineData[index].uuid;
           // Only set if the DOM element doesn't already have a uuid or has a wrong one
-          const currentUuid = line.domNode.getAttribute('data-line-uuid');
+          const currentUuid = lines[index].domNode.getAttribute('data-line-uuid');
           if (!currentUuid || currentUuid !== uuid) {
             console.log(`**** UseLineData **** Setting line ${index + 1} UUID: ${uuid}`);
-            line.domNode.setAttribute('data-line-uuid', uuid);
+            lines[index].domNode.setAttribute('data-line-uuid', uuid);
             appliedCount++;
-            
-            // Also set the line index attribute
-            line.domNode.setAttribute('data-line-index', String(index + 1));
           }
           
+          // Always set the line index attribute
+          lines[index].domNode.setAttribute('data-line-index', String(index + 1));
+          
           // Ensure our tracking maps are updated
-          if (editor.lineTracking) {
-            editor.lineTracking.setLineUuid(index + 1, uuid);
+          if (editor.lineTracking && typeof editor.lineTracking.setLineUuid === 'function') {
+            editor.lineTracking.setLineUuid(index + 1, uuid, editor);
           }
         }
-      });
+      }
       
       console.log(`**** UseLineData **** Applied ${appliedCount} UUIDs to DOM elements`);
       
@@ -49,6 +58,14 @@ export const useEditorInit = (lineData: LineData[], isDataReady: boolean) => {
       ).length;
       
       console.log(`**** UseLineData **** UUID verification: ${uuidVerificationCount}/${lines.length} lines have UUIDs`);
+      
+      // If verification failed, try forcing another UUID refresh
+      if (uuidVerificationCount < minLength && editor.lineTracking) {
+        console.log(`**** UseLineData **** Some UUIDs missing, forcing refresh`);
+        if (typeof editor.lineTracking.refreshLineUuids === 'function') {
+          editor.lineTracking.refreshLineUuids(lineData);
+        }
+      }
       
       return true;
     } catch (error) {
