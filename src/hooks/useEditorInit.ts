@@ -1,4 +1,7 @@
 
+// Update useEditorInit to work with the refactored LinePosition
+// File: src/hooks/useEditorInit.ts
+
 import { useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
 

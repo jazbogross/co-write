@@ -1,4 +1,3 @@
-
 // File: src/components/editor/LineTracker.ts
 
 import ReactQuill from 'react-quill';
@@ -200,7 +199,7 @@ export class LineTracker {
     return this.changeHistory.getChangeHistory(uuid);
   }
   
-  // Refresh UUIDs from lineData - new method
+  // Refresh UUIDs from lineData
   public refreshLineUuids(lineData: any[]) {
     console.log('🔍 LineTracker refreshing UUIDs from lineData');
     if (this.linePosition && typeof this.linePosition.refreshLineUuids === 'function') {

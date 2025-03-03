@@ -1,4 +1,7 @@
 
+// Update the TextEditorContent.tsx to handle UUID refresh
+// File: src/components/editor/TextEditorContent.tsx
+
 import React, { useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { LineNumbers } from './LineNumbers';
@@ -106,14 +109,15 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     if (!isEditorMountedRef.current) return;
     
     const editor = quillRef.current?.getEditor();
-    if (editor && editor.lineTracking && typeof editor.lineTracking.refreshLineUuids === 'function') {
-      // Fetch the lineData array from the editor or state
-      // This is just an example - you may need to get lineData from elsewhere
-      setTimeout(() => {
+    if (editor && editor.lineTracking) {
+      if (typeof editor.lineTracking.refreshLineUuids === 'function') {
         // Give the editor a moment to update its DOM before refreshing UUIDs
-        const domUuids = editor.lineTracking.getDomUuidMap();
-        console.log(`📝 TextEditorContent: After content update, found ${domUuids.size} UUIDs in DOM`);
-      }, 100);
+        setTimeout(() => {
+          // Fetch the lineData array from the editor or state
+          const domUuids = editor.lineTracking.getDomUuidMap();
+          console.log(`📝 TextEditorContent: After content update, found ${domUuids.size} UUIDs in DOM`);
+        }, 100);
+      }
     }
   }, [lineCount]);
   

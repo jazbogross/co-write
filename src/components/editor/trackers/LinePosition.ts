@@ -1,12 +1,16 @@
 
 /**
  * LinePosition.ts - Handles tracking of line positions and content
+ * Now refactored to use smaller, focused utility classes
  */
 
+import { ContentMapping } from './ContentMapping';
+import { LineUuidManager } from './LineUuidManager';
+import { DomUtils } from './DomUtils';
+
 export class LinePosition {
-  private lineUuids: Map<number, string> = new Map();
-  private contentToUuid: Map<string, string> = new Map();
-  private contentHistory: Map<string, string> = new Map();
+  private lineUuidManager = new LineUuidManager();
+  private contentMapping = new ContentMapping();
   private lastKnownLines: number = 0;
   private quill: any = null;
 
@@ -14,6 +18,7 @@ export class LinePosition {
   initialize(quill: any): void {
     console.log('**** LinePosition **** Initializing line position tracking');
     this.quill = quill;
+    this.lineUuidManager.setQuill(quill);
     
     const lines = quill.getLines(0);
     this.lastKnownLines = lines.length;
@@ -22,23 +27,17 @@ export class LinePosition {
       if (line.domNode) {
         const uuid = line.domNode.getAttribute('data-line-uuid');
         if (uuid) {
-          this.lineUuids.set(index, uuid);
-          const content = this.getLineContent(line);
+          // Track in our line manager
+          this.lineUuidManager.setLineUuid(index + 1, uuid);
           
           // Track content in both directions
-          this.contentToUuid.set(content, uuid);
-          this.contentHistory.set(uuid, content);
+          const content = DomUtils.getLineContent(line);
+          if (content && content.trim() !== '') {
+            this.contentMapping.mapContentToUuid(content, uuid);
+            this.contentMapping.trackContentHistory(uuid, content);
+          }
           
           console.log(`**** LinePosition **** Mapped line ${index + 1} to UUID ${uuid}`);
-        } else {
-          // If no UUID exists, check if we have one in our map
-          if (this.lineUuids.has(index)) {
-            const existingUuid = this.lineUuids.get(index);
-            if (existingUuid) {
-              line.domNode.setAttribute('data-line-uuid', existingUuid);
-              console.log(`**** LinePosition **** Applied existing UUID ${existingUuid} to line ${index + 1}`);
-            }
-          }
         }
       }
     });
@@ -47,23 +46,12 @@ export class LinePosition {
     this.checkForMissingUuids();
   }
 
-  // Get line content from a Quill line
-  getLineContent(line: any): string {
-    return line.cache?.delta?.ops?.[0]?.insert || '';
-  }
-
   // Check for and report missing UUIDs
   checkForMissingUuids(): void {
     if (!this.quill) return;
     
     const lines = this.quill.getLines(0);
-    let missingCount = 0;
-    
-    lines.forEach((line: any, index: number) => {
-      if (line.domNode && !line.domNode.getAttribute('data-line-uuid')) {
-        missingCount++;
-      }
-    });
+    const missingCount = DomUtils.countMissingUuids(lines);
     
     if (missingCount > 0) {
       console.log(`**** LinePosition **** Found ${missingCount} lines with missing UUIDs`);
@@ -82,15 +70,11 @@ export class LinePosition {
     const lines = quill.getLines(0);
     let missingUuidCount = 0;
     
+    // Update all line indices
+    DomUtils.updateLineIndices(lines);
+    
     lines.forEach((line: any, index: number) => {
       if (!line.domNode) return;
-      
-      // Always update the index attribute to reflect the current position
-      const oneBasedIndex = index + 1;
-      const currentIndex = line.domNode.getAttribute('data-line-index');
-      if (currentIndex !== String(oneBasedIndex)) {
-        line.domNode.setAttribute('data-line-index', String(oneBasedIndex));
-      }
       
       // Read the UUID from DOM and update our maps
       let uuid = line.domNode.getAttribute('data-line-uuid');
@@ -100,39 +84,39 @@ export class LinePosition {
         missingUuidCount++;
         
         // Try to get UUID from our position map
-        uuid = this.lineUuids.get(index);
+        uuid = this.lineUuidManager.getLineUuid(index + 1);
         
         // If still no UUID, try content matching
         if (!uuid) {
-          const content = this.getLineContent(line);
+          const content = DomUtils.getLineContent(line);
           if (content && content.trim() !== '') {
-            uuid = this.contentToUuid.get(content);
+            uuid = this.contentMapping.getUuidByContent(content);
           }
         }
         
         // Apply the UUID if we found one
         if (uuid) {
           line.domNode.setAttribute('data-line-uuid', uuid);
+          line.domNode.setAttribute('data-line-index', String(index + 1));
           console.log(`**** LinePosition **** Applied missing UUID ${uuid} to line ${index + 1}`);
         }
       }
       
       // Always update our tracking maps with the current state
       if (uuid) {
-        const content = this.getLineContent(line);
-        const previousContent = this.contentHistory.get(uuid);
+        const content = DomUtils.getLineContent(line);
         
         // Update our position-based map
-        this.lineUuids.set(index, uuid);
+        this.lineUuidManager.setLineUuid(index + 1, uuid);
         
         // Update content mapping if needed
         if (content && content.trim() !== '') {
           // Track historical association so we can find lines that move
-          this.contentHistory.set(uuid, content);
+          this.contentMapping.trackContentHistory(uuid, content);
           
           // If content changed, update the content-to-UUID map
-          if (content !== previousContent) {
-            this.contentToUuid.set(content, uuid);
+          if (this.contentMapping.hasContentChanged(uuid, content)) {
+            this.contentMapping.mapContentToUuid(content, uuid);
           }
         }
       }
@@ -141,63 +125,11 @@ export class LinePosition {
     if (missingUuidCount > 0) {
       console.log(`**** LinePosition **** Found ${missingUuidCount} lines with missing UUIDs`);
     }
-    
-    // Detect if the UUID is missing on any line and try to find it based on content
-    lines.forEach((line: any, index: number) => {
-      if (!line.domNode || line.domNode.getAttribute('data-line-uuid')) return;
-      
-      const content = this.getLineContent(line);
-      if (content && content.trim() !== '') {
-        const uuid = this.contentToUuid.get(content);
-        if (uuid) {
-          console.log(`**** LinePosition **** Restoring UUID for moved content at line ${index + 1}`);
-          line.domNode.setAttribute('data-line-uuid', uuid);
-          this.lineUuids.set(index, uuid);
-        }
-      }
-    });
   }
 
   // Apply UUIDs from an external data source to the DOM
   applyLineDataUuids(lineData: any[]): number {
-    if (!this.quill) {
-      console.error('**** LinePosition **** Cannot apply UUIDs, quill not initialized');
-      return 0;
-    }
-    
-    const lines = this.quill.getLines(0);
-    let appliedCount = 0;
-    
-    // Safety check for array bounds
-    const minLength = Math.min(lines.length, lineData.length);
-    
-    for (let index = 0; index < minLength; index++) {
-      if (lines[index].domNode && lineData[index] && lineData[index].uuid) {
-        const uuid = lineData[index].uuid;
-        const currentUuid = lines[index].domNode.getAttribute('data-line-uuid');
-        
-        if (!currentUuid || currentUuid !== uuid) {
-          lines[index].domNode.setAttribute('data-line-uuid', uuid);
-          lines[index].domNode.setAttribute('data-line-index', String(index + 1));
-          
-          // Update our tracking maps
-          this.lineUuids.set(index, uuid);
-          const content = this.getLineContent(lines[index]);
-          if (content && content.trim() !== '') {
-            this.contentToUuid.set(content, uuid);
-            this.contentHistory.set(uuid, content);
-          }
-          
-          appliedCount++;
-        }
-      }
-    }
-    
-    if (appliedCount > 0) {
-      console.log(`**** LinePosition **** Applied ${appliedCount} UUIDs from lineData`);
-    }
-    
-    return appliedCount;
+    return this.lineUuidManager.applyUuidsToDOM(lineData, this.quill);
   }
 
   // Detect changes in line count
@@ -228,60 +160,23 @@ export class LinePosition {
 
   // Get UUID for a line by index
   getLineUuid(oneBasedIndex: number): string | undefined {
-    const zeroBasedIndex = oneBasedIndex - 1;
-    return this.lineUuids.get(zeroBasedIndex);
+    return this.lineUuidManager.getLineUuid(oneBasedIndex);
   }
 
   // Set UUID for a line by index
   setLineUuid(oneBasedIndex: number, uuid: string, quill: any): void {
-    const zeroBasedIndex = oneBasedIndex - 1;
-    this.lineUuids.set(zeroBasedIndex, uuid);
+    this.lineUuidManager.setLineUuid(oneBasedIndex, uuid, quill);
     this.quill = quill;
-    
-    // Update the DOM element if it exists
-    const lines = quill.getLines(0);
-    if (lines[zeroBasedIndex] && lines[zeroBasedIndex].domNode) {
-      lines[zeroBasedIndex].domNode.setAttribute('data-line-uuid', uuid);
-      
-      // Also update content mapping
-      const content = this.getLineContent(lines[zeroBasedIndex]);
-      if (content && content.trim() !== '') {
-        this.contentToUuid.set(content, uuid);
-        this.contentHistory.set(uuid, content);
-      }
-    }
   }
 
   // Get content to UUID map
   getContentToUuidMap(): Map<string, string> {
-    return this.contentToUuid;
+    return this.contentMapping.getContentToUuidMap();
   }
 
   // Get DOM UUID map - Modified to not require quill parameter
   getDomUuidMap(quill?: any): Map<number, string> {
-    const map = new Map<number, string>();
-    
-    // Use provided quill or stored reference
-    const editor = quill || this.quill;
-    
-    // Safety check
-    if (!editor) {
-      console.warn('**** LinePosition **** No quill instance available for getDomUuidMap');
-      return map;
-    }
-    
-    const lines = editor.getLines(0);
-    
-    lines.forEach((line: any, index: number) => {
-      if (line.domNode) {
-        const uuid = line.domNode.getAttribute('data-line-uuid');
-        if (uuid) {
-          map.set(index, uuid);
-        }
-      }
-    });
-    
-    return map;
+    return this.lineUuidManager.getDomUuidMap(quill || this.quill);
   }
 
   // Explicitly refresh all UUIDs from lineData
