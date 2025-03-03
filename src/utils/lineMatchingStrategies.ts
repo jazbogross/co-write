@@ -1,3 +1,4 @@
+
 import { LineData } from '@/types/lineTypes';
 import { v4 as uuidv4 } from 'uuid';
 import { isDeltaObject, extractPlainTextFromDelta, isContentEmpty as editorIsContentEmpty } from '@/utils/editor';
@@ -158,7 +159,13 @@ export const matchNonEmptyLines = (
   for (let j = 0; j < prevData.length; j++) {
     if (usedIndices.has(j)) continue;
     
-    if (prevData[j].content === contentForComparison) {
+    // Extract plain text from prevData content if it's a Delta
+    let prevContent = prevData[j].content;
+    if (isDeltaObject(prevContent)) {
+      prevContent = extractPlainTextFromDelta(prevContent);
+    }
+    
+    if (prevContent === contentForComparison) {
       match = { type: 'content', index: j };
       stats.preserved++;
       stats.matchStrategy['content'] = (stats.matchStrategy['content'] || 0) + 1;
@@ -198,9 +205,18 @@ export const matchWithPositionFallback = (
     // Check if content is similar or identical
     const prevLine = prevData[lineIndex];
     
-    if (prevLine.content === contentForComparison ||
-        (!contentIsEmpty && prevLine.content.includes(contentForComparison)) ||
-        (!isContentEmpty(prevLine.content) && contentForComparison.includes(prevLine.content))) {
+    // Extract plain text from prevLine content if it's a Delta
+    let prevLineContent = prevLine.content;
+    if (isDeltaObject(prevLineContent)) {
+      prevLineContent = extractPlainTextFromDelta(prevLineContent);
+    } else if (typeof prevLineContent !== 'string') {
+      prevLineContent = String(prevLineContent || '');
+    }
+    
+    // Now compare using plain text on both sides
+    if (prevLineContent === contentForComparison ||
+        (!contentIsEmpty && typeof prevLineContent === 'string' && prevLineContent.includes(contentForComparison)) ||
+        (!isContentEmpty(prevLineContent) && typeof contentForComparison === 'string' && contentForComparison.includes(prevLineContent))) {
       match = { type: 'position', index: lineIndex };
       stats.preserved++;
       stats.matchStrategy['position'] = (stats.matchStrategy['position'] || 0) + 1;

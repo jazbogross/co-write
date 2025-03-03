@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { 
@@ -6,7 +7,7 @@ import {
   matchWithPositionFallback,
   isContentEmpty
 } from '@/utils/lineMatchingStrategies';
-import { isDeltaObject } from '@/utils/editorUtils';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 export const useLineMatching = (userId: string | null) => {
   const matchAndAssignLines = useCallback((
@@ -33,6 +34,15 @@ export const useLineMatching = (userId: string | null) => {
       console.log(`**** useLineMatching **** Moved content: "${enterAtZeroOperation.movedContent}"`);
     }
     
+    // Ensure every content item is safely processed
+    const safeNewContents = newContents.map(content => {
+      // If content is a Delta object, extract plain text
+      if (isDeltaObject(content)) {
+        return extractPlainTextFromDelta(content);
+      }
+      return content;
+    });
+    
     // Step 1: Special handling for Enter at position 0
     if (enterAtZeroOperation) {
       const emptyLineIndex = enterAtZeroOperation.lineIndex;
@@ -41,7 +51,7 @@ export const useLineMatching = (userId: string | null) => {
       const result = handleEnterAtZeroOperation(
         emptyLineIndex,
         contentLineIndex,
-        newContents,
+        safeNewContents,
         prevData,
         usedIndices,
         userId,
@@ -66,7 +76,7 @@ export const useLineMatching = (userId: string | null) => {
           newData[contentLineIndex] = result.contentLineData;
           
           // Update content-to-UUID mapping
-          contentToUuidMap.set(newContents[contentLineIndex], result.contentLineData.uuid);
+          contentToUuidMap.set(safeNewContents[contentLineIndex], result.contentLineData.uuid);
         }
         
         console.log(`**** useLineMatching **** Successfully handled Enter-at-position-0 operation`);
@@ -76,11 +86,11 @@ export const useLineMatching = (userId: string | null) => {
     }
     
     // Step 2: Match non-empty lines with content matching strategies
-    for (let i = 0; i < newContents.length; i++) {
+    for (let i = 0; i < safeNewContents.length; i++) {
       // Skip lines already handled
       if (newData[i]) continue;
       
-      const content = newContents[i];
+      const content = safeNewContents[i];
       const isEmpty = isContentEmpty(content);
       
       // Skip empty lines in this pass
@@ -127,65 +137,84 @@ export const useLineMatching = (userId: string | null) => {
     }
     
     // Step 3: Handle empty lines and unmatched content with position-based fallback
-    for (let i = 0; i < newContents.length; i++) {
+    for (let i = 0; i < safeNewContents.length; i++) {
       if (newData[i]) continue;
       
-      const content = newContents[i];
+      const content = safeNewContents[i];
       const isEmpty = isContentEmpty(content);
       
-      // For unmatched lines, try more aggressive matching strategies
-      const { match, stats: lineStats } = matchWithPositionFallback(
-        content,
-        i,
-        prevData,
-        usedIndices,
-        domUuidMap
-      );
-      
-      // Update global stats
-      stats.preserved += lineStats.preserved;
-      stats.regenerated += lineStats.regenerated;
-      Object.entries(lineStats.matchStrategy).forEach(([key, value]) => {
-        stats.matchStrategy[key] = (stats.matchStrategy[key] || 0) + value;
-      });
-      
-      if (match) {
-        const matchIndex = match.index;
-        usedIndices.add(matchIndex);
-        
-        const existingLine = prevData[matchIndex];
-        newData[i] = {
-          ...existingLine,
-          lineNumber: i + 1,
+      try {
+        // For unmatched lines, try more aggressive matching strategies
+        const { match, stats: lineStats } = matchWithPositionFallback(
           content,
-          editedBy: content !== existingLine.content && userId && 
-                   !existingLine.editedBy.includes(userId)
-            ? [...existingLine.editedBy, userId]
-            : existingLine.editedBy
-        };
+          i,
+          prevData,
+          usedIndices,
+          domUuidMap
+        );
         
-        if (!isEmpty) {
-          contentToUuidMap.set(content, existingLine.uuid);
-        }
+        // Update global stats
+        stats.preserved += lineStats.preserved;
+        stats.regenerated += lineStats.regenerated;
+        Object.entries(lineStats.matchStrategy).forEach(([key, value]) => {
+          stats.matchStrategy[key] = (stats.matchStrategy[key] || 0) + value;
+        });
         
-        if (quill && quill.lineTracking) {
-          quill.lineTracking.setLineUuid(i + 1, existingLine.uuid);
+        if (match) {
+          const matchIndex = match.index;
+          usedIndices.add(matchIndex);
+          
+          const existingLine = prevData[matchIndex];
+          newData[i] = {
+            ...existingLine,
+            lineNumber: i + 1,
+            content,
+            editedBy: content !== existingLine.content && userId && 
+                     !existingLine.editedBy.includes(userId)
+              ? [...existingLine.editedBy, userId]
+              : existingLine.editedBy
+          };
+          
+          if (!isEmpty) {
+            contentToUuidMap.set(content, existingLine.uuid);
+          }
+          
+          if (quill && quill.lineTracking) {
+            quill.lineTracking.setLineUuid(i + 1, existingLine.uuid);
+          }
+        } else {
+          // Generate new UUID for unmatched lines
+          stats.regenerated++;
+          const newUuid = crypto.randomUUID();
+          newData[i] = {
+            uuid: newUuid,
+            lineNumber: i + 1,
+            content,
+            originalAuthor: userId,
+            editedBy: []
+          };
+          
+          if (!isEmpty) {
+            contentToUuidMap.set(content, newUuid);
+          }
+          
+          if (quill?.lineTracking) {
+            quill.lineTracking.setLineUuid(i + 1, newUuid);
+          }
         }
-      } else {
-        // Generate new UUID for unmatched lines
+      } catch (error) {
+        console.error('Error in line matching:', error);
+        
+        // Fallback: Generate new UUID for lines that caused errors
         stats.regenerated++;
         const newUuid = crypto.randomUUID();
         newData[i] = {
           uuid: newUuid,
           lineNumber: i + 1,
-          content,
+          content: typeof content === 'string' ? content : '',
           originalAuthor: userId,
           editedBy: []
         };
-        
-        if (!isEmpty) {
-          contentToUuidMap.set(content, newUuid);
-        }
         
         if (quill?.lineTracking) {
           quill.lineTracking.setLineUuid(i + 1, newUuid);
