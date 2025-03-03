@@ -1,12 +1,14 @@
 
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
+import { preserveFormattedContent } from '@/utils/editorUtils';
 
 export const saveDraft = async (
   scriptId: string, 
   lineData: LineData[], 
   content: string, 
-  userId: string | null
+  userId: string | null,
+  quill: any = null
 ) => {
   try {
     console.log('Saving draft for script:', scriptId, 'with', lineData.length, 'lines');
@@ -36,6 +38,7 @@ export const saveDraft = async (
     // Process all current lines from the editor (source of truth)
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
+      const lineContent = quill ? preserveFormattedContent(line.content, quill) : line.content;
       
       if (existingLine) {
         // Line exists - check if we need to update draft content or line number
@@ -44,7 +47,7 @@ export const saveDraft = async (
         
         // Check if content has changed compared to the original
         if (line.content !== existingLine.content) {
-          updates.draft = line.content;
+          updates.draft = lineContent;
           needsUpdate = true;
           console.log(`Updating draft content for line ${line.uuid}`);
         }
@@ -82,7 +85,7 @@ export const saveDraft = async (
             line_number: 0,  // Minimal placeholder to satisfy not-null constraint
             line_number_draft: line.lineNumber,
             content: line.originalContent || '',  // Use originalContent if available
-            draft: line.content,
+            draft: lineContent,
             original_author: userId,
             edited_by: userId ? [userId] : []
           });

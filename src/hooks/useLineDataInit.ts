@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { createInitialLineData } from '@/utils/lineDataUtils';
 import { supabase } from '@/integrations/supabase/client';
+import { extractPlainTextFromDelta } from '@/utils/editorUtils';
 
 export const useLineDataInit = (
   scriptId: string, 
@@ -39,17 +40,28 @@ export const useLineDataInit = (
         if (allLines && allLines.length > 0) {
           console.log('**** UseLineData **** Data fetched successfully. Lines count:', allLines.length);
           
+          // Log a sample of data for debugging
+          console.log('**** UseLineData **** Sample data:', {
+            sample: allLines[0],
+            hasDraft: allLines[0].draft !== null || allLines[0].line_number_draft !== null,
+            draftContent: allLines[0].draft ? extractPlainTextFromDelta(allLines[0].draft) : null
+          });
+          
           // Simplified draft processing logic
           const processedLineData = allLines
             .filter(line => line.draft !== '{deleted-uuid}') // Filter out deleted lines
             .map(line => {
               // Check if this line has draft content or draft line number
-              const hasDraft = line.draft !== null && line.draft !== '' || 
-                              line.line_number_draft !== null;
+              const hasDraft = line.draft !== null || line.line_number_draft !== null;
+              
+              // Process content - extract plain text from Delta if needed
+              const finalContent = hasDraft 
+                ? (line.draft !== null ? extractPlainTextFromDelta(line.draft) : line.content) 
+                : line.content;
               
               return {
                 uuid: line.id,
-                content: hasDraft ? (line.draft || line.content) : line.content,
+                content: finalContent,
                 lineNumber: hasDraft ? (line.line_number_draft || line.line_number) : line.line_number,
                 originalAuthor: null, // Will be populated later
                 editedBy: [],
@@ -117,6 +129,14 @@ export const useLineDataInit = (
       if (draftError) throw draftError;
       
       if (draftLines && draftLines.length > 0) {
+        // Debug log for first draft
+        if (draftLines[0].draft) {
+          console.log('**** UseLineData **** Sample draft data:', {
+            raw: draftLines[0].draft,
+            extracted: extractPlainTextFromDelta(draftLines[0].draft)
+          });
+        }
+        
         // Process all lines with simplified draft logic
         setLineData(prevData => {
           // Process all draft lines
@@ -124,12 +144,16 @@ export const useLineDataInit = (
             .filter(line => line.draft !== '{deleted-uuid}') // Filter out deleted lines
             .map(line => {
               // Check if this line has draft content or draft line number
-              const hasDraft = line.draft !== null && line.draft !== '' || 
-                              line.line_number_draft !== null;
+              const hasDraft = line.draft !== null || line.line_number_draft !== null;
+              
+              // Process content - extract plain text from Delta if needed
+              const finalContent = hasDraft 
+                ? (line.draft !== null ? extractPlainTextFromDelta(line.draft) : line.content) 
+                : line.content;
               
               return {
                 uuid: line.id,
-                content: hasDraft ? (line.draft || line.content) : line.content,
+                content: finalContent,
                 lineNumber: hasDraft ? (line.line_number_draft || line.line_number) : line.line_number,
                 originalAuthor: null,
                 editedBy: [],

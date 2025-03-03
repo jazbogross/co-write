@@ -89,7 +89,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     lineData,
     userId,
     onSuggestChange,
-    loadDraftsForCurrentUser
+    loadDraftsForCurrentUser,
+    quillRef.current?.getEditor()  // Pass the Quill editor instance
   );
   
   // Make sure we flush any pending updates when saving

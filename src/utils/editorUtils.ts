@@ -47,6 +47,35 @@ export const reconstructContent = (lineData: Array<{ content: string }>): string
   }
 };
 
+// Extract plain text from a Delta object or string
+export const extractPlainTextFromDelta = (content: string | null): string => {
+  if (!content) return '';
+  
+  try {
+    // If it's a Delta object (JSON string)
+    if (content.startsWith('{') && content.includes('ops')) {
+      const delta = JSON.parse(content);
+      
+      // Extract text from ops array
+      if (delta.ops && Array.isArray(delta.ops)) {
+        return delta.ops.reduce((text, op) => {
+          if (op.insert) {
+            return text + op.insert;
+          }
+          return text;
+        }, '');
+      }
+    }
+    
+    // If it's not a Delta object, return as is
+    return content;
+  } catch (e) {
+    // If parsing fails, return the original content
+    console.error('Error extracting plain text from delta:', e);
+    return content;
+  }
+};
+
 // Preserve formatted content from Quill
 export const preserveFormattedContent = (content: string, quill: any): string => {
   if (!quill) return content;
@@ -58,3 +87,4 @@ export const preserveFormattedContent = (content: string, quill: any): string =>
   
   return content;
 };
+
