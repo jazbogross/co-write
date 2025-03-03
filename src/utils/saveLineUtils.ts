@@ -1,5 +1,5 @@
 
-import { LineData } from '@/hooks/useLineData';
+import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
 
 export const saveLinesToDatabase = async (
@@ -13,15 +13,34 @@ export const saveLinesToDatabase = async (
     // First, get all existing lines
     const { data: existingLines, error: fetchError } = await supabase
       .from('script_content')
-      .select('id')
+      .select('id, line_number')
       .eq('script_id', scriptId);
       
     if (fetchError) throw fetchError;
     
     // Create a map of existing line UUIDs for quick lookup
-    const existingLineMap = new Set();
+    const existingLineMap = new Map();
     if (existingLines) {
-      existingLines.forEach(line => existingLineMap.add(line.id));
+      existingLines.forEach(line => existingLineMap.set(line.id, line.line_number));
+    }
+    
+    console.log(`Found ${existingLineMap.size} existing lines, processing ${lineData.length} lines`);
+    
+    // First, make sure we're not trying to save duplicate line numbers
+    // Sort lineData by line number to ensure we save in order
+    lineData.sort((a, b) => a.lineNumber - b.lineNumber);
+    
+    // Temporarily adjust all line numbers to large negative values to avoid conflicts
+    for (const line of existingLines || []) {
+      const { error } = await supabase
+        .from('script_content')
+        .update({ line_number: -10000 - parseInt(String(line.line_number)) })
+        .eq('id', line.id);
+        
+      if (error) {
+        console.error('Error adjusting line numbers:', error);
+        throw error;
+      }
     }
     
     // Process each line: update existing lines, insert new ones
@@ -38,9 +57,13 @@ export const saveLinesToDatabase = async (
           })
           .eq('id', line.uuid);
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating existing line:', error, line);
+          throw error;
+        }
       } else {
         // Insert new line
+        console.log(`Inserting new line: ${line.uuid}, line number: ${line.lineNumber}`);
         const { error } = await supabase
           .from('script_content')
           .insert({
@@ -54,7 +77,10 @@ export const saveLinesToDatabase = async (
             line_number_draft: null // No draft line number
           });
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error inserting new line:', error, line);
+          throw error;
+        }
       }
     }
     
@@ -64,6 +90,7 @@ export const saveLinesToDatabase = async (
       for (const line of existingLines) {
         if (!currentLineUUIDs.includes(line.id)) {
           // Line was deleted - remove it from the database
+          console.log(`Deleting line: ${line.id}`);
           const { error } = await supabase
             .from('script_content')
             .delete()

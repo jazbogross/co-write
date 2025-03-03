@@ -2,7 +2,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { createInitialLineData } from '@/utils/lineDataUtils';
-import { supabase } from '@/integrations/supabase/client';
+import { fetchAllLines, loadDrafts as loadDraftsService } from '@/services/lineDataService';
+import { processLinesData } from '@/utils/lineDataProcessing';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editorUtils';
 
 export const useLineDataInit = (
   scriptId: string, 
@@ -12,6 +14,7 @@ export const useLineDataInit = (
   const [lineData, setLineData] = useState<LineData[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [isDataReady, setIsDataReady] = useState(false);
+  const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   
   const contentToUuidMapRef = useRef<Map<string, string>>(new Map());
   const lastLineCountRef = useRef<number>(0);
@@ -27,48 +30,19 @@ export const useLineDataInit = (
       setIsDataReady(false); // Reset ready state while loading
       
       try {
-        // Get all lines including drafts, with improved ordering that prioritizes drafts
-        const { data: allLines, error: allLinesError } = await supabase
-          .from('script_content')
-          .select('id, line_number, line_number_draft, content, draft')
-          .eq('script_id', scriptId)
-          .order('line_number_draft', { ascending: true, nullsFirst: false }); // Prioritize drafts
-          
-        if (allLinesError) throw allLinesError;
+        // Get all lines including drafts
+        const allLines = await fetchAllLines(scriptId);
         
         if (allLines && allLines.length > 0) {
           console.log('**** UseLineData **** Data fetched successfully. Lines count:', allLines.length);
           
-          // Simplified draft processing logic
-          const processedLineData = allLines
-            .filter(line => line.draft !== '{deleted-uuid}') // Filter out deleted lines
-            .map(line => {
-              // Check if this line has draft content or draft line number
-              const hasDraft = line.draft !== null && line.draft !== '' || 
-                              line.line_number_draft !== null;
-              
-              return {
-                uuid: line.id,
-                content: hasDraft ? (line.draft || line.content) : line.content,
-                lineNumber: hasDraft ? (line.line_number_draft || line.line_number) : line.line_number,
-                originalAuthor: null, // Will be populated later
-                editedBy: [],
-                hasDraft: hasDraft,
-                originalContent: line.content, // Store original content for reference
-                originalLineNumber: line.line_number // Store original line number for reference
-              };
-            })
-            // Sort by line number to ensure order
-            .sort((a, b) => a.lineNumber - b.lineNumber);
+          // Process the line data
+          const processedLines = processLinesData(allLines, contentToUuidMapRef);
           
-          // Update line numbers to ensure continuity
-          processedLineData.forEach((line, index) => {
-            line.lineNumber = index + 1;
-            contentToUuidMapRef.current.set(line.content, line.uuid);
-          });
+          console.log('**** UseLineData **** Processed line data:', processedLines.length, 'lines');
           
-          setLineData(processedLineData);
-          lastLineCountRef.current = processedLineData.length;
+          setLineData(processedLines);
+          lastLineCountRef.current = processedLines.length;
         } else {
           console.log('**** UseLineData **** No data found, creating initial line data');
           const initialLineData = createInitialLineData(originalContent, userId);
@@ -97,62 +71,26 @@ export const useLineDataInit = (
     fetchLineData();
   }, [scriptId, originalContent, userId, initialized, lineData.length]);
 
-  // Simplified function to handle loading drafts
+  // Function to handle loading drafts - now with protection against duplicate calls
   const loadDrafts = async (userId: string | null) => {
-    if (!scriptId || !userId) {
-      console.log('**** UseLineData **** loadDrafts aborted: missing scriptId or userId');
+    if (!scriptId || !userId || isDraftLoaded) {
+      console.log('**** UseLineData **** loadDrafts aborted: missing scriptId or userId, or drafts already loaded');
       return;
     }
     
-    console.log('**** UseLineData **** Loading drafts for user:', userId);
-    
     try {
-      // Reload all line data to ensure we have the latest drafts
-      const { data: draftLines, error: draftError } = await supabase
-        .from('script_content')
-        .select('id, line_number, line_number_draft, content, draft')
-        .eq('script_id', scriptId)
-        .order('line_number_draft', { ascending: true, nullsFirst: false });
-        
-      if (draftError) throw draftError;
+      setIsDraftLoaded(true); // Set flag to prevent duplicate calls
       
-      if (draftLines && draftLines.length > 0) {
-        // Process all lines with simplified draft logic
-        setLineData(prevData => {
-          // Process all draft lines
-          const updatedLines = draftLines
-            .filter(line => line.draft !== '{deleted-uuid}') // Filter out deleted lines
-            .map(line => {
-              // Check if this line has draft content or draft line number
-              const hasDraft = line.draft !== null && line.draft !== '' || 
-                              line.line_number_draft !== null;
-              
-              return {
-                uuid: line.id,
-                content: hasDraft ? (line.draft || line.content) : line.content,
-                lineNumber: hasDraft ? (line.line_number_draft || line.line_number) : line.line_number,
-                originalAuthor: null,
-                editedBy: [],
-                hasDraft: hasDraft,
-                originalContent: line.content,
-                originalLineNumber: line.line_number
-              };
-            });
-          
-          // Sort and renumber
-          updatedLines.sort((a, b) => a.lineNumber - b.lineNumber);
-          updatedLines.forEach((line, index) => {
-            line.lineNumber = index + 1;
-            // Update content-to-uuid map
-            contentToUuidMapRef.current.set(line.content, line.uuid);
-          });
-          
-          console.log(`**** UseLineData **** Applied draft updates to ${updatedLines.length} lines`);
-          return updatedLines;
-        });
+      const updatedLines = await loadDraftsService(scriptId, userId, contentToUuidMapRef);
+      
+      if (updatedLines.length > 0) {
+        setLineData(updatedLines);
+        console.log('**** UseLineData **** Draft lines loaded successfully:', updatedLines.length);
+      } else {
+        console.log('**** UseLineData **** No draft lines to load');
       }
     } catch (error) {
-      console.error('**** UseLineData **** Error loading drafts:', error);
+      console.error('**** UseLineData **** Error in loadDrafts:', error);
     }
   };
 

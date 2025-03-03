@@ -33,21 +33,31 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 }) => {
   const quillRef = useRef<ReactQuill>(null);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
+  
+  // Load user ID first
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserId(user?.id || null);
+    };
+    fetchUser();
+  }, []);
 
-  // Load line data and prepare editor
+  // Load line data and prepare editor - now with proper userId
   const { 
     lineData, 
     updateLineContents, 
     loadDraftsForCurrentUser, 
     isDataReady,
     initializeEditor 
-  } = useLineData(scriptId, originalContent, null); // Pass null initially, will update with userId
+  } = useLineData(scriptId, originalContent, userId);
 
   // Set up and initialize text editor
   const {
     content,
     setContent,
-    userId,
     lineCount,
     editorInitialized,
     handleChange
@@ -89,7 +99,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     lineData,
     userId,
     onSuggestChange,
-    loadDraftsForCurrentUser
+    loadDraftsForCurrentUser,
+    quillRef.current?.getEditor()
   );
   
   // Make sure we flush any pending updates when saving
@@ -97,6 +108,40 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     flushUpdate(); // First flush any pending content updates
     saveToSupabase(); // Then save to Supabase
   }, [flushUpdate, saveToSupabase]);
+
+  // Load drafts when userId becomes available
+  useEffect(() => {
+    if (userId && isDataReady && !draftLoadAttempted) {
+      console.log('TextEditor: User ID available, loading drafts:', userId);
+      loadDraftsForCurrentUser();
+      setDraftLoadAttempted(true);
+    }
+  }, [userId, isDataReady, loadDraftsForCurrentUser, draftLoadAttempted]);
+
+  // Force editor content update when lineData changes due to draft loading
+  useEffect(() => {
+    if (editorInitialized && draftLoadAttempted && lineData.length > 0) {
+      const editor = quillRef.current?.getEditor();
+      if (editor) {
+        // Combine all line content
+        const combinedContent = lineData.map(line => line.content).join('\n');
+        
+        // Only update if content is different
+        if (combinedContent !== content) {
+          console.log('TextEditor: Updating editor content from loaded drafts');
+          setContent(combinedContent);
+          
+          // Manually update the editor content
+          const currentLength = editor.getLength();
+          editor.deleteText(0, currentLength);
+          editor.insertText(0, combinedContent);
+          
+          // Re-initialize the editor to ensure line UUIDs are set correctly
+          initializeEditor(editor);
+        }
+      }
+    }
+  }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, setContent, initializeEditor]);
 
   // Don't render editor until data is ready
   if (!isDataReady) {

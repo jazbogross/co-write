@@ -1,11 +1,10 @@
 
 import { useState, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { LineData } from '@/hooks/useLineData';
-import { saveLinesToDatabase } from '@/utils/saveLineUtils';
+import { LineData } from '@/types/lineTypes';
 import { saveDraft } from '@/utils/saveDraftUtils';
+import { saveLinesToDatabase } from '@/utils/saveLineUtils';
 import { saveSuggestions, saveLineDrafts } from '@/utils/saveSuggestionUtils';
+import { toast } from 'sonner';
 
 export const useSubmitEdits = (
   isAdmin: boolean,
@@ -15,134 +14,63 @@ export const useSubmitEdits = (
   lineData: LineData[],
   userId: string | null,
   onSuggestChange: (suggestion: string) => void,
-  loadDraftsForCurrentUser?: () => Promise<void>
+  loadDrafts: () => Promise<void>,
+  quill: any = null
 ) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
 
-  const handleSubmit = useCallback(async () => {
-    if (content === originalContent) {
-      toast({
-        title: "No changes detected",
-        description: "Please make some changes before submitting",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      if (isAdmin) {
-        // Save to database and clear all drafts
-        await saveLinesToDatabase(scriptId, lineData, content);
-        
-        try {
-          // Try to get GitHub token and commit changes
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (session?.provider_token) {
-            // If we have a token, try to commit changes
-            const response = await supabase.functions.invoke('commit-script-changes', {
-              body: {
-                scriptId,
-                content,
-                githubAccessToken: session.provider_token,
-              }
-            });
-
-            if (response.error) {
-              throw response.error;
-            }
-            
-            toast({
-              title: "Changes saved and committed",
-              description: "Your changes have been saved to the database and committed to GitHub",
-            });
-          } else {
-            // If no token, just notify that changes were saved but not committed
-            toast({
-              title: "Changes saved",
-              description: "Changes saved to database. GitHub commit skipped - please reconnect your GitHub account to enable commits.",
-              variant: "default", 
-            });
-          }
-        } catch (commitError: any) {
-          console.error('Error committing to GitHub:', commitError);
-          // Still notify that changes were saved even if GitHub commit failed
-          toast({
-            title: "Changes saved",
-            description: "Changes saved to database, but GitHub commit failed: " + (commitError.message || "Unknown error"),
-            variant: "default", 
-          });
-        }
-        
-        // Update the script content in the parent component
-        onSuggestChange(content);
-      } else {
-        // Non-admin user submitting suggestions
-        await saveSuggestions(scriptId, lineData, originalContent, userId);
-        
-        toast({
-          title: "Suggestion submitted",
-          description: "Your suggestion has been submitted for review",
-        });
-      }
-    } catch (error: any) {
-      console.error('Error submitting changes:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to submit changes. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [isAdmin, scriptId, lineData, content, originalContent, userId, onSuggestChange, toast]);
-
+  // Function to save line data (draft)
   const saveToSupabase = useCallback(async () => {
-    if (content === originalContent) {
-      toast({
-        title: "No changes detected",
-        description: "Please make some changes before saving",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!scriptId) return;
 
     setIsSubmitting(true);
     try {
       if (isAdmin) {
-        await saveDraft(scriptId, lineData, content, userId);
-        
-        toast({
-          title: "Draft saved",
-          description: "Your draft has been saved successfully",
-        });
+        await saveDraft(scriptId, lineData, content, userId, quill);
+        toast.success('Draft saved successfully!');
       } else {
+        // For contributors we save suggestions as drafts
         await saveLineDrafts(scriptId, lineData, originalContent, userId);
-        
-        toast({
-          title: "Draft saved",
-          description: "Your draft suggestions have been saved",
-        });
+        toast.success('Suggestion saved as draft!');
       }
-      
-      // Only load drafts AFTER saving to get the latest state
-      if (loadDraftsForCurrentUser) {
-        console.log("Loading drafts after save...");
-        await loadDraftsForCurrentUser();
-      }
-    } catch (error: any) {
+
+      // Reload the drafts to ensure we have the latest data
+      await loadDrafts();
+    } catch (error) {
       console.error('Error saving draft:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save draft. Please try again.",
-        variant: "destructive",
-      });
+      toast.error('Error saving draft');
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, originalContent, userId, loadDraftsForCurrentUser, toast]);
+  }, [isAdmin, scriptId, lineData, content, userId, loadDrafts, originalContent, quill]);
 
-  return { isSubmitting, handleSubmit, saveToSupabase };
+  // Function to submit changes (for approval)
+  const handleSubmit = useCallback(async () => {
+    if (!scriptId) return;
+
+    setIsSubmitting(true);
+    try {
+      if (isAdmin) {
+        // Admin can directly save changes to the script
+        await saveLinesToDatabase(scriptId, lineData, content);
+        onSuggestChange(content);
+        toast.success('Changes saved successfully!');
+      } else {
+        // Non-admin submits suggestions
+        await saveSuggestions(scriptId, lineData, originalContent, userId);
+        toast.success('Suggestions submitted for approval!');
+      }
+    } catch (error) {
+      console.error('Error submitting changes:', error);
+      toast.error(error instanceof Error ? error.message : 'Error submitting changes');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isAdmin, scriptId, lineData, content, userId, onSuggestChange, originalContent]);
+
+  return {
+    isSubmitting,
+    handleSubmit,
+    saveToSupabase
+  };
 };

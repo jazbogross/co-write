@@ -1,12 +1,14 @@
 
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
+import { preserveFormattedContent, isDeltaObject, logDeltaStructure } from '@/utils/editorUtils';
 
 export const saveDraft = async (
   scriptId: string, 
   lineData: LineData[], 
   content: string, 
-  userId: string | null
+  userId: string | null,
+  quill: any = null
 ) => {
   try {
     console.log('Saving draft for script:', scriptId, 'with', lineData.length, 'lines');
@@ -33,9 +35,19 @@ export const saveDraft = async (
     // Get all current line UUIDs in the editor
     const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
     
+    // Debug log
+    console.log(`Processing ${lineData.length} lines, ${existingLines?.length || 0} existing lines`);
+    
     // Process all current lines from the editor (source of truth)
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
+      const lineContent = quill ? preserveFormattedContent(line.content, quill) : line.content;
+      
+      // Debug log formatted content
+      if (quill && isDeltaObject(lineContent)) {
+        console.log(`Line ${line.lineNumber} saving as Delta:`, lineContent.substring(0, 50) + '...');
+        logDeltaStructure(lineContent);
+      }
       
       if (existingLine) {
         // Line exists - check if we need to update draft content or line number
@@ -44,7 +56,7 @@ export const saveDraft = async (
         
         // Check if content has changed compared to the original
         if (line.content !== existingLine.content) {
-          updates.draft = line.content;
+          updates.draft = lineContent;
           needsUpdate = true;
           console.log(`Updating draft content for line ${line.uuid}`);
         }
@@ -82,7 +94,7 @@ export const saveDraft = async (
             line_number: 0,  // Minimal placeholder to satisfy not-null constraint
             line_number_draft: line.lineNumber,
             content: line.originalContent || '',  // Use originalContent if available
-            draft: line.content,
+            draft: lineContent,
             original_author: userId,
             edited_by: userId ? [userId] : []
           });
