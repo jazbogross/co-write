@@ -14,7 +14,7 @@ export const useSubmitEdits = (
   content: string | DeltaContent,
   lineData: LineData[],
   userId: string | null,
-  onSuggestChange: (suggestion: string | DeltaContent) => void,
+  onSuggestChange: (suggestion: string | DeltaContent) => void, // Updated to accept DeltaContent
   loadDrafts: () => Promise<void>,
   quill: any = null
 ) => {
@@ -54,7 +54,7 @@ export const useSubmitEdits = (
       if (isAdmin) {
         // Admin can directly save changes to the script_content table
         await saveLinesToDatabase(scriptId, lineData, content);
-        onSuggestChange(content); // Call the callback to update UI
+        onSuggestChange(content); // Pass the content directly, which could be string or DeltaContent
         toast.success('Changes saved successfully!');
       } else {
         // Non-admin submits suggestions

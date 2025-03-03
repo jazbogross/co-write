@@ -6,7 +6,7 @@ import { DeltaContent, extractPlainTextFromDelta, isDeltaObject } from '@/utils/
 export const saveLinesToDatabase = async (
   scriptId: string,
   lineData: LineData[],
-  content: string | DeltaContent // Kept for compatibility but not used for updating scripts.content anymore
+  content: string | DeltaContent // Can now properly handle both string and DeltaContent
 ) => {
   try {
     console.log('Saving lines to database and clearing drafts');
@@ -22,7 +22,12 @@ export const saveLinesToDatabase = async (
     // Create a map of existing line UUIDs for quick lookup
     const existingLineMap = new Map();
     if (existingLines) {
-      existingLines.forEach(line => existingLineMap.set(line.id, line.line_number));
+      existingLines.forEach(line => {
+        // Type-safe access to line properties
+        if (line && typeof line === 'object' && 'id' in line && 'line_number' in line) {
+          existingLineMap.set(line.id, line.line_number);
+        }
+      });
     }
     
     console.log(`Found ${existingLineMap.size} existing lines, processing ${lineData.length} lines`);
@@ -32,15 +37,20 @@ export const saveLinesToDatabase = async (
     lineData.sort((a, b) => a.lineNumber - b.lineNumber);
     
     // Temporarily adjust all line numbers to large negative values to avoid conflicts
-    for (const line of existingLines || []) {
-      const { error } = await supabase
-        .from('script_content')
-        .update({ line_number: -10000 - parseInt(String(line.line_number)) })
-        .eq('id', line.id);
-        
-      if (error) {
-        console.error('Error adjusting line numbers:', error);
-        throw error;
+    if (existingLines) {
+      for (const line of existingLines) {
+        // Type-safe access to line properties
+        if (line && typeof line === 'object' && 'id' in line && 'line_number' in line) {
+          const { error } = await supabase
+            .from('script_content')
+            .update({ line_number: -10000 - parseInt(String(line.line_number)) })
+            .eq('id', line.id);
+            
+          if (error) {
+            console.error('Error adjusting line numbers:', error);
+            throw error;
+          }
+        }
       }
     }
     
@@ -54,7 +64,7 @@ export const saveLinesToDatabase = async (
         storedContent = JSON.stringify(line.content);
       } else {
         // If it's already a string, use it directly
-        storedContent = line.content as string;
+        storedContent = typeof line.content === 'string' ? line.content : '';
       }
       
       if (existingLineMap.has(line.uuid)) {
@@ -100,15 +110,18 @@ export const saveLinesToDatabase = async (
     const currentLineUUIDs = lineData.map(line => line.uuid);
     if (existingLines) {
       for (const line of existingLines) {
-        if (!currentLineUUIDs.includes(line.id)) {
-          // Line was deleted - remove it from the database
-          console.log(`Deleting line: ${line.id}`);
-          const { error } = await supabase
-            .from('script_content')
-            .delete()
-            .eq('id', line.id);
-            
-          if (error) throw error;
+        // Type-safe access to line properties
+        if (line && typeof line === 'object' && 'id' in line) {
+          if (!currentLineUUIDs.includes(line.id)) {
+            // Line was deleted - remove it from the database
+            console.log(`Deleting line: ${line.id}`);
+            const { error } = await supabase
+              .from('script_content')
+              .delete()
+              .eq('id', line.id);
+              
+            if (error) throw error;
+          }
         }
       }
     }

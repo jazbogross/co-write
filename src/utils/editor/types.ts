@@ -42,4 +42,3 @@ export interface QuillCompatibleDelta extends DeltaContent {
   changeLength?: () => number;
   length?: () => number;
 }
-

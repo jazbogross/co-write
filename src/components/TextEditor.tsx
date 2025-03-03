@@ -13,7 +13,7 @@ import { TextEditorContent } from './editor/TextEditorContent';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule } from './editor/LineTracker';
 import { DeltaContent } from '@/utils/editor/types';
-import { extractPlainTextFromDelta } from '@/utils/editor/content/textExtraction';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 // Register the LineTrackingModule with Quill
 ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
@@ -22,7 +22,7 @@ interface TextEditorProps {
   isAdmin: boolean;
   originalContent: string;
   scriptId: string;
-  onSuggestChange: (suggestion: string) => void;
+  onSuggestChange: (suggestion: string | DeltaContent) => void; // Updated to accept DeltaContent
 }
 
 export const TextEditor: React.FC<TextEditorProps> = ({
@@ -101,7 +101,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [userId, isDataReady, loadDraftsForCurrentUser, draftLoadAttempted]);
 
-  // Set up submission handling
+  // Set up submission handling - updated to handle both string and DeltaContent
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
     scriptId,
@@ -109,7 +109,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     content, // This can be DeltaContent or string
     lineData,
     userId,
-    onSuggestChange,
+    onSuggestChange, // Now properly typed to accept DeltaContent
     loadDraftsForCurrentUser,
     quillRef.current?.getEditor()
   );
@@ -133,10 +133,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     return <div className="flex items-center justify-center p-8">Loading editor data...</div>;
   }
 
-  // Convert content to string for TextEditorContent
+  // Convert content to string for TextEditorContent if needed
   const contentString = typeof content === 'string' 
     ? content 
-    : extractPlainTextFromDelta(content as DeltaContent);
+    : extractPlainTextFromDelta(isDeltaObject(content) ? content : { ops: [{ insert: '' }] });
 
   console.log('📋 TextEditor: Rendering editor with ready data');
   return (

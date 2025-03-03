@@ -39,39 +39,44 @@ export const useLineDataInit = (
         if (allLines && allLines.length > 0) {
           console.log('📊 useLineDataInit: Data fetched successfully. Lines count:', allLines.length);
           
-          // Log first few lines from database
-          // allLines.slice(0, 3).forEach((line, i) => {
-          //   console.log(`📊 DB Line ${i+1}:`, {
-          //     id: line.id,
-          //     line_number: line.line_number,
-          //     line_number_draft: isAdmin ? line.line_number_draft : undefined,
-          //     has_draft: isAdmin ? (line.draft !== null) : undefined,
-          //     content_preview: typeof line.content === 'string' 
-          //       ? line.content.substring(0, 30) 
-          //       : JSON.stringify(line.content).substring(0, 30)
-          //   });
-          // });
-          
-          // Process the line data, passing the isAdmin flag
-          const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin);
-          
-          console.log('📊 useLineDataInit: Processed line data:', processedLines.length, 'lines');
-          
-          // Log first few processed lines
-          processedLines.slice(0, 3).forEach((line, i) => {
-            console.log(`📊 Processed Line ${i+1}:`, {
-              uuid: line.uuid,
-              lineNumber: line.lineNumber,
-              contentType: typeof line.content,
-              isDelta: isDeltaObject(line.content),
-              preview: typeof line.content === 'string' 
-                ? line.content.substring(0, 30) 
-                : JSON.stringify(line.content).substring(0, 30)
+          // Type safe iteration over fetched lines
+          if (Array.isArray(allLines)) {
+            // Process the line data, passing the isAdmin flag
+            const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin);
+            
+            console.log('📊 useLineDataInit: Processed line data:', processedLines.length, 'lines');
+            
+            // Safely log processed lines
+            processedLines.slice(0, 3).forEach((line, i) => {
+              // Type-safe access to line content for logging
+              let contentPreview: string;
+              if (typeof line.content === 'string') {
+                contentPreview = line.content.substring(0, 30);
+              } else if (line.content && typeof line.content === 'object' && 'ops' in line.content) {
+                contentPreview = JSON.stringify(line.content).substring(0, 30);
+              } else {
+                contentPreview = '[invalid content format]';
+              }
+              
+              console.log(`📊 Processed Line ${i+1}:`, {
+                uuid: line.uuid,
+                lineNumber: line.lineNumber,
+                contentType: typeof line.content,
+                isDelta: isDeltaObject(line.content),
+                preview: contentPreview
+              });
             });
-          });
-          
-          setLineData(processedLines);
-          lastLineCountRef.current = processedLines.length;
+            
+            setLineData(processedLines);
+            lastLineCountRef.current = processedLines.length;
+          } else {
+            console.error('📊 useLineDataInit: Fetched lines is not an array', allLines);
+            // Create a blank initial document if data format is incorrect
+            const initialLineData = createInitialLineData("", userId);
+            contentToUuidMapRef.current.set("", initialLineData[0].uuid);
+            setLineData(initialLineData);
+            lastLineCountRef.current = 1;
+          }
         } else {
           console.log('📊 useLineDataInit: No data found, creating initial line data');
           // Create a blank initial document if none exists yet
@@ -119,14 +124,25 @@ export const useLineDataInit = (
       if (updatedLines.length > 0) {
         console.log('📊 useLineDataInit: Draft lines loaded:', updatedLines.length);
         
-        // Log first few draft lines
+        // Type-safe logging of draft lines
         updatedLines.slice(0, 3).forEach((line, i) => {
+          // Safe content preview for logging
+          let contentPreview: string;
+          if (typeof line.content === 'string') {
+            contentPreview = line.content.substring(0, 30);
+          } else if (line.content && typeof line.content === 'object' && 'ops' in line.content) {
+            contentPreview = JSON.stringify(line.content).substring(0, 30);
+          } else {
+            contentPreview = '[invalid content format]';
+          }
+          
           console.log(`📊 Draft Line ${i+1}:`, {
             uuid: line.uuid,
             lineNumber: line.lineNumber,
             contentType: typeof line.content,
             isDelta: isDeltaObject(line.content),
-            hasDraft: line.hasDraft || false
+            hasDraft: line.hasDraft || false,
+            preview: contentPreview
           });
         });
         

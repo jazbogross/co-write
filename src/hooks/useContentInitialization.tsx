@@ -38,7 +38,8 @@ export const useContentInitialization = (
           
           if (typeof line.content === 'string') {
             previewText = line.content.substring(0, 30);
-          } else if (line.content) {
+          } else if (line.content && typeof line.content === 'object') {
+            // Handle case where line.content is a DeltaContent
             const contentStr = JSON.stringify(line.content);
             previewText = contentStr ? contentStr.substring(0, 30) + '...' : '[empty content]';
           } else {
@@ -57,7 +58,7 @@ export const useContentInitialization = (
         let previewText: string;
         if (typeof reconstructedContent === 'string') {
           previewText = (reconstructedContent as string).substring(0, 100) + '...';
-        } else if (reconstructedContent) {
+        } else if (reconstructedContent && typeof reconstructedContent === 'object') {
           const contentStr = JSON.stringify(reconstructedContent);
           previewText = contentStr ? contentStr.substring(0, 100) + '...' : '[empty content]';
         } else {

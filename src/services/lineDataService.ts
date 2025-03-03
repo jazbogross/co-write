@@ -51,17 +51,22 @@ export const loadDrafts = async (
       return [];
     }
     
-    // Check if any lines have draft content
-    const hasDrafts = allLines.some(line => 
-      line.draft !== null && line.draft !== '{deleted-uuid}'
-    );
+    // Type-safe check if any lines have draft content
+    const hasDrafts = Array.isArray(allLines) && allLines.some(line => {
+      // Safely check for draft property
+      return line && 
+             typeof line === 'object' && 
+             'draft' in line && 
+             line.draft !== null && 
+             line.draft !== '{deleted-uuid}';
+    });
     
     if (!hasDrafts) {
       console.log('**** LineDataService **** No drafts found for this script');
       return [];
     }
     
-    // Process the lines with draft content
+    // Process the lines with draft content - type safety assured by processLineData function
     const updatedLines = processDraftLines(allLines, contentToUuidMapRef);
     console.log(`**** LineDataService **** Applied draft updates to ${updatedLines.length} lines`);
     
