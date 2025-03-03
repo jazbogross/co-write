@@ -18,39 +18,45 @@ export const useTextEditor = (
   const [editorInitialized, setEditorInitialized] = useState(false);
   const [lineCount, setLineCount] = useState(1);
   const contentUpdateRef = useRef(false);
+  const isProcessingLinesRef = useRef(false);
 
   // Set initial content when lineData is ready
   useEffect(() => {
-    if (lineData.length > 0 && !isContentInitialized) {
+    if (lineData.length > 0 && !isContentInitialized && !isProcessingLinesRef.current) {
       console.log('**** useTextEditor.tsx **** Setting initial content');
+      isProcessingLinesRef.current = true;
       
-      // Combine line data content, ensuring we extract plain text from any Delta objects
-      const combinedContent = lineData.map(line => {
-        // If the content is a Delta object, extract the plain text
-        if (isDeltaObject(line.content)) {
-          const plainText = extractPlainTextFromDelta(line.content);
-          console.log(`**** useTextEditor.tsx **** Extracted plain text from Delta for line ${line.lineNumber}`);
-          return plainText;
+      try {
+        // Combine line data content, ensuring we extract plain text from any Delta objects
+        const combinedContent = lineData.map(line => {
+          // If the content is a Delta object, extract the plain text
+          if (isDeltaObject(line.content)) {
+            const plainText = extractPlainTextFromDelta(line.content);
+            console.log(`**** useTextEditor.tsx **** Extracted plain text from Delta for line ${line.lineNumber}`);
+            return plainText;
+          }
+          return line.content;
+        }).join('\n');
+        
+        // Only update if we have a valid string that's different
+        if (combinedContent && combinedContent !== content) {
+          console.log('**** useTextEditor.tsx **** Initial content set from lineData');
+          setContent(combinedContent);
         }
-        return line.content;
-      }).join('\n');
-      
-      // Only update if we have a valid string that's different
-      if (combinedContent && combinedContent !== content) {
-        console.log('**** useTextEditor.tsx **** Initial content set from lineData');
-        setContent(combinedContent);
-      }
-      
-      setIsContentInitialized(true);
-      
-      // Update line count based on what's in the editor
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        const lines = editor.getLines(0);
-        console.log('**** useTextEditor.tsx **** Initial line count from editor:', lines.length);
-        setLineCount(lines.length || lineData.length);
-      } else {
-        setLineCount(lineData.length);
+        
+        setIsContentInitialized(true);
+        
+        // Update line count based on what's in the editor
+        const editor = quillRef.current?.getEditor();
+        if (editor) {
+          const lines = editor.getLines(0);
+          console.log('**** useTextEditor.tsx **** Initial line count from editor:', lines.length);
+          setLineCount(lines.length || lineData.length);
+        } else {
+          setLineCount(lineData.length);
+        }
+      } finally {
+        isProcessingLinesRef.current = false;
       }
     }
   }, [lineData, isContentInitialized, content, quillRef]);
@@ -97,6 +103,12 @@ export const useTextEditor = (
       return;
     }
     
+    // Prevent processing during line operations
+    if (isProcessingLinesRef.current) {
+      console.log('**** useTextEditor.tsx **** Skipping update during line processing');
+      return;
+    }
+    
     console.log('**** useTextEditor.tsx **** Content changed.');
     const editor = quillRef.current?.getEditor();
     if (!editor) return;
@@ -118,15 +130,16 @@ export const useTextEditor = (
   const updateEditorContent = (newContent: string) => {
     // Mark this as a programmatic update to avoid infinite loops
     contentUpdateRef.current = true;
+    isProcessingLinesRef.current = true;
     
     const editor = quillRef.current?.getEditor();
     if (editor) {
       console.log('**** useTextEditor.tsx **** Updating editor content programmatically');
       
-      // Clear the editor first
-      editor.deleteText(0, editor.getLength());
-      
       try {
+        // Clear the editor first
+        editor.deleteText(0, editor.getLength());
+        
         // Check if the content is a Delta object
         if (isDeltaObject(newContent)) {
           // If it's a Delta, parse it and set it directly
@@ -139,21 +152,35 @@ export const useTextEditor = (
             editor.insertText(0, newContent);
           }
         } else {
-          // Insert the new content as plain text
-          editor.insertText(0, newContent);
+          // If content has multiple lines, split and insert line by line to ensure proper structure
+          const lines = newContent.split('\n');
+          
+          lines.forEach((line, index) => {
+            const position = editor.getLength() - 1;
+            editor.insertText(position, line);
+            
+            // Add newline for all but the last line
+            if (index < lines.length - 1) {
+              editor.insertText(editor.getLength() - 1, '\n');
+            }
+          });
+          
+          console.log('**** useTextEditor.tsx **** Inserted content line by line');
         }
+        
+        // Update React state to stay in sync
+        setContent(newContent);
+        
+        // Update line count
+        const lines = editor.getLines(0);
+        setLineCount(lines.length);
       } catch (error) {
         console.error('**** useTextEditor.tsx **** Error updating editor content:', error);
         // Fallback to plain text insertion
         editor.insertText(0, newContent);
+      } finally {
+        isProcessingLinesRef.current = false;
       }
-      
-      // Update React state to stay in sync
-      setContent(newContent);
-      
-      // Update line count
-      const lines = editor.getLines(0);
-      setLineCount(lines.length);
     }
   };
 

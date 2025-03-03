@@ -30,18 +30,28 @@ export const processLinesData = (
     // Get the effective line number
     const effectiveLineNumber = useLineNumberDraft ? line.line_number_draft : line.line_number;
     
-    // Process the content - extract text from Delta if needed
-    let finalContent = line.content;
+    // Process the content - always extract text from Delta if needed
+    let finalContent = '';
+    let originalContent = '';
     
+    // Process original content
+    if (isDeltaObject(line.content)) {
+      originalContent = extractPlainTextFromDelta(line.content);
+    } else {
+      originalContent = line.content || '';
+    }
+    
+    // Process draft content if it exists
     if (useDraftContent) {
-      // If we have draft content, use it (parse delta if needed)
       if (isDeltaObject(line.draft)) {
-        // Handle Delta objects by extracting plain text
         finalContent = extractPlainTextFromDelta(line.draft);
         console.log(`Line ${effectiveLineNumber} draft content extracted:`, finalContent.substring(0, 50));
       } else {
         finalContent = line.draft || '';
       }
+    } else {
+      // Use original content if there's no draft
+      finalContent = originalContent;
     }
     
     const lineDataItem: LineData = {
@@ -51,7 +61,7 @@ export const processLinesData = (
       originalAuthor: null, // Will be populated later
       editedBy: [],
       hasDraft: useLineNumberDraft || useDraftContent,
-      originalContent: line.content, // Store original content for reference
+      originalContent: originalContent, // Store processed original content for reference
       originalLineNumber: line.line_number // Store original line number for reference
     };
     
@@ -88,7 +98,7 @@ export const processDraftLines = (
   // Create a map to store the final line data by line number
   const lineMap = new Map<number, LineData>();
   
-  // Process all lines with simplified draft logic
+  // Process all lines with consistent draft logic
   draftLines.forEach(line => {
     if (line.draft === '{deleted-uuid}') {
       // Skip deleted lines
@@ -99,30 +109,39 @@ export const processDraftLines = (
     const useLineNumberDraft = line.line_number_draft !== null;
     const useDraftContent = line.draft !== null;
     
+    // Process content - extract plain text from Delta if needed for both draft and original content
+    let finalContent = '';
+    let originalContent = '';
+    
+    // Process original content first
+    if (isDeltaObject(line.content)) {
+      originalContent = extractPlainTextFromDelta(line.content);
+    } else {
+      originalContent = line.content || '';
+    }
+    
+    // If no draft, we're done here - use the processed original content
     if (!useLineNumberDraft && !useDraftContent) {
-      // No drafts for this line, use the original content and line number
       const lineDataItem: LineData = {
         uuid: line.id,
-        content: line.content,
+        content: originalContent,
         lineNumber: line.line_number,
         originalAuthor: null,
         editedBy: [],
         hasDraft: false,
-        originalContent: line.content,
+        originalContent: originalContent,
         originalLineNumber: line.line_number
       };
       
       lineMap.set(line.line_number, lineDataItem);
-      contentToUuidMapRef.current.set(line.content, line.id);
+      contentToUuidMapRef.current.set(originalContent, line.id);
       return;
     }
     
-    // Get the effective line number and content
+    // Get the effective line number
     const effectiveLineNumber = useLineNumberDraft ? line.line_number_draft : line.line_number;
     
-    // Process content - extract plain text from Delta if needed
-    let finalContent = line.content;
-    
+    // Process draft content if it exists
     if (useDraftContent) {
       // Check if draft content is a Delta object
       if (isDeltaObject(line.draft)) {
@@ -133,6 +152,9 @@ export const processDraftLines = (
         // Use plain text draft content
         finalContent = line.draft || '';
       }
+    } else {
+      // Use processed original content if no draft content
+      finalContent = originalContent;
     }
     
     const lineDataItem: LineData = {
@@ -142,7 +164,7 @@ export const processDraftLines = (
       originalAuthor: null,
       editedBy: [],
       hasDraft: true,
-      originalContent: line.content,
+      originalContent: originalContent,
       originalLineNumber: line.line_number
     };
     

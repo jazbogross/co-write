@@ -71,25 +71,33 @@ export const extractPlainTextFromDelta = (content: string | null): string => {
     
     // Process Delta object to extract text
     if (delta && typeof delta === 'object' && 'ops' in delta && Array.isArray(delta.ops)) {
-      return delta.ops.reduce((text, op) => {
+      // Build a string with proper newlines
+      let result = '';
+      delta.ops.forEach((op: any) => {
         if (typeof op.insert === 'string') {
           // Check if the insert itself is a nested Delta JSON string
           if (op.insert.startsWith('{') && op.insert.includes('ops')) {
             try {
               // Recursively extract text from nested Delta
-              return text + extractPlainTextFromDelta(op.insert);
+              result += extractPlainTextFromDelta(op.insert);
             } catch (e) {
               // If recursive extraction fails, use the original string
-              return text + op.insert;
+              result += op.insert;
             }
+          } else {
+            result += op.insert;
           }
-          return text + op.insert;
         } else if (op.insert && typeof op.insert === 'object') {
           // Handle embeds or other non-string inserts
-          return text + ' ';
+          result += ' ';
         }
-        return text;
-      }, '');
+      });
+      
+      // Ensure the result has a proper newline if needed
+      if (!result.endsWith('\n')) {
+        result += '\n';
+      }
+      return result;
     }
     
     // If we couldn't parse it as a Delta object, return the original content
@@ -128,11 +136,11 @@ export const logDeltaStructure = (content: string | null): void => {
   try {
     if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
       const delta = JSON.parse(content);
-      if (delta) {  // Add null check here
+      if (delta) {
         console.log("Delta structure:", {
-          hasOps: !!(delta && delta.ops),  // Added null check for delta
-          opsCount: (delta && delta.ops) ? delta.ops.length : 0,  // Added null check
-          firstOp: (delta && delta.ops) ? delta.ops[0] || null : null,  // Added null check
+          hasOps: !!(delta && delta.ops),
+          opsCount: (delta && delta.ops) ? delta.ops.length : 0,
+          firstOp: (delta && delta.ops) ? delta.ops[0] || null : null,
           plainText: extractPlainTextFromDelta(content)
         });
       } else {
@@ -153,7 +161,7 @@ export const isDeltaObject = (content: string | null): boolean => {
   try {
     if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
       const delta = JSON.parse(content);
-      return !!delta.ops && Array.isArray(delta.ops);
+      return !!delta && !!delta.ops && Array.isArray(delta.ops);
     }
   } catch (e) {
     // Not a valid JSON or Delta
@@ -172,10 +180,10 @@ export const safelyParseDelta = (content: string | null): any => {
       const delta = JSON.parse(content);
       
       // Check if this is a valid Delta object
-      if (delta.ops && Array.isArray(delta.ops)) {
+      if (delta && delta.ops && Array.isArray(delta.ops)) {
         // Check for double-wrapped Deltas (Delta objects in insert properties)
         let hasNestedDeltas = false;
-        const normalizedOps = delta.ops.map(op => {
+        const normalizedOps = delta.ops.map((op: any) => {
           if (typeof op.insert === 'string' && op.insert.startsWith('{') && op.insert.includes('ops')) {
             hasNestedDeltas = true;
             try {
