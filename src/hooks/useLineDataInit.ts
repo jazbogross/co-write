@@ -27,19 +27,47 @@ export const useLineDataInit = (
       setIsDataReady(false); // Reset ready state while loading
       
       try {
-        const data = await fetchLineDataFromSupabase(scriptId);
-
-        if (data && data.length > 0) {
-          console.log('**** UseLineData **** Data fetched successfully. Lines count:', data.length);
-          const formattedLineData = formatLineDataFromSupabase(data);
+        // First, try to fetch all lines including drafts
+        const { data: allLines, error: allLinesError } = await supabase
+          .from('script_content')
+          .select('id, line_number, line_number_draft, content, draft')
+          .eq('script_id', scriptId)
+          .order('line_number_draft', { ascending: true, nullsFirst: true });
           
-          formattedLineData.forEach(line => {
+        if (allLinesError) throw allLinesError;
+        
+        if (allLines && allLines.length > 0) {
+          console.log('**** UseLineData **** Data fetched successfully. Lines count:', allLines.length);
+          
+          // Process the lines, prioritizing draft content and line numbers
+          const processedLineData = allLines.map(line => {
+            // Prioritize draft content/line numbers over original
+            const content = line.draft !== null ? line.draft : line.content;
+            const lineNumber = line.line_number_draft !== null ? line.line_number_draft : line.line_number;
+            
+            return {
+              uuid: line.id,
+              content: content === '{deleted-uuid}' ? '' : content,
+              lineNumber: lineNumber,
+              originalAuthor: null, // Will be populated later
+              editedBy: []
+            };
+          })
+          // Filter out deleted lines
+          .filter(line => line.content !== '')
+          // Sort by line number
+          .sort((a, b) => a.lineNumber - b.lineNumber);
+          
+          // Update line numbers to ensure continuity
+          processedLineData.forEach((line, index) => {
+            line.lineNumber = index + 1;
+            
             originalUuidsRef.current.set(line.uuid, line.uuid);
             contentToUuidMapRef.current.set(line.content, line.uuid);
           });
           
-          setLineData(formattedLineData);
-          lastLineCountRef.current = formattedLineData.length;
+          setLineData(processedLineData);
+          lastLineCountRef.current = processedLineData.length;
         } else {
           console.log('**** UseLineData **** No data found, creating initial line data');
           const initialLineData = createInitialLineData(originalContent, userId);
@@ -78,3 +106,6 @@ export const useLineDataInit = (
     lastLineCountRef 
   };
 };
+
+// Add missing import
+import { supabase } from '@/integrations/supabase/client';

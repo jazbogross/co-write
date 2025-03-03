@@ -1,5 +1,5 @@
 
-import { LineData } from '@/hooks/useLineData';
+import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
 
 export const saveDraft = async (
@@ -9,29 +9,31 @@ export const saveDraft = async (
   userId: string | null
 ) => {
   try {
+    console.log('Saving draft for script:', scriptId, 'with', lineData.length, 'lines');
+    
     // First get all existing lines for this script
     const { data: existingLines, error: fetchError } = await supabase
       .from('script_content')
       .select('id, line_number, content, draft')
-      .eq('script_id', scriptId)
-      .order('line_number', { ascending: true });
+      .eq('script_id', scriptId);
       
-    if (fetchError) throw fetchError;
-    
-    if (!existingLines || existingLines.length === 0) {
-      throw new Error('No existing content found');
+    if (fetchError) {
+      console.error('Error fetching existing lines:', fetchError);
+      throw fetchError;
     }
     
     // Create a map of existing line UUIDs for quick lookup
     const existingLineMap = new Map();
-    existingLines.forEach(line => {
-      existingLineMap.set(line.id, line);
-    });
+    if (existingLines && existingLines.length > 0) {
+      existingLines.forEach(line => {
+        existingLineMap.set(line.id, line);
+      });
+    }
     
     // Get all current line UUIDs in the editor
     const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
     
-    // First, update draft position for all lines in lineData
+    // Process all current lines from the editor (source of truth)
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
       
@@ -40,12 +42,15 @@ export const saveDraft = async (
         const { error } = await supabase
           .from('script_content')
           .update({
-            draft: line.content !== existingLine.content ? line.content : existingLine.draft,
+            draft: line.content,
             line_number_draft: line.lineNumber
           })
           .eq('id', line.uuid);
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating existing line:', error);
+          throw error;
+        }
       } else {
         // New line - add it to script_content with both regular and draft content
         const { error } = await supabase
@@ -61,24 +66,35 @@ export const saveDraft = async (
             edited_by: userId ? [userId] : []
           });
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error inserting new line:', error);
+          throw error;
+        }
       }
     }
     
     // Handle deleted lines (lines that exist in DB but not in editor)
-    for (const existingLine of existingLines) {
-      if (!currentLineUUIDs.has(existingLine.id)) {
-        // Line was deleted - mark it as deleted in draft
-        const { error } = await supabase
-          .from('script_content')
-          .update({
-            draft: '{deleted-uuid}'
-          })
-          .eq('id', existingLine.id);
-          
-        if (error) throw error;
+    if (existingLines && existingLines.length > 0) {
+      for (const existingLine of existingLines) {
+        if (!currentLineUUIDs.has(existingLine.id)) {
+          // Line was deleted - mark it as deleted in draft
+          const { error } = await supabase
+            .from('script_content')
+            .update({
+              draft: '{deleted-uuid}'
+            })
+            .eq('id', existingLine.id);
+            
+          if (error) {
+            console.error('Error marking line as deleted:', error);
+            throw error;
+          }
+        }
       }
     }
+    
+    console.log('Draft saved successfully');
+    return { success: true };
   } catch (error) {
     console.error('Error saving draft:', error);
     throw error;
