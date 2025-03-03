@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -44,6 +45,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   // We initialize with an empty string and will load content from script_content table
   const { 
     lineData, 
+    setLineData,
     updateLineContents, 
     loadDraftsForCurrentUser, 
     isDataReady,
@@ -63,7 +65,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     "", // Replace originalContent with empty string 
     scriptId, 
     quillRef, 
-    lineData, 
+    lineData,
+    setLineData, 
     isDataReady, 
     initializeEditor,
     updateLineContents
@@ -146,6 +149,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   // Handler for content changes
   const handleContentChange = (newContent: string) => {
     handleChange(newContent);
+    
+    // Important: Flush changes to line data when content changes
+    // This ensures lineData is always up-to-date with editor content
+    if (editorInitialized) {
+      setTimeout(() => flushContentToLineData(), 50); // Small timeout to let Quill finish its updates
+    }
   };
 
   // Set up submission and saving functionality

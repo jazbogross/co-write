@@ -1,16 +1,13 @@
 
 import { useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
-import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 import { 
-  findBestMatchingLine,
-  generateStatsTemplate,
-  updateMatchStats,
   handleSpecialOperations,
   matchNonEmptyLines,
   matchRemainingLines,
-  isContentEmpty
+  generateStatsTemplate
 } from '@/hooks/lineMatching';
+import { isContentEmpty, getPlainTextContent } from '@/hooks/lineMatching/contentUtils';
 
 export const useLineMatching = (userId: string | null) => {
   const matchAndAssignLines = useCallback((
@@ -35,10 +32,8 @@ export const useLineMatching = (userId: string | null) => {
     
     // Ensure every content item is safely processed
     const safeNewContents = newContents.map(content => {
-      // If content is a Delta object, extract plain text
-      if (isDeltaObject(content)) {
-        return extractPlainTextFromDelta(content);
-      }
+      // This function only extracts plain text for operations like comparison
+      // It doesn't replace the actual Delta objects
       return content;
     });
     
@@ -55,7 +50,7 @@ export const useLineMatching = (userId: string | null) => {
       
       if (result.success) {
         // Update stats
-        updateMatchStats(stats, result.stats);
+        Object.assign(stats, result.stats);
         
         // Assign the empty line data
         if (result.emptyLineData) {
@@ -67,7 +62,8 @@ export const useLineMatching = (userId: string | null) => {
           newData[result.contentLineIndex] = result.contentLineData;
           
           // Update content-to-UUID mapping
-          contentToUuidMap.set(safeNewContents[result.contentLineIndex], result.contentLineData.uuid);
+          const plainTextContent = getPlainTextContent(safeNewContents[result.contentLineIndex]);
+          contentToUuidMap.set(plainTextContent, result.contentLineData.uuid);
         }
         
         console.log(`**** useLineMatching **** Successfully handled Enter-at-position-0 operation`);

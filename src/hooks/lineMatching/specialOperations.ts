@@ -1,7 +1,7 @@
 
 import { LineData } from '@/types/lineTypes';
 import { generateStatsTemplate } from './statsUtils';
-import { isContentEmpty } from './contentUtils';
+import { isContentEmpty, getPlainTextContent } from './contentUtils';
 
 /**
  * Handle special operation: Enter at position 0
@@ -39,10 +39,13 @@ export const handleSpecialOperations = (
   // 2. Second line should contain the moved content
   const isFirstLineEmpty = isContentEmpty(safeNewContents[emptyLineIndex]);
   
+  // Convert the content line to plain text for comparison
+  const contentLinePlainText = getPlainTextContent(safeNewContents[contentLineIndex]);
+  
   // Moved content can be slightly different due to formatting changes
   const movedContent = enterAtZeroOperation.movedContent;
-  const contentSimilar = safeNewContents[contentLineIndex].includes(movedContent) ||
-                          movedContent.includes(safeNewContents[contentLineIndex]);
+  const contentSimilar = contentLinePlainText.includes(movedContent) ||
+                          movedContent.includes(contentLinePlainText);
   
   if (!isFirstLineEmpty || !contentSimilar) {
     return result;
@@ -50,7 +53,7 @@ export const handleSpecialOperations = (
   
   // Find the original line in previous data
   const originalLine = prevData.find(line => {
-    const lineContent = typeof line.content === 'string' ? line.content : '';
+    const lineContent = getPlainTextContent(line.content);
     return lineContent.includes(movedContent) || movedContent.includes(lineContent);
   });
   

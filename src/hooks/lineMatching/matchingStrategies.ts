@@ -1,6 +1,6 @@
 
 import { LineData } from '@/types/lineTypes';
-import { isContentEmpty, getPlainTextContent } from './contentUtils';
+import { isContentEmpty, getPlainTextContent, getTrimmedContent } from './contentUtils';
 
 /**
  * Calculates text similarity between two strings
@@ -59,9 +59,12 @@ export const findBestMatchingLine = (
   positionBasedFallback: boolean = true,
   domUuidMap?: Map<number, string>
 ): { index: number; similarity: number; matchStrategy: string } | null => {
+  // Convert to plain text for comparison
+  const plainTextContent = getPlainTextContent(content);
+  
   // For empty lines that are newly created (at Enter press), 
   // we should always generate a new UUID
-  const isEmptyLine = isContentEmpty(content);
+  const isEmptyLine = isContentEmpty(plainTextContent);
   const isNewLine = isEmptyLine && (
     !prevLineData[lineIndex] || isContentEmpty(prevLineData[lineIndex]?.content)
   );
@@ -75,7 +78,7 @@ export const findBestMatchingLine = (
     const exactContentIndex = prevLineData.findIndex(
       (line, idx) => {
         const lineContent = getPlainTextContent(line.content);
-        return lineContent === content && !excludeIndices.has(idx);
+        return lineContent === plainTextContent && !excludeIndices.has(idx);
       }
     );
     
@@ -84,8 +87,8 @@ export const findBestMatchingLine = (
     }
     
     // Strategy 2: Check for exact content match using contentToUuidMap
-    if (contentToUuidMap && contentToUuidMap.has(content)) {
-      const existingUuid = contentToUuidMap.get(content);
+    if (contentToUuidMap && contentToUuidMap.has(plainTextContent)) {
+      const existingUuid = contentToUuidMap.get(plainTextContent);
       const exactMatchIndex = prevLineData.findIndex(line => line.uuid === existingUuid);
       if (exactMatchIndex >= 0 && !excludeIndices.has(exactMatchIndex)) {
         return { index: exactMatchIndex, similarity: 1, matchStrategy: 'content-uuid' };
@@ -105,7 +108,7 @@ export const findBestMatchingLine = (
       if (excludeIndices.has(i)) continue;
       
       const prevLineContent = getPlainTextContent(prevLineData[i].content);
-      const similarity = calculateTextSimilarity(content, prevLineContent);
+      const similarity = calculateTextSimilarity(plainTextContent, prevLineContent);
       
       if (similarity > bestMatch.similarity && similarity >= 0.7) {
         bestMatch = { index: i, similarity, matchStrategy: 'nearby-similar' };
@@ -124,7 +127,7 @@ export const findBestMatchingLine = (
         if (excludeIndices.has(i) || (i >= startIndex && i <= endIndex)) continue;
         
         const prevLineContent = getPlainTextContent(prevLineData[i].content);
-        const similarity = calculateTextSimilarity(content, prevLineContent);
+        const similarity = calculateTextSimilarity(plainTextContent, prevLineContent);
         
         if (similarity > bestMatch.similarity && similarity >= 0.6) {
           bestMatch = { index: i, similarity, matchStrategy: 'global-similar' };
@@ -180,7 +183,7 @@ export const findBestMatchingLine = (
         if (pos >= 0 && pos < prevLineData.length && !excludeIndices.has(pos)) {
           // For position-based matching, use a lower similarity threshold
           const prevLineContent = getPlainTextContent(prevLineData[pos].content);
-          const positionSimilarity = calculateTextSimilarity(content, prevLineContent);
+          const positionSimilarity = calculateTextSimilarity(plainTextContent, prevLineContent);
           
           // If it's reasonably similar or if both are empty lines, accept the position-based match
           if ((positionSimilarity > 0.3) || 

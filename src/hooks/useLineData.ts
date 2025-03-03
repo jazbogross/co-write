@@ -31,7 +31,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
   const { loadDraftsForCurrentUser } = useDrafts();
   const { initializeEditor } = useEditorInit(lineData, isDataReady);
 
-  const updateLineContents = useCallback((newContents: string[], quill: any) => {
+  const updateLineContents = useCallback((newContents: any[], quill: any) => {
     if (!quill || !quill.lineTracking) {
       console.log('**** UseLineData **** updateLineContents: Line tracking not available.');
       return;
@@ -74,7 +74,9 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
         );
       }
       
-      previousContentRef.current = newContents;
+      previousContentRef.current = newContents.map(content => 
+        typeof content === 'object' ? JSON.stringify(content) : String(content)
+      );
       
       return newData;
     });

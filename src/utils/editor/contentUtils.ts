@@ -84,3 +84,14 @@ export const isContentEmpty = (content: any): boolean => {
   // For other types (undefined, null, etc.)
   return true;
 };
+
+/**
+ * Get trimmed content regardless of content type (string or Delta)
+ */
+export const getTrimmedContent = (content: any): string => {
+  if (isDeltaObject(content)) {
+    return extractPlainTextFromDelta(content).trim();
+  }
+  
+  return typeof content === 'string' ? content.trim() : '';
+};
