@@ -39,7 +39,8 @@ export const useContentInitialization = (
           if (typeof line.content === 'string') {
             previewText = line.content.substring(0, 30);
           } else if (line.content) {
-            previewText = JSON.stringify(line.content).substring(0, 30) + '...';
+            const contentStr = JSON.stringify(line.content);
+            previewText = contentStr ? contentStr.substring(0, 30) + '...' : '[empty content]';
           } else {
             previewText = '[empty content]';
           }
@@ -57,7 +58,8 @@ export const useContentInitialization = (
         if (typeof reconstructedContent === 'string') {
           previewText = reconstructedContent.substring(0, 100) + '...';
         } else if (reconstructedContent) {
-          previewText = JSON.stringify(reconstructedContent).substring(0, 100) + '...';
+          const contentStr = JSON.stringify(reconstructedContent);
+          previewText = contentStr ? contentStr.substring(0, 100) + '...' : '[empty content]';
         } else {
           previewText = '[empty content]';
         }
