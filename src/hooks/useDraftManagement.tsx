@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import { LineData } from '@/hooks/useLineData';
+import { DeltaContent } from '@/utils/editor/types';
 
 export const useDraftManagement = (
   editorInitialized: boolean, 
@@ -10,7 +11,7 @@ export const useDraftManagement = (
   lineData: LineData[],
   content: string,
   quillRef: React.RefObject<ReactQuill>,
-  updateEditorContent: (content: string | any) => void,
+  updateEditorContent: (content: string | DeltaContent) => void,
   loadDraftsForCurrentUser: () => void
 ) => {
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
@@ -31,7 +32,9 @@ export const useDraftManagement = (
       const editor = quillRef.current?.getEditor();
       if (editor) {
         // Combine all line content as plain text
-        const combinedContent = lineData.map(line => line.content).join('\n');
+        const combinedContent = lineData.map(line => 
+          typeof line.content === 'string' ? line.content : JSON.stringify(line.content)
+        ).join('\n');
         
         // Only update if content is different
         if (combinedContent !== content) {

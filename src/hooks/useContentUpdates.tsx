@@ -55,7 +55,15 @@ export const useContentUpdates = (
     const editorDelta = editor.getContents();
     console.log('📝 useContentUpdates: Editor delta ops:', editorDelta.ops.length);
     
-    setContent(editorDelta);
+    // Convert editor Delta to our DeltaContent type
+    const convertedDelta: DeltaContent = {
+      ops: editorDelta.ops.map(op => ({
+        ...op,
+        insert: op.insert || ''
+      }))
+    };
+    
+    setContent(convertedDelta);
     console.log('📝 useContentUpdates: Content state updated with delta');
     
     const lines = editor.getLines(0);

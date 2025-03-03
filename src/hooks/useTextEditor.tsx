@@ -1,13 +1,15 @@
 
 import { useRef } from 'react';
-import ReactQuill from 'react-quill';
 import { LineData } from '@/hooks/useLineData';
+import { useEditorState } from './editor/useEditorState';
+import { useEditorIntegration } from './editor/useEditorIntegration';
+import { useContentFlushing } from './editor/useContentFlushing';
 import { useEditorInitialization } from './useEditorInitialization';
 import { useContentInitialization } from './useContentInitialization';
 import { useContentUpdates } from './useContentUpdates';
 import { useDraftManagement } from './useDraftManagement';
-import { EDITOR_MODULES } from '@/components/editor/LineTrackingModule';
 import { isDeltaObject } from '@/utils/editor';
+import { DeltaContent } from '@/utils/editor/types';
 
 export const useTextEditor = (
   originalContent: string, 
@@ -24,25 +26,39 @@ export const useTextEditor = (
     isDataReady
   });
   
-  // Create quill reference
-  const quillRef = useRef<ReactQuill>(null);
-  
-  // Initialize content state
+  // Initialize editor state
   const {
     content,
     setContent,
     lineCount,
     setLineCount,
-    isContentInitialized,
+    editorInitialized,
+    setEditorInitialized,
     isProcessingLinesRef
-  } = useContentInitialization(originalContent, lineData, quillRef);
+  } = useEditorState(originalContent);
+  
+  // Set up content flushing
+  const { quillRef, formats, modules, flushContent } = useEditorIntegration({
+    editorInitialized,
+    content,
+    setContent,
+    flushContentToLineData: () => contentFlushing.flushContentToLineData()
+  });
+  
+  // Initialize content flushing
+  const contentFlushing = useContentFlushing(quillRef, updateLineContents);
+  const { flushContentToLineData } = contentFlushing;
   
   // Initialize editor
-  const { editorInitialized } = useEditorInitialization(
+  const { editorInitialized: editorInitResult } = useEditorInitialization(
     quillRef,
     lineData,
     isDataReady,
-    initializeEditor
+    (editor) => {
+      const result = initializeEditor(editor);
+      setEditorInitialized(result);
+      return result;
+    }
   );
   
   // Set up content update handlers
@@ -60,8 +76,7 @@ export const useTextEditor = (
     quillRef
   );
   
-  // Unused in this refactoring as it requires userId
-  // Left as a placeholder for integration in TextEditor component
+  // Placeholder for userId (will be connected in TextEditor)
   const userId = null;
   const loadDraftsForCurrentUser = () => {
     console.log('🪝 useTextEditor: loadDraftsForCurrentUser placeholder called');
@@ -73,64 +88,17 @@ export const useTextEditor = (
     userId,
     isDataReady,
     lineData,
-    content,
+    typeof content === 'string' ? content : '',
     quillRef,
     updateEditorContent,
     loadDraftsForCurrentUser
   );
-
-  // Function to update content and flush changes to line data
-  const flushContentToLineData = () => {
-    console.log('🪝 useTextEditor: flushContentToLineData called');
-    const editor = quillRef.current?.getEditor();
-    if (!editor) {
-      console.log('🪝 useTextEditor: No editor available for flushing content');
-      return;
-    }
-    
-    // Get all lines from the editor
-    const lines = editor.getLines(0);
-    console.log(`🪝 useTextEditor: Flushing current editor content to line data (${lines.length} lines)`);
-    
-    // Extract content for each line
-    const lineContents = lines.map((line: any, index: number) => {
-      const lineIndex = editor.getIndex(line);
-      const nextLineIndex = line.next ? editor.getIndex(line.next) : editor.getLength();
-      
-      // Get the Delta object for this line range
-      const delta = editor.getContents(lineIndex, nextLineIndex - lineIndex);
-      
-      // Log line DOM properties
-      if (line.domNode) {
-        const uuid = line.domNode.getAttribute('data-line-uuid');
-        console.log(`🪝 Line ${index+1} UUID from DOM: ${uuid || 'missing'}, delta ops: ${delta.ops.length}`);
-      } else {
-        console.log(`🪝 Line ${index+1} has no domNode, delta ops: ${delta.ops.length}`);
-      }
-      
-      return delta;
-    });
-    
-    console.log(`🪝 useTextEditor: Extracted ${lineContents.length} line contents`);
-    
-    try {
-      // Pass to updateLineContents to update the lineData state with the new content
-      updateLineContents(lineContents, editor);
-      console.log('🪝 useTextEditor: Updated line contents successfully');
-    } catch (error) {
-      console.error('🪝 useTextEditor: Error updating line contents:', error);
-    }
-  };
-
-  const formats = ['bold', 'italic', 'align'];
-  const modules = EDITOR_MODULES;
 
   console.log('🪝 useTextEditor: Hook state', { 
     contentType: typeof content, 
     isDelta: isDeltaObject(content),
     lineCount, 
     editorInitialized,
-    isContentInitialized,
     draftApplied
   });
 
@@ -145,7 +113,6 @@ export const useTextEditor = (
     flushContentToLineData,
     formats,
     modules,
-    // These could be used by the parent component if needed
     draftLoadAttempted,
     draftApplied
   };
