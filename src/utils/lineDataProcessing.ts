@@ -37,7 +37,21 @@ export const processLinesData = (
     let originalContent: any = '';
     
     // Process original content - preserve Delta structure
-    if (isDeltaObject(line.content)) {
+    if (typeof line.content === 'string' && line.content.startsWith('{') && line.content.includes('ops')) {
+      try {
+        // Try to parse it as a Delta object
+        const parsedContent = JSON.parse(line.content);
+        if (parsedContent && Array.isArray(parsedContent.ops)) {
+          console.log(`Line ${effectiveLineNumber} original content parsed as Delta`);
+          originalContent = parsedContent;
+        } else {
+          originalContent = line.content || '';
+        }
+      } catch (e) {
+        // If parsing fails, use as string
+        originalContent = line.content || '';
+      }
+    } else if (isDeltaObject(line.content)) {
       originalContent = line.content; // Keep original Delta object
     } else {
       originalContent = line.content || '';
@@ -45,7 +59,21 @@ export const processLinesData = (
     
     // Process draft content if it exists and user is admin - preserve Delta structure
     if (useDraftContent) {
-      if (isDeltaObject(line.draft)) {
+      if (typeof line.draft === 'string' && line.draft.startsWith('{') && line.draft.includes('ops')) {
+        try {
+          // Try to parse it as a Delta object
+          const parsedDraft = JSON.parse(line.draft);
+          if (parsedDraft && Array.isArray(parsedDraft.ops)) {
+            console.log(`Line ${effectiveLineNumber} draft content parsed as Delta`);
+            finalContent = parsedDraft;
+          } else {
+            finalContent = line.draft || '';
+          }
+        } catch (e) {
+          // If parsing fails, use as string
+          finalContent = line.draft || '';
+        }
+      } else if (isDeltaObject(line.draft)) {
         finalContent = line.draft; // Keep original Delta object
         console.log(`Line ${effectiveLineNumber} preserving draft Delta`);
       } else {
@@ -116,8 +144,20 @@ export const processDraftLines = (
     let finalContent: any = '';
     let originalContent: any = '';
     
-    // Process original content first - preserve Delta structure
-    if (isDeltaObject(line.content)) {
+    // Process original content first - Try to parse as Delta if it's a string that looks like a Delta
+    if (typeof line.content === 'string' && line.content.startsWith('{') && line.content.includes('ops')) {
+      try {
+        const parsedContent = JSON.parse(line.content);
+        if (parsedContent && Array.isArray(parsedContent.ops)) {
+          console.log(`Line parsed original content as Delta`);
+          originalContent = parsedContent;
+        } else {
+          originalContent = line.content || '';
+        }
+      } catch (e) {
+        originalContent = line.content || '';
+      }
+    } else if (isDeltaObject(line.content)) {
       originalContent = line.content; // Keep original Delta object
     } else {
       originalContent = line.content || '';
@@ -145,11 +185,23 @@ export const processDraftLines = (
     // Get the effective line number
     const effectiveLineNumber = useLineNumberDraft ? line.line_number_draft : line.line_number;
     
-    // Process draft content if it exists - preserve Delta structure
+    // Process draft content if it exists - Try to parse as Delta if it's a string that looks like a Delta
     if (useDraftContent) {
-      if (isDeltaObject(line.draft)) {
+      if (typeof line.draft === 'string' && line.draft.startsWith('{') && line.draft.includes('ops')) {
+        try {
+          const parsedDraft = JSON.parse(line.draft);
+          if (parsedDraft && Array.isArray(parsedDraft.ops)) {
+            console.log(`Line parsed draft content as Delta`);
+            finalContent = parsedDraft;
+          } else {
+            finalContent = line.draft || '';
+          }
+        } catch (e) {
+          finalContent = line.draft || '';
+        }
+      } else if (isDeltaObject(line.draft)) {
         finalContent = line.draft; // Keep original Delta object
-        console.log(`Line ${effectiveLineNumber} preserving draft Delta in processDraftLines`);
+        console.log(`Line preserving draft Delta in processDraftLines`);
       } else {
         finalContent = line.draft || '';
       }
@@ -192,6 +244,15 @@ export const processDraftLines = (
 function getPlainTextForMapping(content: any): string {
   if (isDeltaObject(content)) {
     return extractPlainTextFromDelta(content);
+  } else if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
+    try {
+      const parsedContent = JSON.parse(content);
+      if (parsedContent && Array.isArray(parsedContent.ops)) {
+        return extractPlainTextFromDelta(parsedContent);
+      }
+    } catch (e) {
+      // If parsing fails, fall back to treating as string
+    }
   }
   return typeof content === 'string' ? content : String(content);
 }

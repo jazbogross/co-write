@@ -7,7 +7,8 @@
 export { 
   isDeltaObject,
   safelyParseDelta,
-  normalizeDelta 
+  normalizeDelta,
+  convertToDelta 
 } from './deltaUtils';
 
 // Export Delta combination utilities

@@ -17,6 +17,8 @@ export const useEditorState = (originalContent: string) => {
   const updateContent = useCallback((newContent: string | DeltaContent) => {
     console.log('🎛️ useEditorState: Content updated, type:', 
       typeof newContent, isDeltaObject(newContent) ? 'isDelta' : 'notDelta');
+    
+    // Preserve Delta objects, don't convert them to strings
     setContent(newContent);
   }, []);
   

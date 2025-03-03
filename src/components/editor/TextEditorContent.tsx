@@ -5,12 +5,12 @@ import { LineNumbers } from './LineNumbers';
 import { isDeltaObject } from '@/utils/editor';
 
 interface TextEditorContentProps {
-  content: string;
+  content: any; // Changed from string to any to support Delta objects
   lineCount: number;
   quillRef: React.RefObject<ReactQuill>;
   modules: any;
   formats: string[];
-  onChange: (value: string) => void;
+  onChange: (value: any) => void; // Changed from string to any
 }
 
 export const TextEditorContent: React.FC<TextEditorContentProps> = ({
@@ -80,7 +80,7 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   };
   
   // Only trigger onChange when content actually changes
-  const handleContentChange = (newContent: string, delta: any, source: string) => {
+  const handleContentChange = (newContent: any, delta: any, source: string) => {
     contentChangeRef.current++;
     const changeId = contentChangeRef.current;
     

@@ -1,3 +1,4 @@
+
 // File: src/components/editor/TextEditor.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -14,7 +15,7 @@ import { TextEditorContent } from './editor/TextEditorContent';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule } from './editor/LineTracker';
 import { DeltaContent } from '@/utils/editor/types';
-import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+import { isDeltaObject } from '@/utils/editor';
 
 // Quill's default Snow theme CSS
 import 'react-quill/dist/quill.snow.css';
@@ -144,13 +145,9 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     return <div className="flex items-center justify-center p-8">Loading editor data...</div>;
   }
 
-  // Convert content to plain string (for display in TextEditorContent)
-  const contentString =
-    typeof content === 'string'
-      ? content
-      : extractPlainTextFromDelta(isDeltaObject(content) ? content : { ops: [{ insert: '' }] });
-
   console.log('📋 TextEditor: Rendering editor with ready data');
+  console.log('📋 TextEditor: Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
+  
   return (
     <>
       <TextEditorActions
@@ -162,7 +159,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       />
 
       <TextEditorContent
-        content={contentString}
+        content={content} // Direct pass of content, which can be string or Delta
         lineCount={lineCount}
         quillRef={quillRef}
         modules={modules}
