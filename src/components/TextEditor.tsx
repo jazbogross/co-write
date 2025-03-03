@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -9,7 +8,6 @@ import { EditorContainer } from './editor/EditorContainer';
 import { EditorActions } from './editor/EditorActions';
 import { useLineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
-import { extractLineContents } from '@/utils/editor';
 import { useTextEditor } from '@/hooks/useTextEditor';
 
 // Register the module
@@ -43,14 +41,14 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     fetchUser();
   }, []);
 
-  // Load line data and prepare editor - now with proper userId
+  // We initialize with an empty string and will load content from script_content table
   const { 
     lineData, 
     updateLineContents, 
     loadDraftsForCurrentUser, 
     isDataReady,
     initializeEditor 
-  } = useLineData(scriptId, originalContent, userId);
+  } = useLineData(scriptId, "", userId);
 
   // Set up and initialize text editor
   const {
@@ -62,7 +60,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateEditorContent,
     flushContentToLineData
   } = useTextEditor(
-    originalContent, 
+    "", // Replace originalContent with empty string 
     scriptId, 
     quillRef, 
     lineData, 
@@ -154,7 +152,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
     scriptId,
-    originalContent,
+    "", // Replace originalContent with empty string
     content,
     lineData,
     userId,

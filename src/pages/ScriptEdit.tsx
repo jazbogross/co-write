@@ -18,7 +18,6 @@ const ScriptEdit = () => {
   const { toast } = useToast();
   const [script, setScript] = useState<{
     title: string;
-    content: string;
     admin_id: string;
   } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -34,10 +33,10 @@ const ScriptEdit = () => {
           return;
         }
 
-        // Get script data
+        // Get script data (without content - we'll get that from script_content)
         const { data: scriptData, error: scriptError } = await supabase
           .from("scripts")
-          .select("*")
+          .select("title, admin_id")
           .eq("id", id)
           .single();
 
@@ -69,26 +68,15 @@ const ScriptEdit = () => {
     loadScript();
   }, [id, navigate]);
 
-  const handleSuggestChange = async (newContent: string) => {
+  const handleSuggestChange = async () => {
     if (!script || !id) return;
 
-    try {
-      const { error } = await supabase
-        .from("scripts")
-        .update({ content: newContent })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setScript({ ...script, content: newContent });
-    } catch (error) {
-      console.error("Error updating script:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update script",
-        variant: "destructive",
-      });
-    }
+    // We no longer update the scripts table content field
+    // All content updates happen directly on script_content through the TextEditor
+    toast({
+      title: "Success",
+      description: "Changes saved successfully",
+    });
   };
 
   if (loading) {
@@ -111,7 +99,7 @@ const ScriptEdit = () => {
         <CardContent>
           <TextEditor
             isAdmin={isAdmin}
-            originalContent={script.content}
+            originalContent=""
             scriptId={id}
             onSuggestChange={handleSuggestChange}
           />

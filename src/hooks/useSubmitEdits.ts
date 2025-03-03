@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 export const useSubmitEdits = (
   isAdmin: boolean,
   scriptId: string,
-  originalContent: string,
+  originalContent: string, // Kept for backward compatibility but not used
   content: string,
   lineData: LineData[],
   userId: string | null,
@@ -30,7 +30,7 @@ export const useSubmitEdits = (
         toast.success('Draft saved successfully!');
       } else {
         // For contributors we save suggestions as drafts
-        await saveLineDrafts(scriptId, lineData, originalContent, userId);
+        await saveLineDrafts(scriptId, lineData, "", userId); // Empty originalContent
         toast.success('Suggestion saved as draft!');
       }
 
@@ -42,7 +42,7 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, userId, loadDrafts, originalContent, quill]);
+  }, [isAdmin, scriptId, lineData, content, userId, loadDrafts, quill]);
 
   // Function to submit changes (for approval)
   const handleSubmit = useCallback(async () => {
@@ -51,13 +51,13 @@ export const useSubmitEdits = (
     setIsSubmitting(true);
     try {
       if (isAdmin) {
-        // Admin can directly save changes to the script
+        // Admin can directly save changes to the script_content table
         await saveLinesToDatabase(scriptId, lineData, content);
-        onSuggestChange(content);
+        onSuggestChange(content); // Call the callback to update UI
         toast.success('Changes saved successfully!');
       } else {
         // Non-admin submits suggestions
-        await saveSuggestions(scriptId, lineData, originalContent, userId);
+        await saveSuggestions(scriptId, lineData, "", userId); // Empty originalContent
         toast.success('Suggestions submitted for approval!');
       }
     } catch (error) {
@@ -66,7 +66,7 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, userId, onSuggestChange, originalContent]);
+  }, [isAdmin, scriptId, lineData, content, userId, onSuggestChange]);
 
   return {
     isSubmitting,
