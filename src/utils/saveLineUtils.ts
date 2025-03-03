@@ -34,7 +34,7 @@ export const saveLinesToDatabase = async (
     for (const line of existingLines || []) {
       const { error } = await supabase
         .from('script_content')
-        .update({ line_number: -10000 - parseInt(line.line_number) })
+        .update({ line_number: -10000 - parseInt(String(line.line_number)) })
         .eq('id', line.id);
         
       if (error) {
