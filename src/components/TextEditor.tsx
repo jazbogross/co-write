@@ -1,3 +1,4 @@
+// File: src/components/editor/TextEditor.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
@@ -15,10 +16,11 @@ import { LineTrackingModule } from './editor/LineTracker';
 import { DeltaContent } from '@/utils/editor/types';
 import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
-// Register the LineTrackingModule with Quill - only do this once
-if (!ReactQuill.Quill.import('modules/lineTracking')) {
-  ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
-}
+// Quill's default Snow theme CSS
+import 'react-quill/dist/quill.snow.css';
+
+// --- Register the line tracking module just once ---
+LineTrackingModule.register(ReactQuill.Quill);
 
 interface TextEditorProps {
   isAdmin: boolean;
@@ -34,26 +36,26 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   onSuggestChange,
 }) => {
   console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin);
-  
+
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
   const initializedRef = useRef(false);
-  
+
   // Get user data
   const { userId } = useUserData();
 
-  // Initialize line data - pass isAdmin flag
-  const { 
-    lineData, 
+  // Initialize line data
+  const {
+    lineData,
     setLineData,
-    updateLineContents, 
-    loadDraftsForCurrentUser, 
+    updateLineContents,
+    loadDraftsForCurrentUser,
     isDataReady,
-    initializeEditor 
-  } = useLineData(scriptId, "", userId, isAdmin);
+    initializeEditor,
+  } = useLineData(scriptId, '', userId, isAdmin);
 
   // Initialize text editor
-  const { 
+  const {
     quillRef,
     content,
     setContent,
@@ -63,39 +65,39 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateEditorContent,
     flushContentToLineData,
     formats,
-    modules
+    modules,
   } = useTextEditor(
-    "", 
-    scriptId, 
+    '',
+    scriptId,
     lineData,
-    setLineData, 
-    isDataReady, 
+    setLineData,
+    isDataReady,
     initializeEditor,
     updateLineContents
   );
-  
-  // Set up logging with controlled frequency
+
+  // Set up logging
   useEditorLogger(lineData, content, lineCount, editorInitialized, quillRef);
 
-  // Set up editor operations
+  // Editor operations (format, save, etc.)
   const { handleContentChange, formatText, handleSave } = useEditorOperations({
     quillRef,
     editorInitialized,
     handleChange,
-    flushContentToLineData
+    flushContentToLineData,
   });
 
-  // Set up draft loading with protection against multiple loads
+  // Draft loader
   const { draftApplied } = useDraftLoader({
     editorInitialized,
     draftLoadAttempted,
     lineData,
     quillRef,
     content,
-    updateEditorContent
+    updateEditorContent,
   });
 
-  // Set up draft loading attempt - use callback to prevent recreation
+  // Attempt draft load
   const attemptDraftLoad = useCallback(() => {
     if (userId && isDataReady && !draftLoadAttempted && !initializedRef.current) {
       console.log('📋 TextEditor: User ID available, loading drafts:', userId);
@@ -104,61 +106,61 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       setDraftLoadAttempted(true);
     }
   }, [userId, isDataReady, draftLoadAttempted, loadDraftsForCurrentUser]);
-  
-  // Load drafts when data is ready
+
   useEffect(() => {
     attemptDraftLoad();
   }, [userId, isDataReady, attemptDraftLoad]);
 
-  // Set up submission handling - updated to handle both string and DeltaContent
+  // Submissions
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
     scriptId,
-    "",
-    content, // This can be DeltaContent or string
+    '',
+    content, // can be string or DeltaContent
     lineData,
     userId,
-    onSuggestChange, // Now properly typed to accept DeltaContent
+    onSuggestChange,
     loadDraftsForCurrentUser,
     quillRef.current?.getEditor()
   );
 
-  // Handle saving
+  // Save & sync
   const handleSaveAndSync = useCallback(() => {
     console.log('📋 TextEditor: Save button clicked');
     handleSave();
     saveToSupabase();
   }, [handleSave, saveToSupabase]);
 
-  // Handle submitting
+  // Submit changes
   const handleSubmitChanges = useCallback(() => {
     console.log('📋 TextEditor: Submit button clicked');
     flushContentToLineData();
     handleSubmit();
   }, [flushContentToLineData, handleSubmit]);
 
-  // Show loading state
+  // Show loading if data not ready
   if (!isDataReady) {
     console.log('📋 TextEditor: Data not ready, showing loading');
     return <div className="flex items-center justify-center p-8">Loading editor data...</div>;
   }
 
-  // Convert content to string for TextEditorContent if needed
-  const contentString = typeof content === 'string' 
-    ? content 
-    : extractPlainTextFromDelta(isDeltaObject(content) ? content : { ops: [{ insert: '' }] });
+  // Convert content to plain string (for display in TextEditorContent)
+  const contentString =
+    typeof content === 'string'
+      ? content
+      : extractPlainTextFromDelta(isDeltaObject(content) ? content : { ops: [{ insert: '' }] });
 
   console.log('📋 TextEditor: Rendering editor with ready data');
   return (
     <>
-      <TextEditorActions 
+      <TextEditorActions
         isAdmin={isAdmin}
         isSubmitting={isSubmitting}
         onFormat={formatText}
         onSubmit={handleSubmitChanges}
         onSave={handleSaveAndSync}
       />
-      
+
       <TextEditorContent
         content={contentString}
         lineCount={lineCount}

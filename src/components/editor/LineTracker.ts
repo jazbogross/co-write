@@ -1,3 +1,4 @@
+// File: src/components/editor/LineTracker.ts
 
 import ReactQuill from 'react-quill';
 import { LinePosition } from './trackers/LinePosition';
@@ -26,7 +27,7 @@ export class LineTracker {
   }
 
   private setupEventListeners() {
-    // Track cursor position changes
+    // Handle cursor position changes
     this.quill.on('selection-change', (range: any) => {
       if (this.isProgrammaticUpdate) return; // Skip tracking during programmatic updates
       console.log('🔍 LineTracker selection-change event', range ? 'Range exists' : 'Range null');
@@ -36,38 +37,38 @@ export class LineTracker {
     // Handle text changes
     this.quill.on('text-change', (delta: any) => {
       console.log('🔍 LineTracker text-change event, isProgrammaticUpdate:', this.isProgrammaticUpdate);
-      
+
       if (this.isUpdating) {
-        console.log('🔍 LineTracker already updating, skipping this text change');
+        console.log('🔍 LineTracker is already updating, skipping');
         return;
       }
       this.isUpdating = true;
-      
+
       try {
-        // Skip line tracking operations during programmatic updates
+        // Skip line tracking operations if it's a programmatic update
         if (!this.isProgrammaticUpdate) {
-          console.log('🔍 LineTracker analyzing non-programmatic text change');
+          console.log('🔍 LineTracker analyzing user-driven text change');
           // Preserve UUIDs before changes
           this.preserveLineUuids();
-          
-          // Analyze delta to detect line operations
+
+          // Analyze delta to detect line operations, update line positions, etc.
           this.cursorTracker.analyzeTextChange(delta, this.quill);
-          this.linePosition.updateLineIndexAttributes(this.quill, this.isProgrammaticUpdate);
-          this.linePosition.detectLineCountChanges(this.quill, this.isProgrammaticUpdate);
-          
+          this.linePosition.updateLineIndexAttributes(this.quill, false);
+          this.linePosition.detectLineCountChanges(this.quill, false);
+
           // Restore UUIDs after changes
           this.restoreLineUuids();
         } else {
           console.log('🔍 LineTracker skipping line tracking for programmatic update');
-          // Still update line indices for programmatic updates
+          // Still update line indices
           this.linePosition.updateLineIndexAttributes(this.quill, true);
         }
       } finally {
         this.isUpdating = false;
       }
     });
-    
-    // Initialize UUIDs from DOM on first load
+
+    // Initialize after a small delay
     setTimeout(() => this.initialize(), 300);
   }
 
@@ -75,27 +76,26 @@ export class LineTracker {
   private preserveLineUuids() {
     console.log('🔍 LineTracker preserving line UUIDs');
     this.preservedUuids.clear();
-    
-    const lines = this.quill.getLines(0);
+
+    const lines = this.quill.getLines();
     lines.forEach((line: any, index: number) => {
       if (line.domNode) {
         const uuid = line.domNode.getAttribute('data-line-uuid');
         if (uuid) {
           this.preservedUuids.set(index, uuid);
-          console.log(`🔍 LineTracker preserved UUID for line ${index+1}: ${uuid}`);
+          console.log(`🔍 Preserved UUID for line ${index + 1}: ${uuid}`);
         }
       }
     });
   }
-  
+
   // Restore line UUIDs after text changes
   private restoreLineUuids() {
     console.log('🔍 LineTracker restoring line UUIDs');
-    
-    const lines = this.quill.getLines(0);
+
+    const lines = this.quill.getLines();
     let restoredCount = 0;
-    
-    // Try to match lines by index first
+
     lines.forEach((line: any, index: number) => {
       if (line.domNode && this.preservedUuids.has(index)) {
         const uuid = this.preservedUuids.get(index);
@@ -104,8 +104,8 @@ export class LineTracker {
         restoredCount++;
       }
     });
-    
-    console.log(`🔍 LineTracker restored ${restoredCount} UUIDs based on index`);
+
+    console.log(`🔍 LineTracker restored ${restoredCount} line UUIDs`);
   }
 
   public initialize() {
@@ -116,91 +116,66 @@ export class LineTracker {
     console.log('🔍 LineTracker initializing line UUIDs');
     this.linePosition.initialize(this.quill);
     this.isInitialized = true;
-    
-    // Ensure all lines have UUIDs
-    const lines = this.quill.getLines(0);
-    console.log(`🔍 LineTracker initialization: Found ${lines.length} lines`);
-    
-    let missingUuidCount = 0;
-    lines.forEach((line: any, index: number) => {
-      if (line.domNode) {
-        const uuid = line.domNode.getAttribute('data-line-uuid');
-        if (!uuid) {
-          missingUuidCount++;
-        }
-      }
-    });
-    
-    console.log(`🔍 LineTracker initialization complete. Missing UUIDs: ${missingUuidCount}`);
+
+    // Optionally, check how many lines are found initially
+    const lines = this.quill.getLines();
+    console.log(`🔍 Found ${lines.length} lines on initialize`);
   }
 
   public setProgrammaticUpdate(value: boolean) {
-    console.log(`🔍 LineTracker setting programmatic update mode: ${value}`);
+    console.log(`🔍 LineTracker setProgrammaticUpdate: ${value}`);
     this.isProgrammaticUpdate = value;
-    
-    // If turning on programmatic mode, preserve UUIDs
     if (value) {
+      // If turning on programmatic mode, preserve current UUIDs
       this.preserveLineUuids();
-    } 
-    // If turning off programmatic mode, restore UUIDs
-    else if (this.preservedUuids.size > 0) {
+    } else if (this.preservedUuids.size > 0) {
+      // When turning off, restore them
       this.restoreLineUuids();
     }
   }
 
+  // Example getters/setters
   public getLineUuid(oneBasedIndex: number): string | undefined {
-    const uuid = this.linePosition.getLineUuid(oneBasedIndex);
-    console.log(`🔍 LineTracker getLineUuid for index ${oneBasedIndex}: ${uuid || 'undefined'}`);
-    return uuid;
+    return this.linePosition.getLineUuid(oneBasedIndex);
   }
 
   public setLineUuid(oneBasedIndex: number, uuid: string) {
-    console.log(`🔍 LineTracker setLineUuid for index ${oneBasedIndex}: ${uuid}`);
     this.linePosition.setLineUuid(oneBasedIndex, uuid, this.quill);
   }
 
-  public getContentToUuidMap(): Map<string, string> {
-    const map = this.linePosition.getContentToUuidMap();
-    console.log(`🔍 LineTracker getContentToUuidMap, size: ${map.size}`);
-    return map;
+  public getLastOperation(): { type: string; lineIndex: number; movedContent?: string } | null {
+    return this.cursorTracker.getLastOperation();
   }
 
-  public getDomUuidMap(): Map<number, string> {
-    const map = this.linePosition.getDomUuidMap(this.quill);
-    console.log(`🔍 LineTracker getDomUuidMap, size: ${map.size}`);
-    return map;
-  }
-
-  public getLastOperation(): { type: string, lineIndex: number, movedContent?: string } | null {
-    const op = this.cursorTracker.getLastOperation();
-    console.log(`🔍 LineTracker getLastOperation: ${op ? op.type : 'null'}`);
-    return op;
-  }
-
-  public getChangeHistory(uuid: string): {content: string, timestamp: number}[] {
-    const history = this.changeHistory.getChangeHistory(uuid);
-    console.log(`🔍 LineTracker getChangeHistory for ${uuid}, entries: ${history.length}`);
-    return history;
+  public getChangeHistory(uuid: string): { content: string; timestamp: number }[] {
+    return this.changeHistory.getChangeHistory(uuid);
   }
 }
 
-// Modified module registration with singular instantiation check
+/**
+ * Singleton module definition for line tracking. We mark
+ * _lineTrackingModuleRegistered on ReactQuill.Quill to avoid multiple registration.
+ */
 export const LineTrackingModule = {
   name: 'lineTracking',
-  register: function(Quill: any) {
-    console.log('🔍 LineTrackingModule registering with Quill');
-    
-    // Check if already registered to prevent duplicate registrations
-    if (ReactQuill.Quill.import('modules/lineTracking')) {
-      console.log('🔍 LineTrackingModule already registered, skipping');
+  register: function (Quill: any) {
+    console.log('🔍 [LineTrackingModule] registering with Quill');
+
+    // If we've already registered, skip
+    if ((ReactQuill.Quill as any)._lineTrackingModuleRegistered) {
+      console.log('🔍 [LineTrackingModule] already registered, skipping');
       return;
     }
-    
-    ReactQuill.Quill.register('modules/lineTracking', function(quill: any) {
-      console.log('🔍 Initializing LineTracker for Quill instance');
+
+    // Mark as registered
+    (ReactQuill.Quill as any)._lineTrackingModuleRegistered = true;
+
+    // Register as a Quill module named 'lineTracking'
+    ReactQuill.Quill.register('modules/lineTracking', function (quill: any) {
+      console.log('🔍 [LineTrackingModule] initializing new LineTracker for Quill instance');
       const tracker = new LineTracker(quill);
       quill.lineTracking = tracker;
       return tracker;
     });
-  }
+  },
 };
