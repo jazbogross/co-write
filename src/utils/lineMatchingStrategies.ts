@@ -1,23 +1,6 @@
 import { LineData } from '@/types/lineTypes';
 import { v4 as uuidv4 } from 'uuid';
-import { isDeltaObject, extractPlainTextFromDelta } from './editorUtils';
-
-// Helper to safely check if content is empty
-export const isContentEmpty = (content: any): boolean => {
-  // Handle Delta objects
-  if (isDeltaObject(content)) {
-    const plainText = extractPlainTextFromDelta(content);
-    return !plainText || !plainText.trim();
-  }
-  
-  // Handle strings
-  if (typeof content === 'string') {
-    return !content || !content.trim();
-  }
-  
-  // For other types (undefined, null, etc.)
-  return true;
-};
+import { isDeltaObject, extractPlainTextFromDelta, isContentEmpty } from '@/utils/editor';
 
 export const handleEnterAtZeroOperation = (
   emptyLineIndex: number,

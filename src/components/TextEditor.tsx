@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -8,7 +9,7 @@ import { EditorContainer } from './editor/EditorContainer';
 import { EditorActions } from './editor/EditorActions';
 import { useLineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
-import { extractLineContents } from '@/utils/editorUtils';
+import { extractLineContents } from '@/utils/editor';
 import { useTextEditor } from '@/hooks/useTextEditor';
 import { useEditorFormatting } from './editor/EditorFormatting';
 

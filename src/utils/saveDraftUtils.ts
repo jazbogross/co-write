@@ -1,6 +1,12 @@
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
-import { preserveFormattedContent, isDeltaObject, logDeltaStructure, safelyParseDelta, extractPlainTextFromDelta } from '@/utils/editorUtils';
+import { 
+  preserveFormattedContent, 
+  isDeltaObject, 
+  logDeltaStructure, 
+  safelyParseDelta,
+  extractPlainTextFromDelta 
+} from '@/utils/editor';
 
 export const saveDraft = async (
   scriptId: string, 

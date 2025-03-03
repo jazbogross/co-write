@@ -1,6 +1,5 @@
-
 import { LineData } from '@/types/lineTypes';
-import { isDeltaObject, extractPlainTextFromDelta, logDeltaStructure, safelyParseDelta } from '@/utils/editorUtils';
+import { isDeltaObject, extractPlainTextFromDelta, logDeltaStructure, safelyParseDelta } from '@/utils/editor';
 
 /**
  * Processes raw lines data from the database into structured LineData objects
