@@ -10,7 +10,7 @@ import { isContentEmpty, getPlainTextContent } from './contentUtils';
  */
 export const handleSpecialOperations = (
   enterAtZeroOperation: any,
-  safeNewContents: string[],
+  safeNewContents: any[],
   prevData: LineData[],
   usedIndices: Set<number>,
   userId: string | null,

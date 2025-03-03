@@ -8,7 +8,7 @@ import { recordStrategyUsage } from './statsUtils';
  * Match non-empty lines with content-based strategies
  */
 export const matchNonEmptyLines = (
-  safeNewContents: string[],
+  safeNewContents: any[],
   prevData: LineData[],
   usedIndices: Set<number>,
   newData: LineData[],
@@ -72,7 +72,7 @@ export const matchNonEmptyLines = (
  * Match remaining lines (empty lines and unmatched content)
  */
 export const matchRemainingLines = (
-  safeNewContents: string[],
+  safeNewContents: any[],
   prevData: LineData[],
   usedIndices: Set<number>,
   newData: LineData[],
