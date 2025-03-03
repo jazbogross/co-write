@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { LineData } from '@/hooks/useLineData';
-import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import { isDeltaObject, extractPlainTextFromDelta, reconstructContent } from '@/utils/editor';
 
 export const useContentInitialization = (
   originalContent: string,
@@ -20,20 +20,12 @@ export const useContentInitialization = (
       isProcessingLinesRef.current = true;
       
       try {
-        const combinedContent = lineData.map(line => {
-          if (isDeltaObject(line.content)) {
-            const plainText = extractPlainTextFromDelta(line.content);
-            console.log(`**** useContentInitialization.tsx **** Extracted plain text from Delta for line ${line.lineNumber}`);
-            return plainText;
-          }
-          return typeof line.content === 'string' ? line.content : String(line.content);
-        }).join('\n');
+        // Instead of joining plain text, use reconstruction that preserves Delta formatting
+        const reconstructedContent = reconstructContent(lineData);
+        console.log('**** useContentInitialization.tsx **** Reconstructed content with preserved formatting');
         
-        if (combinedContent && combinedContent !== content) {
-          console.log('**** useContentInitialization.tsx **** Initial content set from lineData');
-          setContent(combinedContent);
-        }
-        
+        // Set the reconstructed content (could be a Delta object or string)
+        setContent(reconstructedContent);
         setIsContentInitialized(true);
         
         const editor = quillRef.current?.getEditor();
@@ -48,7 +40,7 @@ export const useContentInitialization = (
         isProcessingLinesRef.current = false;
       }
     }
-  }, [lineData, isContentInitialized, content, quillRef]);
+  }, [lineData, isContentInitialized, quillRef]);
 
   return {
     content,
