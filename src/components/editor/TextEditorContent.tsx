@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { LineNumbers } from './LineNumbers';
 import { isDeltaObject } from '@/utils/editor';
@@ -25,8 +25,14 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   console.log('📝 Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
   console.log('📝 Line count:', lineCount);
   
+  // Track editor mount state
+  const isEditorMountedRef = useRef(false);
+  const contentChangeRef = useRef(0);
+  
   // Log DOM structure periodically to check line number sync
   useEffect(() => {
+    if (!isEditorMountedRef.current) return;
+    
     const logDomStructure = () => {
       const editor = quillRef.current?.getEditor();
       if (!editor) return;
@@ -51,12 +57,40 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
       }
     };
     
-    // Log immediately and then every 2 seconds
+    // Log immediately and then every 5 seconds (reduced frequency to prevent too many logs)
     logDomStructure();
-    const interval = setInterval(logDomStructure, 2000);
+    const interval = setInterval(logDomStructure, 5000);
     
     return () => clearInterval(interval);
-  }, [lineCount, quillRef]);
+  }, [lineCount, quillRef, isEditorMountedRef.current]);
+  
+  // Handle editor initialization
+  const handleEditorInit = () => {
+    console.log('📝 TextEditorContent: Editor mounted');
+    isEditorMountedRef.current = true;
+    
+    const editor = quillRef.current?.getEditor();
+    if (editor && editor.lineTracking) {
+      console.log('📝 TextEditorContent: Initializing line tracking');
+      // Ensure line tracking is initialized
+      editor.lineTracking.initialize();
+    }
+  };
+  
+  // Only trigger onChange when content actually changes
+  const handleContentChange = (newContent: string, delta: any, source: string) => {
+    contentChangeRef.current++;
+    const changeId = contentChangeRef.current;
+    
+    console.log(`📝 ReactQuill onChange - source: ${source}, delta ops: ${delta.ops.length}, changeId: ${changeId}`);
+    
+    // Skip programmatic changes to prevent feedback loops
+    if (source === 'user') {
+      onChange(newContent);
+    } else {
+      console.log(`📝 Skipping non-user content change, source: ${source}`);
+    }
+  };
   
   return (
     <div className="flex min-h-screen text-black">
@@ -68,13 +102,11 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
               <ReactQuill
                 ref={quillRef}
                 value={content}
-                onChange={(newContent, delta, source) => {
-                  console.log(`📝 ReactQuill onChange - source: ${source}, delta ops: ${delta.ops.length}`);
-                  onChange(newContent);
-                }}
+                onChange={handleContentChange}
                 modules={modules}
                 formats={formats}
                 theme="snow"
+                onMount={handleEditorInit}
               />
             </div>
           </div>

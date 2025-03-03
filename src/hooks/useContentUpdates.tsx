@@ -1,5 +1,5 @@
 
-import { useRef } from 'react';
+import { useRef, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import { isDeltaObject, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
 import { splitContentIntoLines } from '@/hooks/lineMatching/contentUtils';
@@ -22,8 +22,10 @@ export const useContentUpdates = (
   });
   
   const contentUpdateRef = useRef(false);
-
-  const handleChange = (newContent: string | DeltaContent) => {
+  const isUpdatingEditorRef = useRef(false);
+  
+  // Use memoized version to prevent unnecessary reruns of the function
+  const handleChange = useCallback((newContent: string | DeltaContent) => {
     let previewText: string;
     
     if (typeof newContent === 'string') {
@@ -45,8 +47,8 @@ export const useContentUpdates = (
       return;
     }
     
-    if (isProcessingLinesRef.current) {
-      console.log('📝 useContentUpdates: Skipping update during line processing');
+    if (isProcessingLinesRef.current || isUpdatingEditorRef.current) {
+      console.log('📝 useContentUpdates: Skipping update during line processing or editor update');
       return;
     }
     
@@ -90,14 +92,20 @@ export const useContentUpdates = (
       editor,
       lines
     };
-  };
+  }, [editorInitialized, quillRef, setContent, setLineCount, isProcessingLinesRef]);
 
-  const updateEditorContent = (newContent: string | DeltaContent, forceUpdate: boolean = false) => {
+  const updateEditorContent = useCallback((newContent: string | DeltaContent, forceUpdate: boolean = false) => {
     console.log('📝 useContentUpdates: updateEditorContent called with', {
       contentType: typeof newContent,
       isDelta: isDeltaObject(newContent),
       forceUpdate
     });
+    
+    // Prevent recursive updates
+    if (isUpdatingEditorRef.current && !forceUpdate) {
+      console.log('📝 useContentUpdates: Already updating editor, skipping recursive update');
+      return;
+    }
     
     const editor = quillRef.current?.getEditor();
     if (!editor) {
@@ -108,13 +116,23 @@ export const useContentUpdates = (
     console.log('📝 useContentUpdates: Updating editor content programmatically');
     
     try {
+      isUpdatingEditorRef.current = true;
+      
       // Set the line tracker to programmatic update mode
       if (editor.lineTracking) {
         console.log('📝 useContentUpdates: Setting programmatic update mode ON');
         editor.lineTracking.setProgrammaticUpdate(true);
       }
       
-      // Clear existing content first
+      // Clear existing content first but preserve DOM UUIDs
+      const domUuids = new Map<number, string>();
+      const lines = editor.getLines(0);
+      lines.forEach((line: any, index: number) => {
+        if (line.domNode && line.domNode.getAttribute('data-line-uuid')) {
+          domUuids.set(index, line.domNode.getAttribute('data-line-uuid'));
+        }
+      });
+      
       const currentLength = editor.getLength();
       console.log(`📝 useContentUpdates: Clearing existing content (length: ${currentLength})`);
       editor.deleteText(0, currentLength);
@@ -151,8 +169,15 @@ export const useContentUpdates = (
         console.log('📝 useContentUpdates: Content state updated with text');
       }
       
-      // Update line count
+      // Restore UUIDs to DOM elements
       const updatedLines = editor.getLines(0);
+      updatedLines.forEach((line: any, index: number) => {
+        if (domUuids.has(index) && line.domNode) {
+          line.domNode.setAttribute('data-line-uuid', domUuids.get(index) || '');
+        }
+      });
+      
+      // Update line count
       setLineCount(updatedLines.length);
       console.log(`📝 useContentUpdates: Updated line count: ${updatedLines.length}`);
       
@@ -187,8 +212,9 @@ export const useContentUpdates = (
       insertContentWithLineBreaks(editor, textContent);
     } finally {
       isProcessingLinesRef.current = false;
+      isUpdatingEditorRef.current = false;
     }
-  };
+  }, [quillRef, setContent, setLineCount, isProcessingLinesRef]);
   
   // Helper function to properly insert content with line breaks
   const insertContentWithLineBreaks = (editor: any, content: string) => {

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { useTextEditor } from '@/hooks/useTextEditor';
 import { useLineData } from '@/hooks/useLineData';
@@ -15,14 +15,16 @@ import { LineTrackingModule } from './editor/LineTracker';
 import { DeltaContent } from '@/utils/editor/types';
 import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
-// Register the LineTrackingModule with Quill
-ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
+// Register the LineTrackingModule with Quill - only do this once
+if (!ReactQuill.Quill.imports['modules/lineTracking']) {
+  ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
+}
 
 interface TextEditorProps {
   isAdmin: boolean;
   originalContent: string;
   scriptId: string;
-  onSuggestChange: (suggestion: string | DeltaContent) => void; // Updated to accept DeltaContent
+  onSuggestChange: (suggestion: string | DeltaContent) => void;
 }
 
 export const TextEditor: React.FC<TextEditorProps> = ({
@@ -35,6 +37,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
+  const initializedRef = useRef(false);
   
   // Get user data
   const { userId } = useUserData();
@@ -71,7 +74,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateLineContents
   );
   
-  // Set up logging
+  // Set up logging with controlled frequency
   useEditorLogger(lineData, content, lineCount, editorInitialized, quillRef);
 
   // Set up editor operations
@@ -82,7 +85,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     flushContentToLineData
   });
 
-  // Set up draft loading
+  // Set up draft loading with protection against multiple loads
   const { draftApplied } = useDraftLoader({
     editorInitialized,
     draftLoadAttempted,
@@ -92,14 +95,20 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateEditorContent
   });
 
-  // Set up draft loading attempt
-  useEffect(() => {
-    if (userId && isDataReady && !draftLoadAttempted) {
+  // Set up draft loading attempt - use callback to prevent recreation
+  const attemptDraftLoad = useCallback(() => {
+    if (userId && isDataReady && !draftLoadAttempted && !initializedRef.current) {
       console.log('📋 TextEditor: User ID available, loading drafts:', userId);
+      initializedRef.current = true;
       loadDraftsForCurrentUser();
       setDraftLoadAttempted(true);
     }
-  }, [userId, isDataReady, loadDraftsForCurrentUser, draftLoadAttempted]);
+  }, [userId, isDataReady, draftLoadAttempted, loadDraftsForCurrentUser]);
+  
+  // Load drafts when data is ready
+  useEffect(() => {
+    attemptDraftLoad();
+  }, [userId, isDataReady, attemptDraftLoad]);
 
   // Set up submission handling - updated to handle both string and DeltaContent
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
@@ -115,17 +124,18 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   );
 
   // Handle saving
-  const handleSaveAndSync = () => {
+  const handleSaveAndSync = useCallback(() => {
+    console.log('📋 TextEditor: Save button clicked');
     handleSave();
     saveToSupabase();
-  };
+  }, [handleSave, saveToSupabase]);
 
   // Handle submitting
-  const handleSubmitChanges = () => {
+  const handleSubmitChanges = useCallback(() => {
     console.log('📋 TextEditor: Submit button clicked');
     flushContentToLineData();
     handleSubmit();
-  };
+  }, [flushContentToLineData, handleSubmit]);
 
   // Show loading state
   if (!isDataReady) {
