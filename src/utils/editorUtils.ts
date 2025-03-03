@@ -139,8 +139,8 @@ export const logDeltaStructure = (content: string | null): void => {
       if (delta) {
         console.log("Delta structure:", {
           hasOps: !!(delta && delta.ops),
-          opsCount: (delta && delta.ops) ? delta.ops.length : 0,
-          firstOp: (delta && delta.ops) ? delta.ops[0] || null : null,
+          opsCount: delta && delta.ops ? delta.ops.length : 0,
+          firstOp: delta && delta.ops && delta.ops.length > 0 ? delta.ops[0] : null,
           plainText: extractPlainTextFromDelta(content)
         });
       } else {
