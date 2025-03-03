@@ -52,7 +52,7 @@ export const loadDrafts = async (
     }
     
     // Type-safe check if any lines have draft content
-    const hasDrafts = Array.isArray(allLines) && allLines.some(line => {
+    const hasDrafts = Array.isArray(allLines) && allLines.some((line: any) => {
       // Safely check for draft property
       return line && 
              typeof line === 'object' && 
