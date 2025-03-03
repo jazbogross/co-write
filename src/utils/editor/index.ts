@@ -7,10 +7,14 @@
 export { 
   isDeltaObject,
   safelyParseDelta,
-  convertToDelta,
-  // Only export normalizeDelta once
   normalizeDelta 
 } from './deltaUtils';
+
+// Export Delta combination utilities
+export { combineDeltaContents } from './operations/deltaCombination';
+
+// Export Delta debug utilities
+export { logDeltaStructure } from './debug/deltaDebug';
 
 // Export text extraction utilities
 export * from './content/textExtraction';
