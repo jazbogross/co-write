@@ -3,7 +3,7 @@
  * Utilities for debugging and logging Delta objects
  */
 import { validateDelta } from '../validation/deltaValidation';
-import { extractPlainTextFromDelta } from '../content/textExtraction';
+import { extractPlainTextFromDelta } from '../contentUtils';
 
 /**
  * Logs the structure of a Delta object for debugging
