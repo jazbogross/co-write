@@ -9,6 +9,7 @@ import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule } from './editor/LineTracker';
 import ReactQuill from 'react-quill';
 import { isDeltaObject } from '@/utils/editor';
+import { combineDeltaContents, extractPlainTextFromDelta } from '@/utils/editor';
 
 ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
 
@@ -152,31 +153,33 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           
           if (hasDeltaContent) {
             console.log('📋 TextEditor: Creating combined Delta from line data');
-            const combinedDelta = {
-              ops: lineData.flatMap(line => {
-                if (isDeltaObject(line.content)) {
-                  console.log(`📋 Line ${line.lineNumber} is a Delta`);
-                  const content = line.content as { ops: Array<{ insert: string, attributes?: any }> };
-                  const ops = [...content.ops];
-                  const lastOp = ops[ops.length - 1];
-                  if (lastOp && typeof lastOp.insert === 'string' && !lastOp.insert.endsWith('\n')) {
-                    ops.push({ insert: '\n' });
-                  }
-                  return ops;
-                } else {
-                  console.log(`📋 Line ${line.lineNumber} is plain text`);
-                  const content = typeof line.content === 'string' ? line.content : String(line.content);
-                  return [{ insert: content }, { insert: '\n' }];
-                }
-              })
-            };
             
-            console.log('📋 TextEditor: Final Delta ops count:', combinedDelta.ops.length);
-            console.log('📋 TextEditor: First few ops:', JSON.stringify(combinedDelta.ops.slice(0, 2)));
-            updateEditorContent(combinedDelta);
+            const deltaContents = lineData.map(line => line.content);
+            const combinedDelta = combineDeltaContents(deltaContents);
+            
+            if (combinedDelta) {
+              console.log('📋 TextEditor: Final Delta ops count:', combinedDelta.ops.length);
+              console.log('📋 TextEditor: First few ops:', JSON.stringify(combinedDelta.ops.slice(0, 2)));
+              updateEditorContent(combinedDelta);
+            } else {
+              console.log('📋 TextEditor: Failed to create combined Delta, using plain text fallback');
+              const combinedContent = lineData.map(line => 
+                typeof line.content === 'string' ? line.content : 
+                extractPlainTextFromDelta(line.content)
+              ).join('\n');
+              
+              if (combinedContent !== content) {
+                console.log('📋 TextEditor: Updating editor with plain text fallback');
+                updateEditorContent(combinedContent);
+              }
+            }
           } else {
             console.log('📋 TextEditor: Creating combined content from strings');
-            const combinedContent = lineData.map(line => line.content).join('\n');
+            const combinedContent = lineData.map(line => {
+              return typeof line.content === 'string' ? 
+                line.content : 
+                extractPlainTextFromDelta(line.content);
+            }).join('\n');
             
             if (combinedContent !== content) {
               console.log('📋 TextEditor: Updating editor content from loaded drafts');
