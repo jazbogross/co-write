@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 export const saveLinesToDatabase = async (
   scriptId: string,
   lineData: LineData[],
-  content: string
+  content: string // Kept for compatibility but not used for updating scripts.content anymore
 ) => {
   try {
     console.log('Saving lines to database and clearing drafts');
@@ -101,14 +101,7 @@ export const saveLinesToDatabase = async (
       }
     }
 
-    // Update the script content as a whole
-    const { error: scriptError } = await supabase
-      .from('scripts')
-      .update({ content })
-      .eq('id', scriptId);
-
-    if (scriptError) throw scriptError;
-    
+    // We no longer update the scripts table content field
     console.log('Lines saved and drafts cleared successfully');
   } catch (error) {
     console.error('Error saving lines to database:', error);

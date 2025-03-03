@@ -4,11 +4,11 @@ import { LineData } from '@/types/lineTypes';
 import { createInitialLineData } from '@/utils/lineDataUtils';
 import { fetchAllLines, loadDrafts as loadDraftsService } from '@/services/lineDataService';
 import { processLinesData } from '@/utils/lineDataProcessing';
-import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editorUtils';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 export const useLineDataInit = (
   scriptId: string, 
-  originalContent: string, 
+  originalContent: string, // Kept for compatibility but not used
   userId: string | null
 ) => {
   const [lineData, setLineData] = useState<LineData[]>([]);
@@ -45,9 +45,10 @@ export const useLineDataInit = (
           lastLineCountRef.current = processedLines.length;
         } else {
           console.log('**** UseLineData **** No data found, creating initial line data');
-          const initialLineData = createInitialLineData(originalContent, userId);
+          // Create a blank initial document if none exists yet
+          const initialLineData = createInitialLineData("", userId);
           
-          contentToUuidMapRef.current.set(originalContent, initialLineData[0].uuid);
+          contentToUuidMapRef.current.set("", initialLineData[0].uuid);
           
           setLineData(initialLineData);
           lastLineCountRef.current = 1;
@@ -60,7 +61,7 @@ export const useLineDataInit = (
         setInitialized(true);
         
         if (lineData.length === 0) {
-          const initialLineData = createInitialLineData(originalContent, userId);
+          const initialLineData = createInitialLineData("", userId);
           setLineData(initialLineData);
           setIsDataReady(true);
           lastLineCountRef.current = 1;
@@ -69,7 +70,7 @@ export const useLineDataInit = (
     };
 
     fetchLineData();
-  }, [scriptId, originalContent, userId, initialized, lineData.length]);
+  }, [scriptId, userId, initialized, lineData.length]);
 
   // Function to handle loading drafts - now with protection against duplicate calls
   const loadDrafts = async (userId: string | null) => {
