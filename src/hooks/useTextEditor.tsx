@@ -12,6 +12,7 @@ export const useTextEditor = (
   scriptId: string,
   quillRef: React.RefObject<ReactQuill>,
   lineData: LineData[],
+  setLineData: React.Dispatch<React.SetStateAction<LineData[]>>,
   isDataReady: boolean,
   initializeEditor: (editor: any) => boolean,
   updateLineContents: (lines: any[], editor: any) => void
@@ -71,15 +72,20 @@ export const useTextEditor = (
     const editor = quillRef.current?.getEditor();
     if (!editor) return;
     
+    // Get all lines from the editor
     const lines = editor.getLines(0);
-    updateLineContents(
-      lines.map(line => {
-        const lineIndex = editor.getIndex(line);
-        const nextLineIndex = line.next ? editor.getIndex(line.next) : editor.getLength();
-        return editor.getContents(lineIndex, nextLineIndex - lineIndex);
-      }),
-      editor
-    );
+    console.log(`Flushing current editor content to line data (${lines.length} lines)`);
+    
+    // Extract content for each line
+    const lineContents = lines.map(line => {
+      const lineIndex = editor.getIndex(line);
+      const nextLineIndex = line.next ? editor.getIndex(line.next) : editor.getLength();
+      // Get the Delta object for this line range
+      return editor.getContents(lineIndex, nextLineIndex - lineIndex);
+    });
+    
+    // Pass to updateLineContents to update the lineData state with the new content
+    updateLineContents(lineContents, editor);
   };
 
   return {

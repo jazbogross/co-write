@@ -1,6 +1,7 @@
 
 import { LineData } from '@/hooks/useLineData';
 import { supabase } from '@/integrations/supabase/client';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 export const saveSuggestions = async (
   scriptId: string,
@@ -25,21 +26,36 @@ export const saveSuggestions = async (
     for (let i = 0; i < lineData.length; i++) {
       const currentLine = lineData[i];
       
+      // Get plain text content for comparison if needed
+      const currentContent = isDeltaObject(currentLine.content) 
+        ? extractPlainTextFromDelta(currentLine.content)
+        : currentLine.content as string;
+      
       if (i < originalLines.length) {
-        if (currentLine.content.trim() !== originalLines[i].trim()) {
+        if (currentContent.trim() !== originalLines[i].trim()) {
+          // Convert Delta to string for storage if needed
+          const contentToStore = isDeltaObject(currentLine.content)
+            ? JSON.stringify(currentLine.content)
+            : currentLine.content as string;
+            
           changes.push({
             type: 'modified',
             lineNumber: currentLine.lineNumber,
             originalLineNumber: i + 1,
-            content: currentLine.content,
+            content: contentToStore,
             uuid: currentLine.uuid
           });
         }
       } else {
+        // Convert Delta to string for storage if needed
+        const contentToStore = isDeltaObject(currentLine.content)
+          ? JSON.stringify(currentLine.content)
+          : currentLine.content as string;
+          
         changes.push({
           type: 'added',
           lineNumber: currentLine.lineNumber,
-          content: currentLine.content,
+          content: contentToStore,
           uuid: currentLine.uuid
         });
       }
@@ -143,12 +159,17 @@ export const saveLineDrafts = async (
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
       
+      // Convert Delta to string for storage if needed
+      const contentToStore = isDeltaObject(line.content)
+        ? JSON.stringify(line.content)
+        : line.content as string;
+      
       if (existingLine) {
         // Line exists - update its draft content and draft line number
         const { error } = await supabase
           .from('script_suggestions')
           .update({
-            draft: line.content !== existingLine.content ? line.content : existingLine.draft,
+            draft: contentToStore !== existingLine.content ? contentToStore : existingLine.draft,
             line_number_draft: line.lineNumber
           })
           .eq('id', existingLine.id);
@@ -161,7 +182,7 @@ export const saveLineDrafts = async (
           .insert({
             script_id: scriptId,
             content: '',  // Original content is empty for new lines
-            draft: line.content,
+            draft: contentToStore,
             user_id: userId,
             line_uuid: line.uuid,
             status: 'pending',

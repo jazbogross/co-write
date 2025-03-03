@@ -1,3 +1,4 @@
+
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -54,29 +55,29 @@ export const saveDraft = async (
         // If the line content is already a Delta object, don't rewrap it
         if (isDeltaObject(line.content)) {
           // If it's a Delta, make sure it's stored as Delta
-          lineContent = line.content;
+          lineContent = JSON.stringify(line.content);
           console.log(`Line ${line.lineNumber} content is already a Delta, using as is`);
         } else {
           // Otherwise get the formatted content from Quill if possible
           // If quill isn't capturing this line correctly, use the plain text
           try {
-            lineContent = preserveFormattedContent(line.content, quill);
+            lineContent = JSON.stringify(preserveFormattedContent(line.content, quill));
           } catch (e) {
             console.error('Error preserving formatted content for line', line.lineNumber, e);
             lineContent = line.content;
           }
         }
       } else {
-        lineContent = line.content;
+        lineContent = typeof line.content === 'object' ? JSON.stringify(line.content) : line.content;
       }
       
       // Debug log formatted content
-      if (quill && isDeltaObject(lineContent)) {
-        console.log(`Line ${line.lineNumber} saving as Delta:`, lineContent.substring(0, 50) + '...');
-        logDeltaStructure(lineContent);
+      if (quill && isDeltaObject(line.content)) {
+        console.log(`Line ${line.lineNumber} saving as Delta:`, JSON.stringify(line.content).substring(0, 50) + '...');
+        logDeltaStructure(line.content);
         
         // Extract and log the plain text so we can verify it's being saved correctly
-        const plainText = extractPlainTextFromDelta(lineContent);
+        const plainText = extractPlainTextFromDelta(line.content);
         console.log(`Line ${line.lineNumber} plain text:`, plainText.substring(0, 50) + (plainText.length > 50 ? '...' : ''));
       }
       
@@ -87,7 +88,8 @@ export const saveDraft = async (
         
         // Get plain text from Delta for accurate comparison
         let existingPlainContent = existingLine.content;
-        let currentPlainContent = line.content;
+        let currentPlainContent = typeof line.content === 'object' ? 
+            JSON.stringify(line.content) : line.content;
         
         if (isDeltaObject(existingLine.content)) {
           existingPlainContent = extractPlainTextFromDelta(existingLine.content);
@@ -136,7 +138,9 @@ export const saveDraft = async (
             script_id: scriptId,
             line_number: 0,  // Minimal placeholder to satisfy not-null constraint
             line_number_draft: line.lineNumber,
-            content: line.originalContent || '',  // Use originalContent if available
+            content: line.originalContent ? 
+              (typeof line.originalContent === 'object' ? JSON.stringify(line.originalContent) : line.originalContent) 
+              : '',
             draft: lineContent,
             original_author: userId,
             edited_by: userId ? [userId] : []

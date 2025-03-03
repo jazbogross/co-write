@@ -1,6 +1,7 @@
 
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 export const saveLinesToDatabase = async (
   scriptId: string,
@@ -45,12 +46,23 @@ export const saveLinesToDatabase = async (
     
     // Process each line: update existing lines, insert new ones
     for (const line of lineData) {
+      // Convert Delta object to string for database storage if needed
+      let storedContent: string;
+      
+      if (isDeltaObject(line.content)) {
+        // If it's a Delta object, stringify it for storage
+        storedContent = JSON.stringify(line.content);
+      } else {
+        // If it's already a string, use it directly
+        storedContent = line.content as string;
+      }
+      
       if (existingLineMap.has(line.uuid)) {
         // Update existing line with current content and clear draft fields
         const { error } = await supabase
           .from('script_content')
           .update({
-            content: line.content,
+            content: storedContent,
             line_number: line.lineNumber,
             draft: null,           // Clear draft content
             line_number_draft: null // Clear draft line number
@@ -70,7 +82,7 @@ export const saveLinesToDatabase = async (
             id: line.uuid,
             script_id: scriptId,
             line_number: line.lineNumber,
-            content: line.content,
+            content: storedContent,
             original_author: line.originalAuthor,
             edited_by: line.editedBy,
             draft: null,           // No draft content
@@ -101,7 +113,6 @@ export const saveLinesToDatabase = async (
       }
     }
 
-    // We no longer update the scripts table content field
     console.log('Lines saved and drafts cleared successfully');
   } catch (error) {
     console.error('Error saving lines to database:', error);
