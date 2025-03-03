@@ -6,7 +6,6 @@
 export class CursorTracker {
   private lastCursorPosition: { index: number, line: number } | null = null;
   private lastOperation: { type: string, lineIndex: number, movedContent?: string } | null = null;
-  private lastLineContent: string = '';
 
   constructor() {
     this.resetOperation();
@@ -25,15 +24,6 @@ export class CursorTracker {
         index: range.index,
         line: lineIndex
       };
-      
-      // Pre-cache the current line content for better Enter detection
-      if (lineIndex >= 0) {
-        const lines = quill.getLines(0);
-        if (lineIndex < lines.length) {
-          const line = lines[lineIndex];
-          this.lastLineContent = this.getLineContent(line, quill);
-        }
-      }
     }
   }
 
@@ -52,14 +42,13 @@ export class CursorTracker {
     this.resetOperation();
     
     if (!delta || !delta.ops || !this.lastCursorPosition) return;
-
+    
     // Check for "\n" insertion (Enter key press)
     const isEnterPress = delta.ops.some((op: any) => 
       op.insert && op.insert === "\n"
     );
     
     if (isEnterPress) {
-      console.log('**** CursorTracker **** Enter key press detected');
       this.detectEnterOperation(quill);
     }
   }
@@ -79,9 +68,18 @@ export class CursorTracker {
       
       // Check if cursor was at position 0 of the line
       if (cursorPosition === lineStart) {
-        // We already pre-cached the line content before the Enter press
-        // This is critical for correctly identifying what content will move
-        const lineContent = this.lastLineContent;
+        // Get the actual line content BEFORE the split
+        // This is the critical fix - we need to capture what was on the line
+        // before it gets moved to the next line
+        let lineContent = '';
+        
+        // Get the current line's text content from the DOM node
+        if (line && line.domNode) {
+          lineContent = line.domNode.textContent || '';
+        } else {
+          // Fallback to delta if DOM node isn't available
+          lineContent = this.getLineContent(line);
+        }
         
         // Store complete operation details for line matching
         this.lastOperation = {
@@ -97,15 +95,8 @@ export class CursorTracker {
   }
 
   // Get content from a line
-  private getLineContent(line: any, quill?: any): string {
+  private getLineContent(line: any): string {
     if (!line) return '';
-    
-    // First try to get content from DOM node for accuracy
-    if (line.domNode) {
-      return line.domNode.textContent || '';
-    }
-    
-    // Then fall back to delta if DOM node isn't available
     return line.cache?.delta?.ops?.[0]?.insert || '';
   }
 

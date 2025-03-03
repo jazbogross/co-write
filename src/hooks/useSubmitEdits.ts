@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,7 +17,7 @@ export const useSubmitEdits = (
   lineData: LineData[],
   userId: string | null,
   onSuggestChange: (suggestion: string) => void,
-  loadDraftsForCurrentUser?: () => Promise<boolean> // Accept this from useLineData
+  loadDraftsForCurrentUser?: () => Promise<void> // Accept this from useLineData
 ) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -100,7 +99,7 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, originalContent, userId, onSuggestChange, toast]);
+  }, [isAdmin, scriptId, lineData, content, originalContent, userId, onSuggestChange]);
 
   const saveToSupabase = useCallback(async () => {
     if (content === originalContent) {
@@ -114,17 +113,15 @@ export const useSubmitEdits = (
 
     setIsSubmitting(true);
     try {
-      let success = false;
-      
       if (isAdmin) {
-        success = await saveDraft(scriptId, lineData, content, userId);
+        await saveDraft(scriptId, lineData, content, userId);
         
         toast({
           title: "Draft saved",
           description: "Your draft has been saved successfully",
         });
       } else {
-        success = await saveLineDrafts(scriptId, lineData, originalContent, userId);
+        await saveLineDrafts(scriptId, lineData, originalContent, userId);
         
         toast({
           title: "Draft saved",
@@ -132,8 +129,8 @@ export const useSubmitEdits = (
         });
       }
       
-      // Only load drafts AFTER saving if the save was successful
-      if (success && loadDraftsForCurrentUser) {
+      // Only load drafts AFTER saving to get the latest state
+      if (loadDraftsForCurrentUser) {
         console.log("Loading drafts after save...");
         await loadDraftsForCurrentUser();
       }
@@ -147,7 +144,7 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, originalContent, userId, loadDraftsForCurrentUser, toast]);
+  }, [isAdmin, scriptId, lineData, content, originalContent, userId, loadDraftsForCurrentUser]);
 
   return { isSubmitting, handleSubmit, saveToSupabase };
 };

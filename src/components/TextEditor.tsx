@@ -12,7 +12,6 @@ import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { extractLineContents } from '@/utils/editorUtils';
 import { useTextEditor } from '@/hooks/useTextEditor';
 import { useEditorFormatting } from './editor/EditorFormatting';
-import { useToast } from '@/hooks/use-toast';
 
 // Register the module
 LineTrackingModule.register(ReactQuill.Quill);
@@ -34,15 +33,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 }) => {
   const quillRef = useRef<ReactQuill>(null);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
-  const { toast } = useToast();
-  const [loadingDrafts, setLoadingDrafts] = useState(false);
 
   // Load line data and prepare editor
   const { 
     lineData, 
-    updateLineContents,
+    updateLineContents, 
     loadDraftsForCurrentUser, 
-    draftStatus,
     isDataReady,
     initializeEditor 
   } = useLineData(scriptId, originalContent, null); // Pass null initially, will update with userId
@@ -84,38 +80,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   };
 
-  // Handle manual draft loading
-  const handleLoadDrafts = useCallback(async () => {
-    if (loadingDrafts) return;
-    
-    setLoadingDrafts(true);
-    try {
-      const hasDrafts = await loadDraftsForCurrentUser();
-      
-      if (hasDrafts) {
-        toast({
-          title: "Drafts loaded",
-          description: "Your saved drafts have been successfully loaded",
-        });
-      } else {
-        toast({
-          title: "No drafts found",
-          description: "No saved drafts were found for this script",
-          variant: "default",
-        });
-      }
-    } catch (error) {
-      console.error('Error loading drafts:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load drafts. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingDrafts(false);
-    }
-  }, [loadDraftsForCurrentUser, loadingDrafts, toast]);
-
   // Set up submission and saving functionality
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
@@ -143,15 +107,13 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     <>
       <EditorActions
         isAdmin={isAdmin}
-        isSubmitting={isSubmitting || loadingDrafts}
+        isSubmitting={isSubmitting}
         onFormat={formatText}
         onSubmit={() => {
           flushUpdate();
           handleSubmit();
         }}
         onSave={handleSave}
-        onLoadDrafts={handleLoadDrafts}
-        hasUnsavedDrafts={draftStatus.lastLoadedTimestamp > 0}
       />
       
       <EditorContainer

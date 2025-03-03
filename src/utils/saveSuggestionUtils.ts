@@ -82,7 +82,7 @@ export const saveSuggestions = async (
     console.log('Detected changes:', changes);
 
     // Submit all changes as suggestions
-    const suggestionPromises = changes.map(change => {
+    for (const change of changes) {
       const suggestionData = {
         script_id: scriptId,
         content: change.content,
@@ -97,16 +97,12 @@ export const saveSuggestions = async (
         }
       };
 
-      return supabase
+      const { error } = await supabase
         .from('script_suggestions')
-        .insert(suggestionData)
-        .then(({ error }) => {
-          if (error) throw error;
-        });
-    });
+        .insert(suggestionData);
 
-    await Promise.all(suggestionPromises);
-    return true;
+      if (error) throw error;
+    }
   } catch (error) {
     console.error('Error saving suggestions:', error);
     throw error;
@@ -120,12 +116,10 @@ export const saveLineDrafts = async (
   userId: string | null
 ) => {
   try {
-    console.log('Saving line drafts for script:', scriptId, 'with', lineData.length, 'lines');
-    
     // First, get current line data from database
     const { data: existingLines, error: fetchError } = await supabase
       .from('script_suggestions')
-      .select('id, line_uuid, line_number, content, draft, line_number_draft')
+      .select('id, line_uuid, line_number, content, draft')
       .eq('script_id', scriptId)
       .eq('user_id', userId)
       .eq('status', 'pending');
@@ -145,40 +139,37 @@ export const saveLineDrafts = async (
     // Get all current line UUIDs in the editor
     const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
     
-    // Track operations for batch processing
-    const linesToUpdate = [];
-    const linesToInsert = [];
-    const deletedLineUpdates = [];
-    
     // First, update draft position for all lines
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
       
       if (existingLine) {
-        // Only update if content changed or line position changed
-        const contentChanged = line.content !== existingLine.content;
-        const positionChanged = line.lineNumber !== existingLine.line_number_draft;
-        
-        if (contentChanged || positionChanged) {
-          // Line exists - update its draft content and draft line number
-          linesToUpdate.push({
-            id: existingLine.id,
-            draft: contentChanged ? line.content : existingLine.draft,
+        // Line exists - update its draft content and draft line number
+        const { error } = await supabase
+          .from('script_suggestions')
+          .update({
+            draft: line.content !== existingLine.content ? line.content : existingLine.draft,
             line_number_draft: line.lineNumber
-          });
-        }
+          })
+          .eq('id', existingLine.id);
+          
+        if (error) throw error;
       } else {
         // New line - create a suggestion entry with draft content
-        linesToInsert.push({
-          script_id: scriptId,
-          content: '',  // Original content is empty for new lines
-          draft: line.content,
-          user_id: userId,
-          line_uuid: line.uuid,
-          status: 'pending',
-          line_number: null,  // No original line number for new lines
-          line_number_draft: line.lineNumber
-        });
+        const { error } = await supabase
+          .from('script_suggestions')
+          .insert({
+            script_id: scriptId,
+            content: '',  // Original content is empty for new lines
+            draft: line.content,
+            user_id: userId,
+            line_uuid: line.uuid,
+            status: 'pending',
+            line_number: null,  // No original line number for new lines
+            line_number_draft: line.lineNumber
+          });
+          
+        if (error) throw error;
       }
     }
     
@@ -187,81 +178,17 @@ export const saveLineDrafts = async (
       for (const existingLine of existingLines) {
         if (existingLine.line_uuid && !currentLineUUIDs.has(existingLine.line_uuid)) {
           // Line was deleted - mark it as deleted in draft
-          deletedLineUpdates.push({
-            id: existingLine.id,
-            draft: '{deleted-uuid}'
-          });
+          const { error } = await supabase
+            .from('script_suggestions')
+            .update({
+              draft: '{deleted-uuid}'
+            })
+            .eq('id', existingLine.id);
+            
+          if (error) throw error;
         }
       }
     }
-    
-    // Process all operations in batches
-    const operations = [];
-    
-    // 1. Process inserts (new lines)
-    if (linesToInsert.length > 0) {
-      operations.push(supabase
-        .from('script_suggestions')
-        .insert(linesToInsert)
-        .then(({error}) => {
-          if (error) throw error;
-          console.log(`Inserted ${linesToInsert.length} new line drafts`);
-        })
-      );
-    }
-    
-    // 2. Process updates (changed lines)
-    if (linesToUpdate.length > 0) {
-      // Update in batches of 50 to prevent request size limits
-      const batchSize = 50;
-      for (let i = 0; i < linesToUpdate.length; i += batchSize) {
-        const batch = linesToUpdate.slice(i, i + batchSize);
-        operations.push(
-          ...batch.map(lineUpdate => 
-            supabase
-              .from('script_suggestions')
-              .update({
-                draft: lineUpdate.draft,
-                line_number_draft: lineUpdate.line_number_draft
-              })
-              .eq('id', lineUpdate.id)
-              .then(({error}) => {
-                if (error) throw error;
-              })
-          )
-        );
-      }
-      console.log(`Updated ${linesToUpdate.length} existing line drafts`);
-    }
-    
-    // 3. Process deletions (lines removed from editor)
-    if (deletedLineUpdates.length > 0) {
-      // Mark deleted lines in batches of 50
-      const batchSize = 50;
-      for (let i = 0; i < deletedLineUpdates.length; i += batchSize) {
-        const batch = deletedLineUpdates.slice(i, i + batchSize);
-        operations.push(
-          ...batch.map(lineUpdate => 
-            supabase
-              .from('script_suggestions')
-              .update({
-                draft: lineUpdate.draft
-              })
-              .eq('id', lineUpdate.id)
-              .then(({error}) => {
-                if (error) throw error;
-              })
-          )
-        );
-      }
-      console.log(`Marked ${deletedLineUpdates.length} line drafts as deleted`);
-    }
-    
-    // Execute all operations in parallel
-    await Promise.all(operations);
-    
-    console.log('Draft save operations completed successfully');
-    return true;
   } catch (error) {
     console.error('Error saving line drafts:', error);
     throw error;

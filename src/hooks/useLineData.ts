@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { LineData } from '@/types/lineTypes';
 import { useDrafts } from './useDrafts';
@@ -11,14 +11,13 @@ export type { LineData } from '@/types/lineTypes';
 
 export const useLineData = (scriptId: string, originalContent: string, userId: string | null) => {
   const previousContentRef = useRef<string[]>([]);
-  const hasFetchedDraftsRef = useRef<boolean>(false);
   const uuidAssignmentStats = useRef({
     preserved: 0,
     regenerated: 0,
     matchStrategy: {} as Record<string, number>
   });
 
-  // Use the modularized hooks
+  // Use the new modularized hooks
   const { 
     lineData, 
     setLineData, 
@@ -28,27 +27,8 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
   } = useLineDataInit(scriptId, originalContent, userId);
   
   const { matchAndAssignLines } = useLineMatching(userId);
-  const { loadDraftsForCurrentUser, lastLoadedTimestamp } = useDrafts();
+  const { loadDraftsForCurrentUser } = useDrafts();
   const { initializeEditor } = useEditorInit(lineData, isDataReady);
-
-  // Load drafts when userId becomes available and data is ready
-  useEffect(() => {
-    const fetchDrafts = async () => {
-      if (userId && isDataReady && scriptId && !hasFetchedDraftsRef.current) {
-        console.log('Attempting to auto-load drafts for user:', userId);
-        const hasDrafts = await loadDraftsForCurrentUser(scriptId, userId, setLineData, contentToUuidMapRef);
-        hasFetchedDraftsRef.current = true;
-        
-        if (hasDrafts) {
-          console.log('Drafts loaded successfully during initialization');
-        } else {
-          console.log('No drafts found or loading failed during initialization');
-        }
-      }
-    };
-    
-    fetchDrafts();
-  }, [userId, isDataReady, scriptId, loadDraftsForCurrentUser]);
 
   const updateLineContents = useCallback((newContents: string[], quill: any) => {
     if (!quill || !quill.lineTracking) {
@@ -132,17 +112,9 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
     });
   }, [userId, contentToUuidMapRef]);
 
-  const loadDrafts = useCallback(async () => {
-    console.log('Manual draft loading requested');
-    hasFetchedDraftsRef.current = true;
-    return await loadDraftsForCurrentUser(scriptId, userId, setLineData, contentToUuidMapRef);
+  const loadDrafts = useCallback(() => {
+    return loadDraftsForCurrentUser(scriptId, userId, setLineData, contentToUuidMapRef);
   }, [scriptId, userId, loadDraftsForCurrentUser]);
-
-  // Export whether drafts have been fetched
-  const draftStatus = {
-    hasFetchedDrafts: hasFetchedDraftsRef.current,
-    lastLoadedTimestamp
-  };
 
   return { 
     lineData, 
@@ -150,7 +122,6 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
     updateLineContent, 
     updateLineContents,
     loadDraftsForCurrentUser: loadDrafts,
-    draftStatus,
     isDataReady,
     initializeEditor
   };
