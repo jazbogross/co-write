@@ -8,7 +8,7 @@ export type DeltaContent = {
 };
 
 export type DeltaOp = {
-  insert: string;
+  insert: string | object;
   attributes?: Record<string, any>;
 };
 
@@ -26,3 +26,20 @@ export type DeltaValidationResult = {
   originalType: string;
   reason?: string;
 };
+
+/**
+ * Interface to make DeltaContent compatible with Quill's Delta type
+ * Adding the minimum properties needed for compatibility
+ */
+export interface QuillCompatibleDelta extends DeltaContent {
+  retain?: (index: number, length?: number) => QuillCompatibleDelta;
+  delete?: (index: number) => QuillCompatibleDelta;
+  filter?: (predicate: (op: DeltaOp) => boolean) => DeltaOp[];
+  forEach?: (predicate: (op: DeltaOp) => void) => void;
+  map?: <T>(predicate: (op: DeltaOp) => T) => T[];
+  partition?: (predicate: (op: DeltaOp) => boolean) => [DeltaOp[], DeltaOp[]];
+  reduce?: <T>(predicate: (acc: T, op: DeltaOp) => T, initial: T) => T;
+  changeLength?: () => number;
+  length?: () => number;
+}
+

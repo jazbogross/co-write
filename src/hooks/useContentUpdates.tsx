@@ -3,10 +3,11 @@ import { useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { isDeltaObject, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
 import { splitContentIntoLines } from '@/hooks/lineMatching/contentUtils';
+import { DeltaContent, QuillCompatibleDelta } from '@/utils/editor/types';
 
 export const useContentUpdates = (
-  content: string | any,
-  setContent: (value: string | any) => void,
+  content: string | DeltaContent,
+  setContent: (value: string | DeltaContent) => void,
   lineCount: number,
   setLineCount: (count: number) => void,
   editorInitialized: boolean,
@@ -22,13 +23,15 @@ export const useContentUpdates = (
   
   const contentUpdateRef = useRef(false);
 
-  const handleChange = (newContent: string | any) => {
+  const handleChange = (newContent: string | DeltaContent) => {
+    const previewText = typeof newContent === 'string' 
+      ? newContent.substring(0, 50) + '...' 
+      : JSON.stringify(newContent).substring(0, 50) + '...';
+      
     console.log('📝 useContentUpdates: handleChange called with', {
       contentType: typeof newContent,
       isDelta: isDeltaObject(newContent),
-      preview: typeof newContent === 'string' 
-        ? newContent.substring(0, 50) + '...' 
-        : JSON.stringify(newContent).substring(0, 50) + '...'
+      preview: previewText
     });
     
     if (!editorInitialized) {
@@ -75,7 +78,7 @@ export const useContentUpdates = (
     };
   };
 
-  const updateEditorContent = (newContent: string | any, forceUpdate: boolean = false) => {
+  const updateEditorContent = (newContent: string | DeltaContent, forceUpdate: boolean = false) => {
     console.log('📝 useContentUpdates: updateEditorContent called with', {
       contentType: typeof newContent,
       isDelta: isDeltaObject(newContent),
@@ -107,7 +110,8 @@ export const useContentUpdates = (
         const delta = safelyParseDelta(newContent);
         if (delta) {
           console.log('📝 useContentUpdates: Setting editor contents with delta object, ops:', delta.ops.length);
-          editor.setContents(delta);
+          // Cast to any to work around the type issues with Quill's Delta type
+          editor.setContents(delta as any);
           
           // Update content state
           setContent(delta);

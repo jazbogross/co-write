@@ -1,16 +1,19 @@
+
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import ReactQuill from 'react-quill';
 import { useTextEditor } from '@/hooks/useTextEditor';
 import { useLineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
+import { useDraftLoader } from '@/hooks/useDraftLoader';
+import { useUserData } from '@/hooks/useUserData';
+import { useEditorLogger } from '@/hooks/useEditorLogger';
+import { useEditorOperations } from '@/components/editor/TextEditorOperations';
 import { TextEditorActions } from './editor/TextEditorActions';
 import { TextEditorContent } from './editor/TextEditorContent';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule } from './editor/LineTracker';
-import ReactQuill from 'react-quill';
-import { isDeltaObject } from '@/utils/editor';
-import { combineDeltaContents, extractPlainTextFromDelta } from '@/utils/editor';
 
+// Register the LineTrackingModule with Quill
 ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
 
 interface TextEditorProps {
@@ -26,21 +29,15 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   scriptId,
   onSuggestChange,
 }) => {
-  console.log('📋 TextEditor initializing with scriptId:', scriptId);
+  console.log('📋 TextEditor: Initializing with scriptId:', scriptId);
   
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
   
-  useEffect(() => {
-    console.log('📋 TextEditor: Fetching user...');
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      console.log('📋 TextEditor: User fetched:', user?.id);
-      setUserId(user?.id || null);
-    };
-    fetchUser();
-  }, []);
+  // Get user data
+  const { userId } = useUserData();
 
+  // Initialize line data
   const { 
     lineData, 
     setLineData,
@@ -50,22 +47,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     initializeEditor 
   } = useLineData(scriptId, "", userId);
 
-  useEffect(() => {
-    console.log(`📋 TextEditor: lineData updated:`, lineData.length > 0 ? 
-      `${lineData.length} lines` :
-      `[]`);
-    
-    if (lineData.length > 0) {
-      console.log('📋 First line:', JSON.stringify(lineData[0]).substring(0, 100) + '...');
-      if (lineData.length > 1) {
-        console.log('📋 Second line:', JSON.stringify(lineData[1]).substring(0, 100) + '...');
-      }
-      if (lineData.length > 2) {
-        console.log('📋 Last line:', JSON.stringify(lineData[lineData.length-1]).substring(0, 100) + '...');
-      }
-    }
-  }, [lineData]);
-
+  // Initialize text editor
   const { 
     quillRef,
     content,
@@ -87,48 +69,28 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateLineContents
   );
   
-  useEffect(() => {
-    console.log('📋 TextEditor: Content changed.');
-    console.log('📋 Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
-    if (typeof content === 'string') {
-      console.log('📋 Content preview:', content.substring(0, 100) + '...');
-    } else {
-      console.log('📋 Content structure:', JSON.stringify(content).substring(0, 100) + '...');
-    }
-  }, [content]);
+  // Set up logging
+  useEditorLogger(lineData, content, lineCount, editorInitialized, quillRef);
 
-  useEffect(() => {
-    console.log(`📋 TextEditor: Updated line count: ${lineCount}`);
-  }, [lineCount]);
+  // Set up editor operations
+  const { handleContentChange, formatText, handleSave } = useEditorOperations({
+    quillRef,
+    editorInitialized,
+    handleChange,
+    flushContentToLineData
+  });
 
-  useEffect(() => {
-    console.log(`📋 TextEditor: Editor initialized: ${editorInitialized}`);
-    if (editorInitialized) {
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        const lines = editor.getLines(0);
-        console.log(`📋 TextEditor: Initial line count from editor: ${lines.length}`);
-        
-        console.log('📋 TextEditor: Initializing line UUIDs in the DOM...');
-        setTimeout(() => {
-          const editorElement = document.querySelector('.ql-editor');
-          if (editorElement) {
-            const paragraphs = editorElement.querySelectorAll('p');
-            console.log(`📋 TextEditor: Found ${paragraphs.length} <p> elements`);
-            
-            Array.from(paragraphs).slice(0, 3).forEach((p, i) => {
-              console.log(`📋 Paragraph ${i+1} UUID:`, p.getAttribute('data-line-uuid'));
-            });
-          }
-          console.log('📋 TextEditor: Line UUIDs initialized.');
-        }, 500);
-      }
-    }
-  }, [editorInitialized, quillRef]);
+  // Set up draft loading
+  const { draftApplied } = useDraftLoader({
+    editorInitialized,
+    draftLoadAttempted,
+    lineData,
+    quillRef,
+    content,
+    updateEditorContent
+  });
 
-  const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
-  const [draftApplied, setDraftApplied] = useState(false);
-
+  // Set up draft loading attempt
   useEffect(() => {
     if (userId && isDataReady && !draftLoadAttempted) {
       console.log('📋 TextEditor: User ID available, loading drafts:', userId);
@@ -137,100 +99,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [userId, isDataReady, loadDraftsForCurrentUser, draftLoadAttempted]);
 
-  useEffect(() => {
-    if (editorInitialized && draftLoadAttempted && lineData.length > 0 && !draftApplied) {
-      console.log('📋 TextEditor: Applying drafts to editor. LineData length:', lineData.length);
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        try {
-          if (editor.lineTracking) {
-            console.log('📋 TextEditor: Setting programmatic update mode ON');
-            editor.lineTracking.setProgrammaticUpdate(true);
-          }
-          
-          const hasDeltaContent = lineData.some(line => isDeltaObject(line.content));
-          console.log('📋 TextEditor: Has Delta content:', hasDeltaContent);
-          
-          if (hasDeltaContent) {
-            console.log('📋 TextEditor: Creating combined Delta from line data');
-            
-            const deltaContents = lineData.map(line => line.content);
-            const combinedDelta = combineDeltaContents(deltaContents);
-            
-            if (combinedDelta) {
-              console.log('📋 TextEditor: Final Delta ops count:', combinedDelta.ops.length);
-              console.log('📋 TextEditor: First few ops:', JSON.stringify(combinedDelta.ops.slice(0, 2)));
-              updateEditorContent(combinedDelta);
-            } else {
-              console.log('📋 TextEditor: Failed to create combined Delta, using plain text fallback');
-              const combinedContent = lineData.map(line => 
-                typeof line.content === 'string' ? line.content : 
-                extractPlainTextFromDelta(line.content)
-              ).join('\n');
-              
-              if (combinedContent !== content) {
-                console.log('📋 TextEditor: Updating editor with plain text fallback');
-                updateEditorContent(combinedContent);
-              }
-            }
-          } else {
-            console.log('📋 TextEditor: Creating combined content from strings');
-            const combinedContent = lineData.map(line => {
-              return typeof line.content === 'string' ? 
-                line.content : 
-                extractPlainTextFromDelta(line.content);
-            }).join('\n');
-            
-            if (combinedContent !== content) {
-              console.log('📋 TextEditor: Updating editor content from loaded drafts');
-              updateEditorContent(combinedContent);
-            } else {
-              console.log('📋 TextEditor: Content unchanged, skipping update');
-            }
-          }
-          
-          setDraftApplied(true);
-          console.log('📋 TextEditor: Draft application complete');
-        } finally {
-          if (editor.lineTracking) {
-            console.log('📋 TextEditor: Setting programmatic update mode OFF');
-            editor.lineTracking.setProgrammaticUpdate(false);
-          }
-        }
-      }
-    }
-  }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent]);
-
-  const handleContentChange = (newContent: string) => {
-    console.log('📋 TextEditor: handleContentChange called');
-    console.log('📋 TextEditor: Content preview:', newContent.substring(0, 100) + '...');
-    
-    handleChange(newContent);
-    
-    if (editorInitialized) {
-      console.log('📋 TextEditor: Flushing content to line data');
-      setTimeout(() => {
-        console.log('📋 TextEditor: Running delayed flush content');
-        flushContentToLineData();
-        
-        const editor = quillRef.current?.getEditor();
-        if (editor) {
-          const lines = editor.getLines(0);
-          console.log(`📋 TextEditor: Current line count: ${lines.length}`);
-          
-          const lineContents = lines.slice(0, 3).map(line => {
-            const lineIndex = editor.getIndex(line);
-            const nextLineIndex = line.next ? editor.getIndex(line.next) : editor.getLength();
-            const delta = editor.getContents(lineIndex, nextLineIndex - lineIndex);
-            return JSON.stringify(delta).substring(0, 50) + '...';
-          });
-          
-          console.log(`📋 TextEditor: Current line contents sample:`, lineContents);
-        }
-      }, 50);
-    }
-  };
-
+  // Set up submission handling
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
     scriptId,
@@ -242,21 +111,21 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     loadDraftsForCurrentUser,
     quillRef.current?.getEditor()
   );
-  
-  const formatText = (format: string, value: any) => {
-    console.log(`📋 TextEditor: Formatting text with ${format}:`, value);
-    const editor = quillRef.current?.getEditor();
-    if (!editor) return;
-    editor.format(format, value);
-  };
 
-  const handleSave = () => {
-    console.log('📋 TextEditor: handleSave called');
-    flushContentToLineData();
-    console.log('📋 TextEditor: Content flushed, saving to Supabase');
+  // Handle saving
+  const handleSaveAndSync = () => {
+    handleSave();
     saveToSupabase();
   };
 
+  // Handle submitting
+  const handleSubmitChanges = () => {
+    console.log('📋 TextEditor: Submit button clicked');
+    flushContentToLineData();
+    handleSubmit();
+  };
+
+  // Show loading state
   if (!isDataReady) {
     console.log('📋 TextEditor: Data not ready, showing loading');
     return <div className="flex items-center justify-center p-8">Loading editor data...</div>;
@@ -269,12 +138,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         isAdmin={isAdmin}
         isSubmitting={isSubmitting}
         onFormat={formatText}
-        onSubmit={() => {
-          console.log('📋 TextEditor: Submit button clicked');
-          flushContentToLineData();
-          handleSubmit();
-        }}
-        onSave={handleSave}
+        onSubmit={handleSubmitChanges}
+        onSave={handleSaveAndSync}
       />
       
       <TextEditorContent
