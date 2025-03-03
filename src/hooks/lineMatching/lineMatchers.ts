@@ -1,6 +1,6 @@
 
 import { LineData } from '@/types/lineTypes';
-import { isContentEmpty } from './contentUtils';
+import { isContentEmpty, getPlainTextContent } from './contentUtils';
 import { findBestMatchingLine } from './matchingStrategies';
 import { recordStrategyUsage } from './statsUtils';
 
@@ -23,9 +23,11 @@ export const matchNonEmptyLines = (
     if (newData[i]) continue;
     
     const content = safeNewContents[i];
+    // Get plain text for empty check
+    const plainTextContent = getPlainTextContent(content);
     
     // Skip empty lines in this pass
-    if (isContentEmpty(content)) continue;
+    if (isContentEmpty(plainTextContent)) continue;
     
     const match = findBestMatchingLine(
       content,
@@ -46,14 +48,14 @@ export const matchNonEmptyLines = (
         ...existingLine,
         lineNumber: i + 1,
         content,
-        editedBy: content !== existingLine.content && userId && 
+        editedBy: plainTextContent !== getPlainTextContent(existingLine.content) && userId && 
                  !existingLine.editedBy.includes(userId)
           ? [...existingLine.editedBy, userId]
           : existingLine.editedBy
       };
       
       // Update content-to-UUID mapping
-      contentToUuidMap.set(content, existingLine.uuid);
+      contentToUuidMap.set(plainTextContent, existingLine.uuid);
       
       if (quill && quill.lineTracking) {
         quill.lineTracking.setLineUuid(i + 1, existingLine.uuid);
@@ -84,7 +86,8 @@ export const matchRemainingLines = (
     if (newData[i]) continue;
     
     const content = safeNewContents[i];
-    const isEmpty = isContentEmpty(content);
+    const plainTextContent = getPlainTextContent(content);
+    const isEmpty = isContentEmpty(plainTextContent);
     
     try {
       // For unmatched lines, try more aggressive matching strategies
@@ -107,14 +110,14 @@ export const matchRemainingLines = (
           ...existingLine,
           lineNumber: i + 1,
           content,
-          editedBy: content !== existingLine.content && userId && 
+          editedBy: plainTextContent !== getPlainTextContent(existingLine.content) && userId && 
                    !existingLine.editedBy.includes(userId)
             ? [...existingLine.editedBy, userId]
             : existingLine.editedBy
         };
         
         if (!isEmpty) {
-          contentToUuidMap.set(content, existingLine.uuid);
+          contentToUuidMap.set(plainTextContent, existingLine.uuid);
         }
         
         if (quill && quill.lineTracking) {
@@ -137,7 +140,7 @@ export const matchRemainingLines = (
         };
         
         if (!isEmpty) {
-          contentToUuidMap.set(content, newUuid);
+          contentToUuidMap.set(plainTextContent, newUuid);
         }
         
         if (quill?.lineTracking) {

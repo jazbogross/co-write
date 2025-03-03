@@ -31,6 +31,13 @@ export const getPlainTextContent = (content: any): string => {
 };
 
 /**
+ * Get trimmed content regardless of type
+ */
+export const getTrimmedContent = (content: any): string => {
+  return getPlainTextContent(content).trim();
+};
+
+/**
  * Split content into lines, preserving line breaks
  */
 export const splitContentIntoLines = (content: string): string[] => {

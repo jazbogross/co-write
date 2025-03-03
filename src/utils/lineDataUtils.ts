@@ -2,6 +2,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
+import { getPlainTextContent } from '@/hooks/lineMatching/contentUtils';
 
 /**
  * Finds the best matching line in the previous line data based on content similarity
@@ -12,7 +13,10 @@ export const findBestMatchingLine = (
   excludeIndices: Set<number>,
   contentToUuidMap: Map<string, string>
 ): { index: number; similarity: number } | null => {
-  const existingUuid = contentToUuidMap.get(content);
+  // Convert content to plain text if it's a Delta object
+  const plainTextContent = getPlainTextContent(content);
+  
+  const existingUuid = contentToUuidMap.get(plainTextContent);
   if (existingUuid) {
     const exactMatchIndex = prevLineData.findIndex(line => line.uuid === existingUuid);
     if (exactMatchIndex >= 0 && !excludeIndices.has(exactMatchIndex)) {
@@ -22,26 +26,29 @@ export const findBestMatchingLine = (
   
   let bestMatch = { index: -1, similarity: 0 };
   
-  const calculateSimilarity = (a: string, b: string): number => {
-    if (a === b) return 1;
-    if (!a || !b) return 0;
+  const calculateSimilarity = (a: string, b: string | any): number => {
+    // Convert b to plain text if it's a Delta object
+    const plainTextB = getPlainTextContent(b);
     
-    if (a.length > 10 && b.length > 10) {
+    if (a === plainTextB) return 1;
+    if (!a || !plainTextB) return 0;
+    
+    if (a.length > 10 && plainTextB.length > 10) {
       let matchLen = 0;
-      const minLen = Math.min(a.length, b.length);
-      while (matchLen < minLen && a[matchLen] === b[matchLen]) {
+      const minLen = Math.min(a.length, plainTextB.length);
+      while (matchLen < minLen && a[matchLen] === plainTextB[matchLen]) {
         matchLen++;
       }
-      return matchLen / Math.max(a.length, b.length);
+      return matchLen / Math.max(a.length, plainTextB.length);
     }
     
-    return a === b ? 1 : 0;
+    return a === plainTextB ? 1 : 0;
   };
   
   for (let i = 0; i < prevLineData.length; i++) {
     if (excludeIndices.has(i)) continue;
     
-    const similarity = calculateSimilarity(content, prevLineData[i].content);
+    const similarity = calculateSimilarity(plainTextContent, prevLineData[i].content);
     
     if (similarity === 1) {
       return { index: i, similarity: 1 };

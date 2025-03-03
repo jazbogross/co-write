@@ -1,7 +1,6 @@
 
 import { useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
-import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 import { 
   findBestMatchingLine,
   generateStatsTemplate,
@@ -9,7 +8,8 @@ import {
   handleSpecialOperations,
   matchNonEmptyLines,
   matchRemainingLines,
-  isContentEmpty
+  isContentEmpty,
+  getPlainTextContent
 } from '@/hooks/lineMatching';
 
 export const useLineMatching = (userId: string | null) => {
@@ -35,10 +35,8 @@ export const useLineMatching = (userId: string | null) => {
     
     // Ensure every content item is safely processed
     const safeNewContents = newContents.map(content => {
-      // If content is a Delta object, extract plain text
-      if (isDeltaObject(content)) {
-        return extractPlainTextFromDelta(content);
-      }
+      // This function only extracts plain text for operations like comparison
+      // It doesn't replace the actual Delta objects
       return content;
     });
     
@@ -67,7 +65,8 @@ export const useLineMatching = (userId: string | null) => {
           newData[result.contentLineIndex] = result.contentLineData;
           
           // Update content-to-UUID mapping
-          contentToUuidMap.set(safeNewContents[result.contentLineIndex], result.contentLineData.uuid);
+          const plainTextContent = getPlainTextContent(safeNewContents[result.contentLineIndex]);
+          contentToUuidMap.set(plainTextContent, result.contentLineData.uuid);
         }
         
         console.log(`**** useLineMatching **** Successfully handled Enter-at-position-0 operation`);
