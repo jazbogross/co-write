@@ -3,14 +3,15 @@ import { useState, useEffect } from 'react';
 import { LineData } from '@/hooks/useLineData';
 import { isDeltaObject, combineDeltaContents, extractPlainTextFromDelta } from '@/utils/editor';
 import ReactQuill from 'react-quill';
+import { DeltaContent } from '@/utils/editor/types';
 
 interface DraftLoaderProps {
   editorInitialized: boolean;
   draftLoadAttempted: boolean;
   lineData: LineData[];
   quillRef: React.RefObject<ReactQuill>;
-  content: any;
-  updateEditorContent: (content: any) => void;
+  content: string | DeltaContent;
+  updateEditorContent: (content: string | DeltaContent) => void;
 }
 
 export const useDraftLoader = ({
@@ -54,7 +55,7 @@ export const useDraftLoader = ({
                 extractPlainTextFromDelta(line.content)
               ).join('\n');
               
-              if (combinedContent !== content) {
+              if (typeof content === 'string' && combinedContent !== content) {
                 console.log('📙 useDraftLoader: Updating editor with plain text fallback');
                 updateEditorContent(combinedContent);
               }
@@ -67,7 +68,7 @@ export const useDraftLoader = ({
                 extractPlainTextFromDelta(line.content);
             }).join('\n');
             
-            if (combinedContent !== content) {
+            if (typeof content === 'string' && combinedContent !== content) {
               console.log('📙 useDraftLoader: Updating editor content from loaded drafts');
               updateEditorContent(combinedContent);
             } else {

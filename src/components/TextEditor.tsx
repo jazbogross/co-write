@@ -12,6 +12,8 @@ import { TextEditorActions } from './editor/TextEditorActions';
 import { TextEditorContent } from './editor/TextEditorContent';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule } from './editor/LineTracker';
+import { DeltaContent } from '@/utils/editor/types';
+import { extractPlainTextFromDelta } from '@/utils/editor/content/textExtraction';
 
 // Register the LineTrackingModule with Quill
 ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
@@ -29,7 +31,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   scriptId,
   onSuggestChange,
 }) => {
-  console.log('📋 TextEditor: Initializing with scriptId:', scriptId);
+  console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin);
   
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
@@ -37,7 +39,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   // Get user data
   const { userId } = useUserData();
 
-  // Initialize line data
+  // Initialize line data - pass isAdmin flag
   const { 
     lineData, 
     setLineData,
@@ -45,7 +47,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     loadDraftsForCurrentUser, 
     isDataReady,
     initializeEditor 
-  } = useLineData(scriptId, "", userId);
+  } = useLineData(scriptId, "", userId, isAdmin);
 
   // Initialize text editor
   const { 
@@ -104,7 +106,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     isAdmin,
     scriptId,
     "",
-    content,
+    content, // This can be DeltaContent or string
     lineData,
     userId,
     onSuggestChange,
@@ -131,6 +133,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     return <div className="flex items-center justify-center p-8">Loading editor data...</div>;
   }
 
+  // Convert content to string for TextEditorContent
+  const contentString = typeof content === 'string' 
+    ? content 
+    : extractPlainTextFromDelta(content as DeltaContent);
+
   console.log('📋 TextEditor: Rendering editor with ready data');
   return (
     <>
@@ -143,7 +150,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       />
       
       <TextEditorContent
-        content={content}
+        content={contentString}
         lineCount={lineCount}
         quillRef={quillRef}
         modules={modules}
