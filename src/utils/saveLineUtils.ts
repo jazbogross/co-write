@@ -1,12 +1,12 @@
 
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
-import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+import { DeltaContent, extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 export const saveLinesToDatabase = async (
   scriptId: string,
   lineData: LineData[],
-  content: string // Kept for compatibility but not used for updating scripts.content anymore
+  content: string | DeltaContent // Kept for compatibility but not used for updating scripts.content anymore
 ) => {
   try {
     console.log('Saving lines to database and clearing drafts');

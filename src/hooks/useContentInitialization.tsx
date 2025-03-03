@@ -56,7 +56,7 @@ export const useContentInitialization = (
         
         let previewText: string;
         if (typeof reconstructedContent === 'string') {
-          previewText = reconstructedContent.substring(0, 100) + '...';
+          previewText = (reconstructedContent as string).substring(0, 100) + '...';
         } else if (reconstructedContent) {
           const contentStr = JSON.stringify(reconstructedContent);
           previewText = contentStr ? contentStr.substring(0, 100) + '...' : '[empty content]';

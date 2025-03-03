@@ -8,11 +8,12 @@ import {
   safelyParseDelta,
   extractPlainTextFromDelta 
 } from '@/utils/editor';
+import { DeltaContent } from '@/utils/editor/types';
 
 export const saveDraft = async (
   scriptId: string, 
   lineData: LineData[], 
-  content: string, 
+  content: string | DeltaContent, 
   userId: string | null,
   quill: any = null
 ) => {

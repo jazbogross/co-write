@@ -5,15 +5,16 @@ import { saveDraft } from '@/utils/saveDraftUtils';
 import { saveLinesToDatabase } from '@/utils/saveLineUtils';
 import { saveSuggestions, saveLineDrafts } from '@/utils/saveSuggestionUtils';
 import { toast } from 'sonner';
+import { DeltaContent } from '@/utils/editor/types';
 
 export const useSubmitEdits = (
   isAdmin: boolean,
   scriptId: string,
   originalContent: string, // Kept for backward compatibility but not used
-  content: string,
+  content: string | DeltaContent,
   lineData: LineData[],
   userId: string | null,
-  onSuggestChange: (suggestion: string) => void,
+  onSuggestChange: (suggestion: string | DeltaContent) => void,
   loadDrafts: () => Promise<void>,
   quill: any = null
 ) => {

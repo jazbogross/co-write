@@ -40,17 +40,17 @@ export const useLineDataInit = (
           console.log('📊 useLineDataInit: Data fetched successfully. Lines count:', allLines.length);
           
           // Log first few lines from database
-          allLines.slice(0, 3).forEach((line, i) => {
-            console.log(`📊 DB Line ${i+1}:`, {
-              id: line.id,
-              line_number: line.line_number,
-              line_number_draft: isAdmin ? line.line_number_draft : undefined,
-              has_draft: isAdmin ? (line.draft !== null) : undefined,
-              content_preview: typeof line.content === 'string' 
-                ? line.content.substring(0, 30) 
-                : JSON.stringify(line.content).substring(0, 30)
-            });
-          });
+          // allLines.slice(0, 3).forEach((line, i) => {
+          //   console.log(`📊 DB Line ${i+1}:`, {
+          //     id: line.id,
+          //     line_number: line.line_number,
+          //     line_number_draft: isAdmin ? line.line_number_draft : undefined,
+          //     has_draft: isAdmin ? (line.draft !== null) : undefined,
+          //     content_preview: typeof line.content === 'string' 
+          //       ? line.content.substring(0, 30) 
+          //       : JSON.stringify(line.content).substring(0, 30)
+          //   });
+          // });
           
           // Process the line data, passing the isAdmin flag
           const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin);
