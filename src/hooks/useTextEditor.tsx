@@ -25,7 +25,10 @@ export const useTextEditor = (
       console.log('**** useTextEditor.tsx **** Setting initial content');
       
       // Combine line data content instead of using originalContent directly
-      const combinedContent = lineData.map(line => line.content).join('\n');
+      const combinedContent = lineData.map(line => {
+        // Ensure we're using plain text, not Delta objects
+        return line.content;
+      }).join('\n');
       
       // Only update if we have a valid string that's different
       if (combinedContent && combinedContent !== content) {

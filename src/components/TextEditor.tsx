@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -126,10 +125,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       const editor = quillRef.current?.getEditor();
       if (editor) {
         // Combine all line content as plain text
-        const combinedContent = lineData.map(line => {
-          // Ensure we have plain text content, not Delta objects
-          return line.content;
-        }).join('\n');
+        const combinedContent = lineData.map(line => line.content).join('\n');
         
         // Only update if content is different
         if (combinedContent !== content) {
