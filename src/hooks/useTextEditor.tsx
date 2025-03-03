@@ -35,7 +35,7 @@ export const useTextEditor = (
             console.log(`**** useTextEditor.tsx **** Extracted plain text from Delta for line ${line.lineNumber}`);
             return plainText;
           }
-          return line.content;
+          return typeof line.content === 'string' ? line.content : String(line.content);
         }).join('\n');
         
         // Only update if we have a valid string that's different
@@ -149,7 +149,10 @@ export const useTextEditor = (
             console.log('**** useTextEditor.tsx **** Set editor contents from Delta object');
           } else {
             // If Delta parsing failed, insert as text
-            editor.insertText(0, typeof newContent === 'string' ? newContent : JSON.stringify(newContent));
+            const textContent = typeof newContent === 'string' 
+              ? newContent 
+              : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
+            editor.insertText(0, textContent);
           }
         } else {
           // If content has multiple lines, split and insert line by line to ensure proper structure
@@ -170,7 +173,12 @@ export const useTextEditor = (
         }
         
         // Update React state to stay in sync
-        setContent(newContent);
+        if (typeof newContent === 'string') {
+          setContent(newContent);
+        } else {
+          // For Delta objects, set the plain text version in state
+          setContent(extractPlainTextFromDelta(newContent) || '');
+        }
         
         // Update line count
         const lines = editor.getLines(0);
@@ -178,11 +186,10 @@ export const useTextEditor = (
       } catch (error) {
         console.error('**** useTextEditor.tsx **** Error updating editor content:', error);
         // Fallback to plain text insertion
-        if (typeof newContent === 'string') {
-          editor.insertText(0, newContent);
-        } else {
-          editor.insertText(0, JSON.stringify(newContent));
-        }
+        const textContent = typeof newContent === 'string' 
+          ? newContent 
+          : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
+        editor.insertText(0, textContent);
       } finally {
         isProcessingLinesRef.current = false;
       }

@@ -1,15 +1,16 @@
-
 import { useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { 
   handleEnterAtZeroOperation,
   matchNonEmptyLines,
-  matchWithPositionFallback
+  matchWithPositionFallback,
+  isContentEmpty
 } from '@/utils/lineMatchingStrategies';
+import { isDeltaObject } from '@/utils/editorUtils';
 
 export const useLineMatching = (userId: string | null) => {
   const matchAndAssignLines = useCallback((
-    newContents: string[],
+    newContents: any[],
     prevData: LineData[],
     contentToUuidMap: Map<string, string>,
     domUuidMap: Map<number, string>,
@@ -80,7 +81,7 @@ export const useLineMatching = (userId: string | null) => {
       if (newData[i]) continue;
       
       const content = newContents[i];
-      const isEmpty = !content || !content.trim();
+      const isEmpty = isContentEmpty(content);
       
       // Skip empty lines in this pass
       if (isEmpty) continue;
@@ -130,7 +131,7 @@ export const useLineMatching = (userId: string | null) => {
       if (newData[i]) continue;
       
       const content = newContents[i];
-      const isEmpty = !content || !content.trim();
+      const isEmpty = isContentEmpty(content);
       
       // For unmatched lines, try more aggressive matching strategies
       const { match, stats: lineStats } = matchWithPositionFallback(

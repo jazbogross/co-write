@@ -1,4 +1,4 @@
-export const extractLineContents = (lines: any[], quill: any): string[] => {
+export const extractLineContents = (lines: any[], quill: any): any[] => {
   return lines.map(line => {
     if (!line.domNode) return '';
     
@@ -68,7 +68,6 @@ export const reconstructContent = (lineData: Array<{ content: string | any }>): 
   }
 };
 
-// Extract plain text from a Delta object or string, handling nested Deltas properly
 export const extractPlainTextFromDelta = (content: string | any | null): string => {
   if (!content) return '';
   
@@ -105,7 +104,6 @@ export const extractPlainTextFromDelta = (content: string | any | null): string 
   }
 };
 
-// Helper function to extract text from Delta ops
 function extractTextFromDeltaOps(ops: any[]): string {
   if (!Array.isArray(ops)) return '';
   
@@ -126,7 +124,6 @@ function extractTextFromDeltaOps(ops: any[]): string {
   return result;
 }
 
-// Preserve formatted content from Quill, ensuring we don't double-wrap Delta objects
 export const preserveFormattedContent = (content: string | any, quill: any): any => {
   if (!quill) return content;
   
@@ -144,7 +141,6 @@ export const preserveFormattedContent = (content: string | any, quill: any): any
   return content;
 };
 
-// Debug utility to log delta content structure
 export const logDeltaStructure = (content: string | any | null): void => {
   if (!content) {
     console.log("Delta content is null or empty");
@@ -155,7 +151,7 @@ export const logDeltaStructure = (content: string | any | null): void => {
     let delta = null;
     
     // Handle different input types
-    if (typeof content === 'object' && content.ops) {
+    if (typeof content === 'object' && content?.ops) {
       delta = content;
     } else if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
       delta = JSON.parse(content);
@@ -176,7 +172,6 @@ export const logDeltaStructure = (content: string | any | null): void => {
   }
 };
 
-// Check if content is a Delta object
 export const isDeltaObject = (content: string | any | null): boolean => {
   if (!content) return false;
   
@@ -198,7 +193,6 @@ export const isDeltaObject = (content: string | any | null): boolean => {
   return false;
 };
 
-// Safely parse a Delta object, handling double-wrapped Delta objects
 export const safelyParseDelta = (content: string | any | null): any => {
   if (!content) return null;
   
