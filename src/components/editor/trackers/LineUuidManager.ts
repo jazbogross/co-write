@@ -3,7 +3,7 @@
  * LineUuidManager.ts - Handles setting and getting UUIDs for lines
  */
 
-import { LinePositionTypes } from './index';
+import { LineUuidMap } from './LinePositionTypes';
 
 export class LineUuidManager {
   private lineUuids: Map<number, string> = new Map();

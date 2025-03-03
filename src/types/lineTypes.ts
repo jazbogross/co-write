@@ -24,6 +24,7 @@ declare module 'quill' {
       getDomUuidMap: () => Map<number, string>;
       getLastOperation: () => { type: string, lineIndex: number, movedContent?: string } | null;
       getChangeHistory: (uuid: string) => { content: string, timestamp: number }[];
+      refreshLineUuids: (lineData: any[]) => void; // Add the missing refreshLineUuids method to the type definition
     };
   }
 }

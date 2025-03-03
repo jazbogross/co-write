@@ -199,7 +199,7 @@ export class LineTracker {
     return this.changeHistory.getChangeHistory(uuid);
   }
   
-  // Refresh UUIDs from lineData
+  // Refresh UUIDs from lineData - ensure this is fully implemented
   public refreshLineUuids(lineData: any[]) {
     console.log('🔍 LineTracker refreshing UUIDs from lineData');
     if (this.linePosition && typeof this.linePosition.refreshLineUuids === 'function') {
