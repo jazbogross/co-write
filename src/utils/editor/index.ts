@@ -6,3 +6,4 @@ export * from './deltaUtils';
 export * from './contentUtils';
 export * from './editorUtils';
 export * from './reconstructUtils';
+export * from './types';

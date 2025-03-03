@@ -1,121 +1,119 @@
 
 /**
- * Utilities for reconstructing content from line data
+ * Utilities for reconstructing Delta content from LineData
  */
-import { isDeltaObject } from './deltaUtils';
-import { extractPlainTextFromDelta } from './contentUtils';
+import { LineData } from '@/types/lineTypes';
+import { DeltaContent, DeltaOp } from './types';
+import { 
+  validateDelta, 
+  safelyParseDelta, 
+  combineDeltaContents,
+  createEmptyDelta,
+  logDeltaStructure
+} from './deltaUtils';
 
 /**
- * Reconstructs content from line data, preserving formatting
+ * Reconstructs a combined Delta object from an array of LineData
  */
-export const reconstructContent = (lineData: Array<{ content: string | any }>): any => {
+export const reconstructContent = (lineData: LineData[]): DeltaContent => {
+  console.log('🔹 reconstructContent: Processing', lineData.length, 'lines');
+  
+  if (!lineData || lineData.length === 0) {
+    console.log('🔹 reconstructContent: No line data, returning empty Delta');
+    return createEmptyDelta();
+  }
+  
   try {
-    // Check if we have any Delta content to preserve
-    const hasFormattedContent = lineData.some(line => 
-      isDeltaObject(line.content)
-    );
-    
-    // If no formatted content, just return plain text
-    if (!hasFormattedContent) {
-      return lineData.map(line => 
-        typeof line.content === 'string' ? line.content : String(line.content)
-      ).join('\n');
-    }
-    
-    // Build combined ops from all lines
-    const ops: any[] = [];
-    
-    lineData.forEach((line, index) => {
-      if (!line.content) return;
+    // Extract and validate content from each line
+    const deltaContents: any[] = lineData.map((line, index) => {
+      console.log(`🔹 reconstructContent: Processing line ${index + 1}, content type:`, typeof line.content);
       
-      try {
-        // If content is a Delta object, add its ops
-        if (typeof line.content === 'object' && line.content.ops) {
-          const lineOps = [...line.content.ops];
-          
-          // Process the ops to ensure they have proper line breaks
-          const lastOp = lineOps[lineOps.length - 1];
-          const hasTrailingNewline = 
-            lastOp && 
-            typeof lastOp.insert === 'string' && 
-            lastOp.insert.endsWith('\n');
-          
-          // Add all ops
-          ops.push(...lineOps);
-          
-          // Add a newline if needed and this isn't the last line
-          if (!hasTrailingNewline && index < lineData.length - 1) {
-            ops.push({ insert: '\n' });
-          }
-        }
-        // If content is a stringified Delta, parse and add its ops
-        else if (typeof line.content === 'string' && 
-                line.content.startsWith('{') && 
-                line.content.includes('ops')) {
-          try {
-            const delta = JSON.parse(line.content);
-            if (delta && delta.ops) {
-              const lineOps = [...delta.ops];
-              
-              // Process the ops to ensure they have proper line breaks
-              const lastOp = lineOps[lineOps.length - 1];
-              const hasTrailingNewline = 
-                lastOp && 
-                typeof lastOp.insert === 'string' && 
-                lastOp.insert.endsWith('\n');
-              
-              // Add all ops
-              ops.push(...lineOps);
-              
-              // Add a newline if needed and this isn't the last line
-              if (!hasTrailingNewline && index < lineData.length - 1) {
-                ops.push({ insert: '\n' });
-              }
-            }
-          } catch (e) {
-            // If parsing fails, add as plain text
-            ops.push({ insert: line.content });
-            if (index < lineData.length - 1) {
-              ops.push({ insert: '\n' });
-            }
-          }
-        }
-        // Otherwise, add as plain text
-        else {
-          const content = typeof line.content === 'string' ? line.content : String(line.content);
-          ops.push({ insert: content });
-          if (index < lineData.length - 1 && !content.endsWith('\n')) {
-            ops.push({ insert: '\n' });
-          }
-        }
-      } catch (e) {
-        // Fallback: add as plain text
-        const content = typeof line.content === 'string' ? line.content : String(line.content);
-        ops.push({ insert: content });
-        if (index < lineData.length - 1 && !content.endsWith('\n')) {
-          ops.push({ insert: '\n' });
+      const validation = validateDelta(line.content);
+      
+      if (validation.valid && validation.parsed) {
+        console.log(`🔹 reconstructContent: Line ${index + 1} is a valid Delta with ${validation.parsed.ops.length} ops`);
+        return validation.parsed;
+      } else {
+        console.log(`🔹 reconstructContent: Line ${index + 1} is not a valid Delta:`, validation.reason);
+        
+        // If it's a string, ensure it ends with a newline
+        if (typeof line.content === 'string') {
+          const content = line.content.endsWith('\n') ? line.content : line.content + '\n';
+          console.log(`🔹 reconstructContent: Created simple Delta for line ${index + 1}`);
+          return { ops: [{ insert: content }] };
+        } else {
+          // Default empty line with newline
+          console.log(`🔹 reconstructContent: Created empty Delta for line ${index + 1}`);
+          return { ops: [{ insert: '\n' }] };
         }
       }
     });
     
-    // Clean up the ops to remove any empty strings or duplicate newlines
-    const cleanedOps = ops.filter(op => {
-      if (typeof op.insert === 'string' && op.insert === '') return false;
-      return true;
-    });
+    // Combine all Delta contents
+    const combined = combineDeltaContents(deltaContents);
     
-    // Ensure there's at least one op
-    if (cleanedOps.length === 0) {
-      cleanedOps.push({ insert: '\n' });
+    if (combined) {
+      console.log('🔹 reconstructContent: Successfully combined all lines into Delta with', combined.ops.length, 'ops');
+      logDeltaStructure(combined);
+      return combined;
+    } else {
+      console.log('🔹 reconstructContent: Failed to combine lines, returning empty Delta');
+      return createEmptyDelta();
+    }
+  } catch (e) {
+    console.error('🔹 reconstructContent: Error reconstructing content:', e);
+    return createEmptyDelta();
+  }
+};
+
+/**
+ * Ensures a Delta has the correct structure with newlines
+ */
+export const normalizeDelta = (content: any): DeltaContent => {
+  console.log('🔹 normalizeDelta: Normalizing content of type', typeof content);
+  
+  const validation = validateDelta(content);
+  
+  if (validation.valid && validation.parsed) {
+    console.log('🔹 normalizeDelta: Content is valid Delta, ensuring newlines');
+    
+    const ops = [...validation.parsed.ops];
+    
+    // Ensure the last insert ends with a newline
+    if (ops.length > 0) {
+      const lastOp = ops[ops.length - 1];
+      if (typeof lastOp.insert === 'string' && !lastOp.insert.endsWith('\n')) {
+        ops.push({ insert: '\n' });
+        console.log('🔹 normalizeDelta: Added trailing newline');
+      }
+    } else {
+      // Empty Delta, add a newline
+      ops.push({ insert: '\n' });
+      console.log('🔹 normalizeDelta: Added newline to empty Delta');
     }
     
-    // Return a proper Delta object
-    return { ops: cleanedOps };
-  } catch (error) {
-    console.error('Error reconstructing content:', error);
-    // Fallback to joining strings
-    return lineData.map(line => 
-      typeof line.content === 'string' ? line.content : extractPlainTextFromDelta(line.content)
-    ).join('\n');
+    console.log('🔹 normalizeDelta: Normalized Delta has', ops.length, 'ops');
+    return { ops };
   }
+  
+  // Not a valid Delta, create a simple one
+  console.log('🔹 normalizeDelta: Not a valid Delta, creating simple Delta');
+  const text = typeof content === 'string' ? content : String(content);
+  const normalizedText = text.endsWith('\n') ? text : text + '\n';
+  
+  return { ops: [{ insert: normalizedText }] };
+};
+
+/**
+ * Creates a Delta from a plain text string
+ */
+export const createDeltaFromText = (text: string): DeltaContent => {
+  console.log('🔹 createDeltaFromText: Creating Delta from text of length', text?.length || 0);
+  
+  if (!text) {
+    return createEmptyDelta();
+  }
+  
+  const normalizedText = text.endsWith('\n') ? text : text + '\n';
+  return { ops: [{ insert: normalizedText }] };
 };
