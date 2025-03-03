@@ -27,69 +27,83 @@ export const useLineMatching = (userId: string | null) => {
       console.log(`**** useLineMatching **** Found Enter-at-position-0 operation at line ${enterAtZeroOperation.lineIndex + 1}`);
     }
     
-    // First pass: match all non-empty lines to preserve content UUIDs
-    for (let i = 0; i < newContents.length; i++) {
-      const content = newContents[i];
-      const wasEmpty = i < prevData.length && (!prevData[i].content || !prevData[i].content.trim());
-      const isEmpty = !content || !content.trim();
+    // Special handling for Enter at position 0
+    // This must run BEFORE any other matching to ensure proper UUID assignment
+    if (enterAtZeroOperation) {
+      const emptyLineIndex = enterAtZeroOperation.lineIndex;
+      const contentLineIndex = emptyLineIndex + 1;
       
-      // Special handling for Enter at position 0 case
-      if (enterAtZeroOperation) {
-        const emptyLineIndex = enterAtZeroOperation.lineIndex;
-        const contentLineIndex = emptyLineIndex + 1;
+      // Only proceed if both lines exist in the new content
+      if (emptyLineIndex < newContents.length && contentLineIndex < newContents.length) {
+        const emptyLineContent = newContents[emptyLineIndex];
+        const movedContent = newContents[contentLineIndex];
+        const isEmpty = !emptyLineContent || !emptyLineContent.trim();
         
-        // If this is the newly inserted empty line
-        if (i === emptyLineIndex && isEmpty) {
-          // Generate new UUID for the empty line
-          const newUuid = crypto.randomUUID();
-          newData[i] = {
-            uuid: newUuid,
-            lineNumber: i + 1,
-            content,
+        // Verify this is actually our operation by checking content patterns
+        if (isEmpty && movedContent === enterAtZeroOperation.movedContent) {
+          console.log(`**** useLineMatching **** Processing Enter-at-position-0 operation`);
+          console.log(`**** useLineMatching **** Empty line at ${emptyLineIndex + 1}, moved content at ${contentLineIndex + 1}`);
+          
+          // 1. Generate new UUID for the empty line (emptyLineIndex)
+          const emptyLineUuid = crypto.randomUUID();
+          newData[emptyLineIndex] = {
+            uuid: emptyLineUuid,
+            lineNumber: emptyLineIndex + 1,
+            content: emptyLineContent,
             originalAuthor: userId,
             editedBy: []
           };
           
           if (quill?.lineTracking) {
-            quill.lineTracking.setLineUuid(i + 1, newUuid);
+            quill.lineTracking.setLineUuid(emptyLineIndex + 1, emptyLineUuid);
           }
           
+          // Mark this index as used
+          usedIndices.add(emptyLineIndex);
           stats.regenerated++;
-          continue;
-        }
-        
-        // If this is the moved content line that was at position 0
-        if (i === contentLineIndex && content === enterAtZeroOperation.movedContent) {
-          // Find the original UUID from the previous data at the operation's line index
+          stats.matchStrategy['enter-new-line'] = (stats.matchStrategy['enter-new-line'] || 0) + 1;
+          
+          // 2. Preserve UUID for the moved content line (contentLineIndex)
+          // Find the line in previous data that matches the moved content
           if (enterAtZeroOperation.lineIndex < prevData.length) {
             const originalLine = prevData[enterAtZeroOperation.lineIndex];
-            usedIndices.add(enterAtZeroOperation.lineIndex);
             
-            stats.preserved++;
-            stats.matchStrategy['enter-moved-content'] = 
-              (stats.matchStrategy['enter-moved-content'] || 0) + 1;
-            
-            newData[i] = {
+            newData[contentLineIndex] = {
               ...originalLine,
-              lineNumber: i + 1,
-              content,
-              editedBy: content !== originalLine.content && userId && 
-                       !originalLine.editedBy.includes(userId)
+              lineNumber: contentLineIndex + 1,
+              content: movedContent,
+              editedBy: movedContent !== originalLine.content && userId && 
+                      !originalLine.editedBy.includes(userId)
                 ? [...originalLine.editedBy, userId]
                 : originalLine.editedBy
             };
             
             // Update mapping
-            contentToUuidMap.set(content, originalLine.uuid);
+            contentToUuidMap.set(movedContent, originalLine.uuid);
             
             if (quill?.lineTracking) {
-              quill.lineTracking.setLineUuid(i + 1, originalLine.uuid);
+              quill.lineTracking.setLineUuid(contentLineIndex + 1, originalLine.uuid);
             }
             
-            continue;
+            // Mark this index as used
+            usedIndices.add(enterAtZeroOperation.lineIndex);
+            stats.preserved++;
+            stats.matchStrategy['enter-moved-content'] = 
+              (stats.matchStrategy['enter-moved-content'] || 0) + 1;
+            
+            console.log(`**** useLineMatching **** Enter-at-position-0 handled: new empty line UUID=${emptyLineUuid}, moved content UUID=${originalLine.uuid}`);
           }
         }
       }
+    }
+    
+    // First pass: match all non-empty lines to preserve content UUIDs
+    for (let i = 0; i < newContents.length; i++) {
+      // Skip lines already handled by special cases
+      if (newData[i]) continue;
+      
+      const content = newContents[i];
+      const isEmpty = !content || !content.trim();
       
       // Skip empty lines in first pass
       if (isEmpty) {
