@@ -66,4 +66,3 @@ export const safeIncludes = (content: any, substring: string): boolean => {
 export const safeTrim = (content: any): string => {
   return getPlainTextContent(content).trim();
 };
-
