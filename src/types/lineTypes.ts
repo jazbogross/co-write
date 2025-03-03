@@ -5,6 +5,7 @@ export interface LineData {
   content: string;
   originalAuthor: string | null;
   editedBy: string[];
-  draft?: string | null;
-  lineNumberDraft?: number | null;
+  hasDraft?: boolean;
+  originalContent?: string;
+  originalLineNumber?: number;
 }

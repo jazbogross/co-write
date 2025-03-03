@@ -42,16 +42,15 @@ export const saveDraft = async (
         const updates: { draft?: string; line_number_draft?: number } = {};
         let needsUpdate = false;
         
-        // Only update draft if content changed
-        if (line.content !== existingLine.content && line.content !== existingLine.draft) {
+        // Check if content has changed compared to the original
+        if (line.content !== existingLine.content) {
           updates.draft = line.content;
           needsUpdate = true;
-          console.log(`Updating draft content for line ${line.uuid}: content changed`);
+          console.log(`Updating draft content for line ${line.uuid}`);
         }
         
-        // Only update line_number_draft if position changed
-        if (line.lineNumber !== existingLine.line_number && 
-            line.lineNumber !== existingLine.line_number_draft) {
+        // Check if line number has changed compared to the original
+        if (line.lineNumber !== existingLine.line_number) {
           updates.line_number_draft = line.lineNumber;
           needsUpdate = true;
           console.log(`Updating draft position for line ${line.uuid}: ${existingLine.line_number} -> ${line.lineNumber}`);
@@ -82,7 +81,7 @@ export const saveDraft = async (
             script_id: scriptId,
             line_number: 0,  // Minimal placeholder to satisfy not-null constraint
             line_number_draft: line.lineNumber,
-            content: '',     // Empty content for unpublished lines
+            content: line.originalContent || '',  // Use originalContent if available
             draft: line.content,
             original_author: userId,
             edited_by: userId ? [userId] : []
