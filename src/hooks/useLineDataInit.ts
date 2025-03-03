@@ -44,8 +44,8 @@ export const useLineDataInit = (
             console.log(`📊 DB Line ${i+1}:`, {
               id: line.id,
               line_number: line.line_number,
-              line_number_draft: line.line_number_draft,
-              has_draft: line.draft !== null,
+              line_number_draft: isAdmin ? line.line_number_draft : undefined,
+              has_draft: isAdmin ? (line.draft !== null) : undefined,
               content_preview: typeof line.content === 'string' 
                 ? line.content.substring(0, 30) 
                 : JSON.stringify(line.content).substring(0, 30)
