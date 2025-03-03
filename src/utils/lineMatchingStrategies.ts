@@ -1,6 +1,8 @@
 import { LineData } from '@/types/lineTypes';
 import { v4 as uuidv4 } from 'uuid';
-import { isDeltaObject, extractPlainTextFromDelta, isContentEmpty } from '@/utils/editor';
+import { isDeltaObject, extractPlainTextFromDelta, isContentEmpty as editorIsContentEmpty } from '@/utils/editor';
+
+export const isContentEmpty = editorIsContentEmpty;
 
 export const handleEnterAtZeroOperation = (
   emptyLineIndex: number,
