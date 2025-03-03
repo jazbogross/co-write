@@ -1,7 +1,6 @@
-
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
-import { preserveFormattedContent, isDeltaObject, logDeltaStructure } from '@/utils/editorUtils';
+import { preserveFormattedContent, isDeltaObject, logDeltaStructure, safelyParseDelta } from '@/utils/editorUtils';
 
 export const saveDraft = async (
   scriptId: string, 
@@ -41,7 +40,21 @@ export const saveDraft = async (
     // Process all current lines from the editor (source of truth)
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
-      const lineContent = quill ? preserveFormattedContent(line.content, quill) : line.content;
+      
+      // Get formatted content from quill if available, otherwise use plain text
+      let lineContent;
+      if (quill) {
+        // If the line content is already a Delta object, don't rewrap it
+        if (isDeltaObject(line.content)) {
+          lineContent = line.content;
+          console.log(`Line ${line.lineNumber} content is already a Delta, using as is`);
+        } else {
+          // Otherwise get the formatted content from Quill
+          lineContent = preserveFormattedContent(line.content, quill);
+        }
+      } else {
+        lineContent = line.content;
+      }
       
       // Debug log formatted content
       if (quill && isDeltaObject(lineContent)) {

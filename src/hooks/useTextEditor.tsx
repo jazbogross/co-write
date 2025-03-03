@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/hooks/useLineData';
 import ReactQuill from 'react-quill';
-import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editorUtils';
+import { extractPlainTextFromDelta, isDeltaObject, safelyParseDelta } from '@/utils/editorUtils';
 
 export const useTextEditor = (
   originalContent: string, 
@@ -24,9 +24,14 @@ export const useTextEditor = (
     if (lineData.length > 0 && !isContentInitialized) {
       console.log('**** useTextEditor.tsx **** Setting initial content');
       
-      // Combine line data content instead of using originalContent directly
+      // Combine line data content, ensuring we extract plain text from any Delta objects
       const combinedContent = lineData.map(line => {
-        // Ensure we're using plain text, not Delta objects
+        // If the content is a Delta object, extract the plain text
+        if (isDeltaObject(line.content)) {
+          const plainText = extractPlainTextFromDelta(line.content);
+          console.log(`**** useTextEditor.tsx **** Extracted plain text from Delta for line ${line.lineNumber}`);
+          return plainText;
+        }
         return line.content;
       }).join('\n');
       
@@ -116,12 +121,32 @@ export const useTextEditor = (
     
     const editor = quillRef.current?.getEditor();
     if (editor) {
+      console.log('**** useTextEditor.tsx **** Updating editor content programmatically');
+      
       // Clear the editor first
       editor.deleteText(0, editor.getLength());
       
-      // Insert the new content
-      editor.insertText(0, newContent);
-      console.log('**** useTextEditor.tsx **** Editor content updated programmatically');
+      try {
+        // Check if the content is a Delta object
+        if (isDeltaObject(newContent)) {
+          // If it's a Delta, parse it and set it directly
+          const delta = safelyParseDelta(newContent);
+          if (delta) {
+            editor.setContents(delta);
+            console.log('**** useTextEditor.tsx **** Set editor contents from Delta object');
+          } else {
+            // If Delta parsing failed, insert as text
+            editor.insertText(0, newContent);
+          }
+        } else {
+          // Insert the new content as plain text
+          editor.insertText(0, newContent);
+        }
+      } catch (error) {
+        console.error('**** useTextEditor.tsx **** Error updating editor content:', error);
+        // Fallback to plain text insertion
+        editor.insertText(0, newContent);
+      }
       
       // Update React state to stay in sync
       setContent(newContent);

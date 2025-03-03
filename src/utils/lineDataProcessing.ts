@@ -1,5 +1,6 @@
+
 import { LineData } from '@/types/lineTypes';
-import { isDeltaObject, extractPlainTextFromDelta, logDeltaStructure } from '@/utils/editorUtils';
+import { isDeltaObject, extractPlainTextFromDelta, logDeltaStructure, safelyParseDelta } from '@/utils/editorUtils';
 
 /**
  * Processes raw lines data from the database into structured LineData objects
@@ -35,11 +36,11 @@ export const processLinesData = (
     if (useDraftContent) {
       // If we have draft content, use it (parse delta if needed)
       if (isDeltaObject(line.draft)) {
+        // Handle Delta objects by extracting plain text
         finalContent = extractPlainTextFromDelta(line.draft);
-        console.log(`Line ${effectiveLineNumber} draft content is a Delta:`, finalContent);
+        console.log(`Line ${effectiveLineNumber} draft content extracted:`, finalContent.substring(0, 50));
       } else {
         finalContent = line.draft || '';
-        console.log(`Line ${effectiveLineNumber} draft content is plain text:`, finalContent);
       }
     }
     
@@ -123,10 +124,13 @@ export const processDraftLines = (
     let finalContent = line.content;
     
     if (useDraftContent) {
+      // Check if draft content is a Delta object
       if (isDeltaObject(line.draft)) {
+        // Using the improved extractor to handle nested Deltas
         finalContent = extractPlainTextFromDelta(line.draft);
-        console.log(`Line ${effectiveLineNumber} draft content after extraction:`, finalContent);
+        console.log(`Line ${effectiveLineNumber} draft Delta extracted to:`, finalContent.substring(0, 50));
       } else {
+        // Use plain text draft content
         finalContent = line.draft || '';
       }
     }

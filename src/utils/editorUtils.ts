@@ -1,4 +1,3 @@
-
 export const extractLineContents = (lines: any[], quill: any): string[] => {
   return lines.map(line => {
     if (!line.domNode) return '';
@@ -47,42 +46,68 @@ export const reconstructContent = (lineData: Array<{ content: string }>): string
   }
 };
 
-// Extract plain text from a Delta object or string
+// Extract plain text from a Delta object or string, handling nested Deltas properly
 export const extractPlainTextFromDelta = (content: string | null): string => {
   if (!content) return '';
   
   try {
-    // If it's already a Delta object (JSON string)
-    if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
-      const delta = JSON.parse(content);
-      
-      // Extract text from ops array
-      if (delta.ops && Array.isArray(delta.ops)) {
-        return delta.ops.reduce((text, op) => {
-          if (typeof op.insert === 'string') {
-            // Handle nested Delta objects (a Delta inside a Delta)
-            if (op.insert.startsWith('{') && op.insert.includes('ops')) {
-              return text + extractPlainTextFromDelta(op.insert);
-            }
-            return text + op.insert;
-          }
-          return text;
-        }, '');
+    // If the content is already plain text (not a Delta), return it directly
+    if (typeof content === 'string' && 
+        (!content.startsWith('{') || !content.includes('ops'))) {
+      return content;
+    }
+    
+    // Parse if it's a JSON string
+    let delta = content;
+    if (typeof content === 'string') {
+      try {
+        delta = JSON.parse(content);
+      } catch (e) {
+        // If it can't be parsed as JSON, it's likely already plain text
+        return content;
       }
     }
     
-    // If it's not a Delta object, return as is
-    return content;
+    // Process Delta object to extract text
+    if (delta && typeof delta === 'object' && 'ops' in delta && Array.isArray(delta.ops)) {
+      return delta.ops.reduce((text, op) => {
+        if (typeof op.insert === 'string') {
+          // Check if the insert itself is a nested Delta JSON string
+          if (op.insert.startsWith('{') && op.insert.includes('ops')) {
+            try {
+              // Recursively extract text from nested Delta
+              return text + extractPlainTextFromDelta(op.insert);
+            } catch (e) {
+              // If recursive extraction fails, use the original string
+              return text + op.insert;
+            }
+          }
+          return text + op.insert;
+        } else if (op.insert && typeof op.insert === 'object') {
+          // Handle embeds or other non-string inserts
+          return text + ' ';
+        }
+        return text;
+      }, '');
+    }
+    
+    // If we couldn't parse it as a Delta object, return the original content
+    return typeof content === 'string' ? content : JSON.stringify(content);
   } catch (e) {
-    // If parsing fails, return the original content
     console.error('Error extracting plain text from delta:', e);
     return typeof content === 'string' ? content : JSON.stringify(content);
   }
 };
 
-// Preserve formatted content from Quill
+// Preserve formatted content from Quill, ensuring we don't double-wrap Delta objects
 export const preserveFormattedContent = (content: string, quill: any): string => {
   if (!quill) return content;
+  
+  // Check if content is already a Delta object
+  if (isDeltaObject(content)) {
+    console.log('Content is already a Delta object, not rewrapping');
+    return content;
+  }
   
   // If we already have a Quill editor with content, get its contents as Delta
   if (quill.getLength() > 1) { // > 1 because empty editor has length 1 (newline)
@@ -130,4 +155,47 @@ export const isDeltaObject = (content: string | null): boolean => {
   }
   
   return false;
+};
+
+// Safely parse a Delta object, handling double-wrapped Delta objects
+export const safelyParseDelta = (content: string | null): any => {
+  if (!content) return null;
+  
+  try {
+    // First, check if it's a Delta object
+    if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
+      const delta = JSON.parse(content);
+      
+      // Check if this is a valid Delta object
+      if (delta.ops && Array.isArray(delta.ops)) {
+        // Check for double-wrapped Deltas (Delta objects in insert properties)
+        let hasNestedDeltas = false;
+        const normalizedOps = delta.ops.map(op => {
+          if (typeof op.insert === 'string' && op.insert.startsWith('{') && op.insert.includes('ops')) {
+            hasNestedDeltas = true;
+            try {
+              // Try to extract the actual content from the nested Delta
+              const nestedContent = extractPlainTextFromDelta(op.insert);
+              return { ...op, insert: nestedContent };
+            } catch (e) {
+              return op; // Keep original if extraction fails
+            }
+          }
+          return op;
+        });
+        
+        if (hasNestedDeltas) {
+          console.log('Normalized nested Deltas in content');
+          return { ops: normalizedOps };
+        }
+        
+        return delta;
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing Delta:', e);
+  }
+  
+  // Not a Delta or parsing failed
+  return null;
 };
