@@ -2,15 +2,12 @@
 import { useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { 
-  findBestMatchingLine,
-  generateStatsTemplate,
-  updateMatchStats,
   handleSpecialOperations,
   matchNonEmptyLines,
   matchRemainingLines,
-  isContentEmpty,
-  getPlainTextContent
+  generateStatsTemplate
 } from '@/hooks/lineMatching';
+import { isContentEmpty, getPlainTextContent } from '@/hooks/lineMatching/contentUtils';
 
 export const useLineMatching = (userId: string | null) => {
   const matchAndAssignLines = useCallback((
@@ -53,7 +50,7 @@ export const useLineMatching = (userId: string | null) => {
       
       if (result.success) {
         // Update stats
-        updateMatchStats(stats, result.stats);
+        Object.assign(stats, result.stats);
         
         // Assign the empty line data
         if (result.emptyLineData) {
