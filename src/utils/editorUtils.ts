@@ -1,3 +1,4 @@
+
 export const extractLineContents = (lines: any[], quill: any): string[] => {
   return lines.map(line => {
     if (!line.domNode) return '';
@@ -127,12 +128,16 @@ export const logDeltaStructure = (content: string | null): void => {
   try {
     if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
       const delta = JSON.parse(content);
-      console.log("Delta structure:", {
-        hasOps: !!delta.ops,
-        opsCount: delta.ops?.length || 0,
-        firstOp: delta.ops?.[0] || null,
-        plainText: extractPlainTextFromDelta(content)
-      });
+      if (delta) {  // Add null check here
+        console.log("Delta structure:", {
+          hasOps: !!(delta && delta.ops),  // Added null check for delta
+          opsCount: (delta && delta.ops) ? delta.ops.length : 0,  // Added null check
+          firstOp: (delta && delta.ops) ? delta.ops[0] || null : null,  // Added null check
+          plainText: extractPlainTextFromDelta(content)
+        });
+      } else {
+        console.log("Failed to parse delta object:", content);
+      }
     } else {
       console.log("Not a delta object:", content);
     }
