@@ -2,21 +2,17 @@
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
-import { getPlainTextContent } from '@/utils/contentUtils';
 
 /**
  * Finds the best matching line in the previous line data based on content similarity
  */
 export const findBestMatchingLine = (
-  content: any,
+  content: string,
   prevLineData: LineData[],
   excludeIndices: Set<number>,
   contentToUuidMap: Map<string, string>
 ): { index: number; similarity: number } | null => {
-  // Get plain text for comparison
-  const plainTextContent = getPlainTextContent(content);
-  
-  const existingUuid = contentToUuidMap.get(plainTextContent);
+  const existingUuid = contentToUuidMap.get(content);
   if (existingUuid) {
     const exactMatchIndex = prevLineData.findIndex(line => line.uuid === existingUuid);
     if (exactMatchIndex >= 0 && !excludeIndices.has(exactMatchIndex)) {
@@ -45,10 +41,7 @@ export const findBestMatchingLine = (
   for (let i = 0; i < prevLineData.length; i++) {
     if (excludeIndices.has(i)) continue;
     
-    // Get plain text for comparison
-    const prevLinePlainText = getPlainTextContent(prevLineData[i].content);
-    
-    const similarity = calculateSimilarity(plainTextContent, prevLinePlainText);
+    const similarity = calculateSimilarity(content, prevLineData[i].content);
     
     if (similarity === 1) {
       return { index: i, similarity: 1 };

@@ -1,13 +1,11 @@
 
-import { Delta, ContentType } from './editor';
-
 export interface LineData {
   uuid: string;
   lineNumber: number;
-  content: ContentType;
+  content: string | { ops: Array<{ insert: string, attributes?: any }> };
   originalAuthor: string | null;
   editedBy: string[];
   hasDraft?: boolean;
-  originalContent?: ContentType;
+  originalContent?: string | { ops: Array<{ insert: string, attributes?: any }> };
   originalLineNumber?: number;
 }

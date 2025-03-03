@@ -7,7 +7,6 @@ import {
   safelyParseDelta,
   extractPlainTextFromDelta 
 } from '@/utils/editor';
-import { stringifyContent, getPlainTextContent } from '@/utils/contentUtils';
 
 export const saveDraft = async (
   scriptId: string, 
@@ -73,12 +72,11 @@ export const saveDraft = async (
       
       // Debug log formatted content
       if (quill && isDeltaObject(lineContent)) {
-        console.log(`Line ${line.lineNumber} saving as Delta:`, 
-          typeof lineContent === 'string' ? lineContent.substring(0, 50) + '...' : JSON.stringify(lineContent).substring(0, 50) + '...');
+        console.log(`Line ${line.lineNumber} saving as Delta:`, lineContent.substring(0, 50) + '...');
         logDeltaStructure(lineContent);
         
         // Extract and log the plain text so we can verify it's being saved correctly
-        const plainText = getPlainTextContent(lineContent);
+        const plainText = extractPlainTextFromDelta(lineContent);
         console.log(`Line ${line.lineNumber} plain text:`, plainText.substring(0, 50) + (plainText.length > 50 ? '...' : ''));
       }
       
@@ -87,13 +85,21 @@ export const saveDraft = async (
         const updates: { draft?: string; line_number_draft?: number } = {};
         let needsUpdate = false;
         
-        // Get plain text for accurate comparison
-        let existingPlainContent = getPlainTextContent(existingLine.content);
-        let currentPlainContent = getPlainTextContent(line.content);
+        // Get plain text from Delta for accurate comparison
+        let existingPlainContent = existingLine.content;
+        let currentPlainContent = line.content;
+        
+        if (isDeltaObject(existingLine.content)) {
+          existingPlainContent = extractPlainTextFromDelta(existingLine.content);
+        }
+        
+        if (isDeltaObject(line.content)) {
+          currentPlainContent = extractPlainTextFromDelta(line.content);
+        }
         
         // Check if content has changed compared to the original
         if (currentPlainContent !== existingPlainContent) {
-          updates.draft = stringifyContent(lineContent); // Convert to string for database
+          updates.draft = lineContent;
           needsUpdate = true;
           console.log(`Updating draft content for line ${line.uuid}`);
         }
@@ -130,8 +136,8 @@ export const saveDraft = async (
             script_id: scriptId,
             line_number: 0,  // Minimal placeholder to satisfy not-null constraint
             line_number_draft: line.lineNumber,
-            content: line.originalContent ? stringifyContent(line.originalContent) : '',  // Use originalContent if available
-            draft: stringifyContent(lineContent), // Convert to string for database
+            content: line.originalContent || '',  // Use originalContent if available
+            draft: lineContent,
             original_author: userId,
             edited_by: userId ? [userId] : []
           });

@@ -1,7 +1,6 @@
 
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
-import { stringifyContent } from '@/utils/contentUtils';
 
 export const saveLinesToDatabase = async (
   scriptId: string,
@@ -46,15 +45,12 @@ export const saveLinesToDatabase = async (
     
     // Process each line: update existing lines, insert new ones
     for (const line of lineData) {
-      // Convert content to string for database storage
-      const contentString = stringifyContent(line.content);
-      
       if (existingLineMap.has(line.uuid)) {
         // Update existing line with current content and clear draft fields
         const { error } = await supabase
           .from('script_content')
           .update({
-            content: contentString, // Store as string in DB
+            content: line.content,
             line_number: line.lineNumber,
             draft: null,           // Clear draft content
             line_number_draft: null // Clear draft line number
@@ -74,7 +70,7 @@ export const saveLinesToDatabase = async (
             id: line.uuid,
             script_id: scriptId,
             line_number: line.lineNumber,
-            content: contentString, // Store as string in DB
+            content: line.content,
             original_author: line.originalAuthor,
             edited_by: line.editedBy,
             draft: null,           // No draft content
