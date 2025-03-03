@@ -2,6 +2,7 @@
 import { useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { isDeltaObject, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
+import { splitContentIntoLines } from '@/hooks/lineMatching/contentUtils';
 
 export const useContentUpdates = (
   content: string,
@@ -55,35 +56,27 @@ export const useContentUpdates = (
       console.log('**** useContentUpdates.tsx **** Updating editor content programmatically');
       
       try {
+        // Clear existing content first
         editor.deleteText(0, editor.getLength());
         
         if (isDeltaObject(newContent)) {
+          // If it's a Delta object, use setContents directly
           const delta = safelyParseDelta(newContent);
           if (delta) {
             editor.setContents(delta);
             console.log('**** useContentUpdates.tsx **** Set editor contents from Delta object');
           } else {
-            const textContent = typeof newContent === 'string' 
-              ? newContent 
-              : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
-            editor.insertText(0, textContent);
+            // Fallback to plain text if Delta parsing fails
+            const textContent = extractPlainTextFromDelta(newContent);
+            insertContentWithLineBreaks(editor, textContent);
           }
         } else {
+          // For string content, split by newlines and insert properly
           const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
-          const lines = contentStr.split('\n');
-          
-          lines.forEach((line, index) => {
-            const position = editor.getLength() - 1;
-            editor.insertText(position, line);
-            
-            if (index < lines.length - 1) {
-              editor.insertText(editor.getLength() - 1, '\n');
-            }
-          });
-          
-          console.log('**** useContentUpdates.tsx **** Inserted content line by line');
+          insertContentWithLineBreaks(editor, contentStr);
         }
         
+        // Update state
         if (typeof newContent === 'string') {
           setContent(newContent);
         } else {
@@ -97,11 +90,38 @@ export const useContentUpdates = (
         const textContent = typeof newContent === 'string' 
           ? newContent 
           : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
-        editor.insertText(0, textContent);
+        insertContentWithLineBreaks(editor, textContent);
       } finally {
         isProcessingLinesRef.current = false;
       }
     }
+  };
+  
+  // Helper function to properly insert content with line breaks
+  const insertContentWithLineBreaks = (editor: any, content: string) => {
+    if (!content) return;
+    
+    // Split content into lines
+    const lines = splitContentIntoLines(content);
+    
+    // Create a delta with proper line breaks
+    const ops = [];
+    for (let i = 0; i < lines.length; i++) {
+      ops.push({ insert: lines[i] });
+      // Add line break after each line (except maybe the last one)
+      if (i < lines.length - 1 || lines[i].endsWith('\n')) {
+        ops.push({ insert: '\n' });
+      }
+    }
+    
+    // If the content doesn't end with a newline and there are lines, add one
+    if (lines.length > 0 && !content.endsWith('\n')) {
+      ops.push({ insert: '\n' });
+    }
+    
+    // Apply the delta to the editor
+    editor.setContents({ ops });
+    console.log('**** useContentUpdates.tsx **** Inserted content with proper line breaks');
   };
 
   return {
