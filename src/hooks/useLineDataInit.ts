@@ -11,6 +11,8 @@ export const useLineDataInit = (
   originalContent: string, // Kept for compatibility but not used
   userId: string | null
 ) => {
+  console.log('📊 useLineDataInit: Hook called with', { scriptId, userId });
+  
   const [lineData, setLineData] = useState<LineData[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [isDataReady, setIsDataReady] = useState(false);
@@ -22,11 +24,11 @@ export const useLineDataInit = (
   useEffect(() => {
     const fetchLineData = async () => {
       if (!scriptId || initialized) {
-        console.log('**** UseLineData **** fetchLineData aborted: no scriptId or already initialized.');
+        console.log('📊 useLineDataInit: fetchLineData aborted: no scriptId or already initialized.');
         return;
       }
       
-      console.log('**** UseLineData **** fetchLineData called. scriptId:', scriptId);
+      console.log('📊 useLineDataInit: fetchLineData called. scriptId:', scriptId);
       setIsDataReady(false); // Reset ready state while loading
       
       try {
@@ -34,17 +36,43 @@ export const useLineDataInit = (
         const allLines = await fetchAllLines(scriptId);
         
         if (allLines && allLines.length > 0) {
-          console.log('**** UseLineData **** Data fetched successfully. Lines count:', allLines.length);
+          console.log('📊 useLineDataInit: Data fetched successfully. Lines count:', allLines.length);
+          
+          // Log first few lines from database
+          allLines.slice(0, 3).forEach((line, i) => {
+            console.log(`📊 DB Line ${i+1}:`, {
+              id: line.id,
+              line_number: line.line_number,
+              line_number_draft: line.line_number_draft,
+              has_draft: line.draft !== null,
+              content_preview: typeof line.content === 'string' 
+                ? line.content.substring(0, 30) 
+                : JSON.stringify(line.content).substring(0, 30)
+            });
+          });
           
           // Process the line data
           const processedLines = processLinesData(allLines, contentToUuidMapRef);
           
-          console.log('**** UseLineData **** Processed line data:', processedLines.length, 'lines');
+          console.log('📊 useLineDataInit: Processed line data:', processedLines.length, 'lines');
+          
+          // Log first few processed lines
+          processedLines.slice(0, 3).forEach((line, i) => {
+            console.log(`📊 Processed Line ${i+1}:`, {
+              uuid: line.uuid,
+              lineNumber: line.lineNumber,
+              contentType: typeof line.content,
+              isDelta: isDeltaObject(line.content),
+              preview: typeof line.content === 'string' 
+                ? line.content.substring(0, 30) 
+                : JSON.stringify(line.content).substring(0, 30)
+            });
+          });
           
           setLineData(processedLines);
           lastLineCountRef.current = processedLines.length;
         } else {
-          console.log('**** UseLineData **** No data found, creating initial line data');
+          console.log('📊 useLineDataInit: No data found, creating initial line data');
           // Create a blank initial document if none exists yet
           const initialLineData = createInitialLineData("", userId);
           
@@ -55,9 +83,9 @@ export const useLineDataInit = (
         }
         setInitialized(true);
         setIsDataReady(true); // Mark data as ready for TextEditor to use
-        console.log('**** UseLineData **** Data is now ready for editor to use');
+        console.log('📊 useLineDataInit: Data is now ready for editor to use');
       } catch (error) {
-        console.error('**** UseLineData **** Error fetching line data:', error);
+        console.error('📊 useLineDataInit: Error fetching line data:', error);
         setInitialized(true);
         
         if (lineData.length === 0) {
@@ -65,6 +93,7 @@ export const useLineDataInit = (
           setLineData(initialLineData);
           setIsDataReady(true);
           lastLineCountRef.current = 1;
+          console.log('📊 useLineDataInit: Created fallback initial line data after error');
         }
       }
     };
@@ -74,8 +103,10 @@ export const useLineDataInit = (
 
   // Function to handle loading drafts - now with protection against duplicate calls
   const loadDrafts = async (userId: string | null) => {
+    console.log('📊 useLineDataInit: loadDrafts called for user:', userId);
+    
     if (!scriptId || !userId || isDraftLoaded) {
-      console.log('**** UseLineData **** loadDrafts aborted: missing scriptId or userId, or drafts already loaded');
+      console.log('📊 useLineDataInit: loadDrafts aborted: missing scriptId or userId, or drafts already loaded');
       return;
     }
     
@@ -85,13 +116,26 @@ export const useLineDataInit = (
       const updatedLines = await loadDraftsService(scriptId, userId, contentToUuidMapRef);
       
       if (updatedLines.length > 0) {
+        console.log('📊 useLineDataInit: Draft lines loaded:', updatedLines.length);
+        
+        // Log first few draft lines
+        updatedLines.slice(0, 3).forEach((line, i) => {
+          console.log(`📊 Draft Line ${i+1}:`, {
+            uuid: line.uuid,
+            lineNumber: line.lineNumber,
+            contentType: typeof line.content,
+            isDelta: isDeltaObject(line.content),
+            hasDraft: line.hasDraft || false
+          });
+        });
+        
         setLineData(updatedLines);
-        console.log('**** UseLineData **** Draft lines loaded successfully:', updatedLines.length);
+        console.log('📊 useLineDataInit: Draft lines loaded successfully:', updatedLines.length);
       } else {
-        console.log('**** UseLineData **** No draft lines to load');
+        console.log('📊 useLineDataInit: No draft lines to load');
       }
     } catch (error) {
-      console.error('**** UseLineData **** Error in loadDrafts:', error);
+      console.error('📊 useLineDataInit: Error in loadDrafts:', error);
     }
   };
 
