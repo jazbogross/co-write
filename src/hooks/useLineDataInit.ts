@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { fetchLineDataFromSupabase, formatLineDataFromSupabase, createInitialLineData } from '@/utils/lineDataUtils';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useLineDataInit = (
   scriptId: string, 
@@ -40,23 +41,23 @@ export const useLineDataInit = (
           console.log('**** UseLineData **** Data fetched successfully. Lines count:', allLines.length);
           
           // Process the lines, prioritizing draft content and line numbers
-          const processedLineData = allLines.map(line => {
-            // Prioritize draft content/line numbers over original
-            const content = line.draft !== null ? line.draft : line.content;
-            const lineNumber = line.line_number_draft !== null ? line.line_number_draft : line.line_number;
-            
-            return {
-              uuid: line.id,
-              content: content === '{deleted-uuid}' ? '' : content,
-              lineNumber: lineNumber,
-              originalAuthor: null, // Will be populated later
-              editedBy: []
-            };
-          })
-          // Filter out deleted lines
-          .filter(line => line.content !== '')
-          // Sort by line number
-          .sort((a, b) => a.lineNumber - b.lineNumber);
+          const processedLineData = allLines
+            .filter(line => line.draft !== '{deleted-uuid}') // Filter out deleted lines
+            .map(line => {
+              // Prioritize draft content/line numbers over original
+              const content = line.draft !== null ? line.draft : line.content;
+              const lineNumber = line.line_number_draft !== null ? line.line_number_draft : line.line_number;
+              
+              return {
+                uuid: line.id,
+                content,
+                lineNumber,
+                originalAuthor: null, // Will be populated later
+                editedBy: []
+              };
+            })
+            // Sort by line number
+            .sort((a, b) => a.lineNumber - b.lineNumber);
           
           // Update line numbers to ensure continuity
           processedLineData.forEach((line, index) => {
@@ -106,6 +107,3 @@ export const useLineDataInit = (
     lastLineCountRef 
   };
 };
-
-// Add missing import
-import { supabase } from '@/integrations/supabase/client';
