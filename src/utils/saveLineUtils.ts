@@ -30,6 +30,19 @@ export const saveLinesToDatabase = async (
     // Sort lineData by line number to ensure we save in order
     lineData.sort((a, b) => a.lineNumber - b.lineNumber);
     
+    // Temporarily adjust all line numbers to large negative values to avoid conflicts
+    for (const line of existingLines || []) {
+      const { error } = await supabase
+        .from('script_content')
+        .update({ line_number: -10000 - parseInt(line.line_number) })
+        .eq('id', line.id);
+        
+      if (error) {
+        console.error('Error adjusting line numbers:', error);
+        throw error;
+      }
+    }
+    
     // Process each line: update existing lines, insert new ones
     for (const line of lineData) {
       if (existingLineMap.has(line.uuid)) {
@@ -49,25 +62,6 @@ export const saveLinesToDatabase = async (
           throw error;
         }
       } else {
-        // Check if a line with this line number already exists
-        const duplicateLineNumber = existingLines?.find(existing => 
-          existing.line_number === line.lineNumber && existing.id !== line.uuid);
-          
-        if (duplicateLineNumber) {
-          console.warn(`Line number ${line.lineNumber} already exists with a different UUID. Adjusting...`);
-          
-          // Update the existing line's number to avoid conflict
-          const { error: updateError } = await supabase
-            .from('script_content')
-            .update({ line_number: -1 }) // Temporarily set to negative to avoid conflicts
-            .eq('id', duplicateLineNumber.id);
-            
-          if (updateError) {
-            console.error('Error updating duplicate line number:', updateError);
-            throw updateError;
-          }
-        }
-        
         // Insert new line
         console.log(`Inserting new line: ${line.uuid}, line number: ${line.lineNumber}`);
         const { error } = await supabase

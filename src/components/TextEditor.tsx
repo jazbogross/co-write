@@ -33,21 +33,30 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 }) => {
   const quillRef = useRef<ReactQuill>(null);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  // Load user ID first
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserId(user?.id || null);
+    };
+    fetchUser();
+  }, []);
 
-  // Load line data and prepare editor
+  // Load line data and prepare editor - now with proper userId
   const { 
     lineData, 
     updateLineContents, 
     loadDraftsForCurrentUser, 
     isDataReady,
     initializeEditor 
-  } = useLineData(scriptId, originalContent, null); // Pass null initially, will update with userId
+  } = useLineData(scriptId, originalContent, userId);
 
   // Set up and initialize text editor
   const {
     content,
     setContent,
-    userId,
     lineCount,
     editorInitialized,
     handleChange
@@ -98,6 +107,14 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     flushUpdate(); // First flush any pending content updates
     saveToSupabase(); // Then save to Supabase
   }, [flushUpdate, saveToSupabase]);
+
+  // Load drafts when userId becomes available
+  useEffect(() => {
+    if (userId && isDataReady) {
+      console.log('TextEditor: User ID available, loading drafts:', userId);
+      loadDraftsForCurrentUser();
+    }
+  }, [userId, isDataReady, loadDraftsForCurrentUser]);
 
   // Don't render editor until data is ready
   if (!isDataReady) {

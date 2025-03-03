@@ -87,3 +87,43 @@ export const preserveFormattedContent = (content: string, quill: any): string =>
   
   return content;
 };
+
+// Debug utility to log delta content structure
+export const logDeltaStructure = (content: string | null): void => {
+  if (!content) {
+    console.log("Delta content is null or empty");
+    return;
+  }
+  
+  try {
+    if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
+      const delta = JSON.parse(content);
+      console.log("Delta structure:", {
+        hasOps: !!delta.ops,
+        opsCount: delta.ops?.length || 0,
+        firstOp: delta.ops?.[0] || null,
+        plainText: extractPlainTextFromDelta(content)
+      });
+    } else {
+      console.log("Not a delta object:", content);
+    }
+  } catch (e) {
+    console.error("Error parsing delta structure:", e);
+  }
+};
+
+// Check if content is a Delta object
+export const isDeltaObject = (content: string | null): boolean => {
+  if (!content) return false;
+  
+  try {
+    if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
+      const delta = JSON.parse(content);
+      return !!delta.ops && Array.isArray(delta.ops);
+    }
+  } catch (e) {
+    // Not a valid JSON or Delta
+  }
+  
+  return false;
+};

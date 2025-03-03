@@ -1,6 +1,5 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/hooks/useLineData';
 import ReactQuill from 'react-quill';
 
@@ -14,23 +13,9 @@ export const useTextEditor = (
   updateLineContents: (lines: string[], editor: any) => void
 ) => {
   const [content, setContent] = useState(originalContent);
-  const [userId, setUserId] = useState<string | null>(null);
   const [isContentInitialized, setIsContentInitialized] = useState(false);
   const [editorInitialized, setEditorInitialized] = useState(false);
   const [lineCount, setLineCount] = useState(1);
-
-  // Fetch user on component mount
-  useEffect(() => {
-    console.log('**** useTextEditor.tsx **** Fetching user...');
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        console.log('**** useTextEditor.tsx **** User fetched:', user.id);
-        setUserId(user.id);
-      }
-    };
-    fetchUser();
-  }, []);
 
   // Set initial content when lineData is ready
   useEffect(() => {
@@ -106,7 +91,6 @@ export const useTextEditor = (
   return {
     content,
     setContent,
-    userId,
     lineCount,
     editorInitialized,
     handleChange

@@ -1,7 +1,7 @@
 
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
-import { preserveFormattedContent } from '@/utils/editorUtils';
+import { preserveFormattedContent, isDeltaObject, logDeltaStructure } from '@/utils/editorUtils';
 
 export const saveDraft = async (
   scriptId: string, 
@@ -35,10 +35,19 @@ export const saveDraft = async (
     // Get all current line UUIDs in the editor
     const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
     
+    // Debug log
+    console.log(`Processing ${lineData.length} lines, ${existingLines?.length || 0} existing lines`);
+    
     // Process all current lines from the editor (source of truth)
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
       const lineContent = quill ? preserveFormattedContent(line.content, quill) : line.content;
+      
+      // Debug log formatted content
+      if (quill && isDeltaObject(lineContent)) {
+        console.log(`Line ${line.lineNumber} saving as Delta:`, lineContent.substring(0, 50) + '...');
+        logDeltaStructure(lineContent);
+      }
       
       if (existingLine) {
         // Line exists - check if we need to update draft content or line number
