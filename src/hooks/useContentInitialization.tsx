@@ -47,13 +47,13 @@ export const useContentInitialization = (
         // Instead of joining plain text, use reconstruction that preserves Delta formatting
         const reconstructedContent = reconstructContent(lineData);
         
-        const previewContent = typeof reconstructedContent === 'string' 
+        const previewText = typeof reconstructedContent === 'string' 
           ? reconstructedContent.substring(0, 100) + '...'
           : JSON.stringify(reconstructedContent).substring(0, 100) + '...';
           
         console.log('🔄 Reconstructed content type:', typeof reconstructedContent, 
           isDeltaObject(reconstructedContent) ? 'isDelta' : 'notDelta');
-        console.log('🔄 Reconstructed content preview:', previewContent);
+        console.log('🔄 Reconstructed content preview:', previewText);
         
         // Set the reconstructed content (could be a Delta object or string)
         setContent(reconstructedContent);
