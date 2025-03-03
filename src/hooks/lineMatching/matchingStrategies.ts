@@ -51,7 +51,7 @@ export const calculateTextSimilarity = (a: string, b: string): number => {
  * Finds best matching line across multiple strategies
  */
 export const findBestMatchingLine = (
-  content: string,
+  content: any,
   lineIndex: number,
   prevLineData: LineData[],
   excludeIndices: Set<number>,
