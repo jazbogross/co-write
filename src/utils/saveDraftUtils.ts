@@ -42,8 +42,12 @@ export const saveDraft = async (
         const updates: { draft?: string; line_number_draft?: number } = {};
         let needsUpdate = false;
         
+        // Use explicit draft state flag if available, or compare content
+        const contentChanged = line.hasDraft || 
+          (line.content !== existingLine.content && line.content !== existingLine.draft);
+        
         // Only update draft if content changed
-        if (line.content !== existingLine.content && line.content !== existingLine.draft) {
+        if (contentChanged) {
           updates.draft = line.content;
           needsUpdate = true;
           console.log(`Updating draft content for line ${line.uuid}: content changed`);
@@ -82,7 +86,7 @@ export const saveDraft = async (
             script_id: scriptId,
             line_number: 0,  // Minimal placeholder to satisfy not-null constraint
             line_number_draft: line.lineNumber,
-            content: '',     // Empty content for unpublished lines
+            content: line.originalContent || '',  // Use originalContent if available
             draft: line.content,
             original_author: userId,
             edited_by: userId ? [userId] : []

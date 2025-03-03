@@ -7,4 +7,8 @@ export interface LineData {
   editedBy: string[];
   draft?: string | null;
   lineNumberDraft?: number | null;
+  // New properties for improved draft tracking
+  hasDraft?: boolean;
+  originalContent?: string;
+  originalLineNumber?: number;
 }

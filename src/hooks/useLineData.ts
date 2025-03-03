@@ -17,13 +17,14 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
     matchStrategy: {} as Record<string, number>
   });
 
-  // Use the new modularized hooks
+  // Use the updated modularized hooks
   const { 
     lineData, 
     setLineData, 
     isDataReady, 
     contentToUuidMapRef,
-    lastLineCountRef 
+    lastLineCountRef,
+    loadDrafts 
   } = useLineDataInit(scriptId, originalContent, userId);
   
   const { matchAndAssignLines } = useLineMatching(userId);
@@ -90,7 +91,8 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
           lineNumber: newData.length + 1,
           content: '',
           originalAuthor: userId,
-          editedBy: []
+          editedBy: [],
+          hasDraft: true // Mark new lines as drafts
         });
         contentToUuidMapRef.current.set('', newUuid);
       }
@@ -100,6 +102,7 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
         newData[lineIndex] = {
           ...existingLine,
           content: newContent,
+          hasDraft: true, // Mark as draft when content is updated
           editedBy: userId && !existingLine.editedBy.includes(userId)
             ? [...existingLine.editedBy, userId]
             : existingLine.editedBy
@@ -112,16 +115,23 @@ export const useLineData = (scriptId: string, originalContent: string, userId: s
     });
   }, [userId, contentToUuidMapRef]);
 
-  const loadDrafts = useCallback(() => {
-    return loadDraftsForCurrentUser(scriptId, userId, setLineData, contentToUuidMapRef);
-  }, [scriptId, userId, loadDraftsForCurrentUser]);
+  // Updated to use the new consolidated loadDrafts function
+  const loadUserDrafts = useCallback(() => {
+    return loadDraftsForCurrentUser(
+      scriptId, 
+      userId, 
+      setLineData, 
+      contentToUuidMapRef,
+      loadDrafts // Pass the implementation from useLineDataInit
+    );
+  }, [scriptId, userId, loadDraftsForCurrentUser, contentToUuidMapRef, loadDrafts, setLineData]);
 
   return { 
     lineData, 
     setLineData, 
     updateLineContent, 
     updateLineContents,
-    loadDraftsForCurrentUser: loadDrafts,
+    loadDraftsForCurrentUser: loadUserDrafts,
     isDataReady,
     initializeEditor
   };
