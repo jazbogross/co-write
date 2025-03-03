@@ -66,6 +66,22 @@ export const useTextEditor = (
     loadDraftsForCurrentUser
   );
 
+  // Function to update content and flush changes to line data
+  const flushContentToLineData = () => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+    
+    const lines = editor.getLines(0);
+    updateLineContents(
+      lines.map(line => {
+        const lineIndex = editor.getIndex(line);
+        const nextLineIndex = line.next ? editor.getIndex(line.next) : editor.getLength();
+        return editor.getContents(lineIndex, nextLineIndex - lineIndex);
+      }),
+      editor
+    );
+  };
+
   return {
     content,
     setContent,
@@ -73,6 +89,7 @@ export const useTextEditor = (
     editorInitialized,
     handleChange,
     updateEditorContent,
+    flushContentToLineData,
     // These could be used by the parent component if needed
     draftLoadAttempted,
     draftApplied

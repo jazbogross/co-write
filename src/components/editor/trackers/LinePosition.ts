@@ -39,7 +39,13 @@ export class LinePosition {
   }
 
   // Update line index attributes in the DOM
-  updateLineIndexAttributes(quill: any): void {
+  updateLineIndexAttributes(quill: any, isProgrammaticUpdate: boolean = false): void {
+    // Skip during programmatic updates
+    if (isProgrammaticUpdate) {
+      console.log('**** LinePosition **** Skipping line index attribute updates during programmatic update');
+      return;
+    }
+    
     const lines = quill.getLines(0);
     lines.forEach((line: any, index: number) => {
       if (!line.domNode) return;
@@ -90,7 +96,13 @@ export class LinePosition {
   }
 
   // Detect changes in line count
-  detectLineCountChanges(quill: any): void {
+  detectLineCountChanges(quill: any, isProgrammaticUpdate: boolean = false): void {
+    // Skip during programmatic updates
+    if (isProgrammaticUpdate) {
+      console.log('**** LinePosition **** Skipping line count change detection during programmatic update');
+      return;
+    }
+    
     const lines = quill.getLines(0);
     const currentLineCount = lines.length;
     

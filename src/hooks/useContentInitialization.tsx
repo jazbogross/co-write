@@ -28,13 +28,23 @@ export const useContentInitialization = (
         setContent(reconstructedContent);
         setIsContentInitialized(true);
         
+        // Turn on programmatic update mode if editor is initialized
         const editor = quillRef.current?.getEditor();
+        if (editor && editor.lineTracking) {
+          editor.lineTracking.setProgrammaticUpdate(true);
+        }
+        
         if (editor) {
           const lines = editor.getLines(0);
           console.log('**** useContentInitialization.tsx **** Initial line count from editor:', lines.length);
           setLineCount(lines.length || lineData.length);
         } else {
           setLineCount(lineData.length);
+        }
+        
+        // Turn off programmatic update mode
+        if (editor && editor.lineTracking) {
+          editor.lineTracking.setProgrammaticUpdate(false);
         }
       } finally {
         isProcessingLinesRef.current = false;

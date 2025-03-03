@@ -1,3 +1,4 @@
+
 import { useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { isDeltaObject, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
@@ -17,12 +18,6 @@ export const useContentUpdates = (
   const handleChange = (newContent: string | any) => {
     if (!editorInitialized) {
       console.log('**** useContentUpdates.tsx **** Ignoring content change before editor initialization');
-      return;
-    }
-    
-    if (contentUpdateRef.current) {
-      console.log('**** useContentUpdates.tsx **** Skipping update during programmatic change');
-      contentUpdateRef.current = false;
       return;
     }
     
@@ -48,49 +43,70 @@ export const useContentUpdates = (
     };
   };
 
-  const updateEditorContent = (newContent: string | any) => {
-    contentUpdateRef.current = true;
-    isProcessingLinesRef.current = true;
-    
+  const updateEditorContent = (newContent: string | any, forceUpdate: boolean = false) => {
     const editor = quillRef.current?.getEditor();
-    if (editor) {
-      console.log('**** useContentUpdates.tsx **** Updating editor content programmatically');
-      
-      try {
-        // Clear existing content first
-        editor.deleteText(0, editor.getLength());
-        
-        if (isDeltaObject(newContent)) {
-          // If it's a Delta object, use setContents directly
-          const delta = safelyParseDelta(newContent);
-          if (delta) {
-            editor.setContents(delta);
-            console.log('**** useContentUpdates.tsx **** Set editor contents from Delta object');
-          } else {
-            // Fallback to plain text if Delta parsing fails
-            const textContent = extractPlainTextFromDelta(newContent);
-            insertContentWithLineBreaks(editor, textContent);
-          }
-        } else {
-          // For string content, split by newlines and insert properly
-          const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
-          insertContentWithLineBreaks(editor, contentStr);
-        }
-        
-        // Update state with the content (keep formatted content)
-        setContent(newContent);
-        
-        const lines = editor.getLines(0);
-        setLineCount(lines.length);
-      } catch (error) {
-        console.error('**** useContentUpdates.tsx **** Error updating editor content:', error);
-        const textContent = typeof newContent === 'string' 
-          ? newContent 
-          : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
-        insertContentWithLineBreaks(editor, textContent);
-      } finally {
-        isProcessingLinesRef.current = false;
+    if (!editor) return;
+    
+    console.log('**** useContentUpdates.tsx **** Updating editor content programmatically');
+    
+    try {
+      // Set the line tracker to programmatic update mode
+      if (editor.lineTracking) {
+        editor.lineTracking.setProgrammaticUpdate(true);
       }
+      
+      // Clear existing content first
+      editor.deleteText(0, editor.getLength());
+      
+      if (isDeltaObject(newContent)) {
+        // If it's a Delta object, use setContents directly
+        const delta = safelyParseDelta(newContent);
+        if (delta) {
+          editor.setContents(delta);
+          console.log('**** useContentUpdates.tsx **** Set editor contents from Delta object');
+          
+          // Update content state
+          setContent(delta);
+        } else {
+          // Fallback to plain text if Delta parsing fails
+          const textContent = extractPlainTextFromDelta(newContent);
+          insertContentWithLineBreaks(editor, textContent);
+          
+          // Update content state with text
+          setContent(textContent);
+        }
+      } else {
+        // For string content, split by newlines and insert properly
+        const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
+        insertContentWithLineBreaks(editor, contentStr);
+        
+        // Update content state with text
+        setContent(contentStr);
+      }
+      
+      // Update line count
+      const updatedLines = editor.getLines(0);
+      setLineCount(updatedLines.length);
+      console.log(`**** useContentUpdates.tsx **** Updated line count: ${updatedLines.length}`);
+      
+      // Turn off programmatic update mode
+      if (editor.lineTracking) {
+        editor.lineTracking.setProgrammaticUpdate(false);
+      }
+    } catch (error) {
+      console.error('**** useContentUpdates.tsx **** Error updating editor content:', error);
+      
+      // Turn off programmatic update mode even if there's an error
+      if (editor.lineTracking) {
+        editor.lineTracking.setProgrammaticUpdate(false);
+      }
+      
+      const textContent = typeof newContent === 'string' 
+        ? newContent 
+        : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
+      insertContentWithLineBreaks(editor, textContent);
+    } finally {
+      isProcessingLinesRef.current = false;
     }
   };
   

@@ -13,6 +13,7 @@ export class LineTracker {
   private changeHistory: ChangeHistory;
   private isUpdating: boolean = false;
   private isInitialized: boolean = false;
+  private isProgrammaticUpdate: boolean = false;
 
   constructor(quill: any) {
     this.quill = quill;
@@ -34,10 +35,13 @@ export class LineTracker {
       this.isUpdating = true;
       
       try {
-        // Analyze delta to detect line operations
-        this.cursorTracker.analyzeTextChange(delta, this.quill);
-        this.linePosition.updateLineIndexAttributes(this.quill);
-        this.linePosition.detectLineCountChanges(this.quill);
+        // Skip line tracking operations during programmatic updates
+        if (!this.isProgrammaticUpdate) {
+          // Analyze delta to detect line operations
+          this.cursorTracker.analyzeTextChange(delta, this.quill);
+          this.linePosition.updateLineIndexAttributes(this.quill, this.isProgrammaticUpdate);
+          this.linePosition.detectLineCountChanges(this.quill, this.isProgrammaticUpdate);
+        }
       } finally {
         this.isUpdating = false;
       }
@@ -51,6 +55,11 @@ export class LineTracker {
     if (this.isInitialized) return;
     this.linePosition.initialize(this.quill);
     this.isInitialized = true;
+  }
+
+  public setProgrammaticUpdate(value: boolean) {
+    console.log(`**** LineTracker **** Setting programmatic update mode: ${value}`);
+    this.isProgrammaticUpdate = value;
   }
 
   public getLineUuid(oneBasedIndex: number): string | undefined {

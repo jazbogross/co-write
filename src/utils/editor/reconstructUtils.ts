@@ -31,11 +31,20 @@ export const reconstructContent = (lineData: Array<{ content: string | any }>): 
       try {
         // If content is a Delta object, add its ops
         if (typeof line.content === 'object' && line.content.ops) {
-          ops.push(...line.content.ops);
+          const lineOps = [...line.content.ops];
           
-          // Make sure last op has a newline if not already present
-          const lastOp = line.content.ops[line.content.ops.length - 1];
-          if (lastOp && typeof lastOp.insert === 'string' && !lastOp.insert.endsWith('\n') && index < lineData.length - 1) {
+          // Process the ops to ensure they have proper line breaks
+          const lastOp = lineOps[lineOps.length - 1];
+          const hasTrailingNewline = 
+            lastOp && 
+            typeof lastOp.insert === 'string' && 
+            lastOp.insert.endsWith('\n');
+          
+          // Add all ops
+          ops.push(...lineOps);
+          
+          // Add a newline if needed and this isn't the last line
+          if (!hasTrailingNewline && index < lineData.length - 1) {
             ops.push({ insert: '\n' });
           }
         }
@@ -46,11 +55,20 @@ export const reconstructContent = (lineData: Array<{ content: string | any }>): 
           try {
             const delta = JSON.parse(line.content);
             if (delta && delta.ops) {
-              ops.push(...delta.ops);
+              const lineOps = [...delta.ops];
               
-              // Make sure there's a newline between lines
-              const lastOp = delta.ops[delta.ops.length - 1];
-              if (lastOp && typeof lastOp.insert === 'string' && !lastOp.insert.endsWith('\n') && index < lineData.length - 1) {
+              // Process the ops to ensure they have proper line breaks
+              const lastOp = lineOps[lineOps.length - 1];
+              const hasTrailingNewline = 
+                lastOp && 
+                typeof lastOp.insert === 'string' && 
+                lastOp.insert.endsWith('\n');
+              
+              // Add all ops
+              ops.push(...lineOps);
+              
+              // Add a newline if needed and this isn't the last line
+              if (!hasTrailingNewline && index < lineData.length - 1) {
                 ops.push({ insert: '\n' });
               }
             }
@@ -80,8 +98,19 @@ export const reconstructContent = (lineData: Array<{ content: string | any }>): 
       }
     });
     
+    // Clean up the ops to remove any empty strings or duplicate newlines
+    const cleanedOps = ops.filter(op => {
+      if (typeof op.insert === 'string' && op.insert === '') return false;
+      return true;
+    });
+    
+    // Ensure there's at least one op
+    if (cleanedOps.length === 0) {
+      cleanedOps.push({ insert: '\n' });
+    }
+    
     // Return a proper Delta object
-    return { ops };
+    return { ops: cleanedOps };
   } catch (error) {
     console.error('Error reconstructing content:', error);
     // Fallback to joining strings

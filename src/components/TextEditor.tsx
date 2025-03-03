@@ -11,8 +11,6 @@ import { useLineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { extractLineContents } from '@/utils/editor';
 import { useTextEditor } from '@/hooks/useTextEditor';
-import { useEditorFormatting } from './editor/EditorFormatting';
-import { useDraftManagement } from '@/hooks/useDraftManagement';
 
 // Register the module
 LineTrackingModule.register(ReactQuill.Quill);
@@ -61,7 +59,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     lineCount,
     editorInitialized,
     handleChange,
-    updateEditorContent
+    updateEditorContent,
+    flushContentToLineData
   } = useTextEditor(
     originalContent, 
     scriptId, 
@@ -90,38 +89,65 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     if (editorInitialized && draftLoadAttempted && lineData.length > 0 && !draftApplied) {
       const editor = quillRef.current?.getEditor();
       if (editor) {
-        // Combine all line content as plain text
-        const combinedContent = lineData.map(line => line.content).join('\n');
-        
-        // Only update if content is different
-        if (combinedContent !== content) {
-          console.log('TextEditor: Updating editor content from loaded drafts');
+        try {
+          // Turn on programmatic update mode
+          if (editor.lineTracking) {
+            editor.lineTracking.setProgrammaticUpdate(true);
+          }
           
-          // Use the controlled update method to prevent loops
-          updateEditorContent(combinedContent);
+          // Check if any line has Delta content
+          const hasDeltaContent = lineData.some(line => typeof line.content === 'object' && line.content.ops);
+          
+          if (hasDeltaContent) {
+            // Use the reconstructed Delta content from lineData
+            const combinedDelta = {
+              ops: lineData.flatMap(line => {
+                if (typeof line.content === 'object' && line.content.ops) {
+                  // Get the ops from the Delta
+                  const ops = [...line.content.ops];
+                  // Ensure the line ends with a newline
+                  const lastOp = ops[ops.length - 1];
+                  if (lastOp && typeof lastOp.insert === 'string' && !lastOp.insert.endsWith('\n')) {
+                    ops.push({ insert: '\n' });
+                  }
+                  return ops;
+                } else {
+                  // Convert string content to ops
+                  const content = typeof line.content === 'string' ? line.content : String(line.content);
+                  return [{ insert: content }, { insert: '\n' }];
+                }
+              })
+            };
+            
+            // Update editor content with the Delta
+            updateEditorContent(combinedDelta);
+          } else {
+            // Combine all line content as plain text
+            const combinedContent = lineData.map(line => line.content).join('\n');
+            
+            // Only update if content is different
+            if (combinedContent !== content) {
+              console.log('TextEditor: Updating editor content from loaded drafts');
+              
+              // Use the controlled update method to prevent loops
+              updateEditorContent(combinedContent);
+            }
+          }
+          
           setDraftApplied(true);
+        } finally {
+          // Turn off programmatic update mode
+          if (editor.lineTracking) {
+            editor.lineTracking.setProgrammaticUpdate(false);
+          }
         }
       }
     }
   }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent]);
 
-  // Set up editor formatting and content processing
-  const { 
-    formatText, 
-    processContentChange, 
-    flushUpdate 
-  } = useEditorFormatting({
-    quillRef,
-    updateLineContents,
-    editorInitialized
-  });
-
   // Handler for content changes
   const handleContentChange = (newContent: string) => {
-    const result = handleChange(newContent);
-    if (result && result.editor) {
-      processContentChange(result.editor, result.lines);
-    }
+    handleChange(newContent);
   };
 
   // Set up submission and saving functionality
@@ -139,9 +165,17 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   
   // Make sure we flush any pending updates when saving
   const handleSave = useCallback(() => {
-    flushUpdate(); // First flush any pending content updates
+    flushContentToLineData(); // First flush any pending content updates
     saveToSupabase(); // Then save to Supabase
-  }, [flushUpdate, saveToSupabase]);
+  }, [flushContentToLineData, saveToSupabase]);
+
+  // Format text function for toolbar
+  const formatText = (format: string, value: any) => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+    
+    editor.format(format, value);
+  };
 
   // Don't render editor until data is ready
   if (!isDataReady) {
@@ -155,7 +189,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         isSubmitting={isSubmitting}
         onFormat={formatText}
         onSubmit={() => {
-          flushUpdate();
+          flushContentToLineData();
           handleSubmit();
         }}
         onSave={handleSave}
