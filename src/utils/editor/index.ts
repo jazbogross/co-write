@@ -3,8 +3,18 @@
  * Editor utility exports
  */
 
-// Export from delta utilities
-export * from './deltaUtils';
+// Export from delta utilities - explicitly choose which exports to use
+export { 
+  isDeltaObject,
+  safelyParseDelta,
+  normalizeDelta 
+} from './deltaUtils';
+
+// Export Delta combination utilities
+export { combineDeltaContents } from './operations/deltaCombination';
+
+// Export Delta debug utilities
+export { logDeltaStructure } from './debug/deltaDebug';
 
 // Export text extraction utilities
 export * from './content/textExtraction';

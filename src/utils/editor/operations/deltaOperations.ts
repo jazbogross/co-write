@@ -1,4 +1,3 @@
-
 /**
  * Basic operations for working with Delta objects
  */
@@ -109,4 +108,41 @@ export const normalizeDelta = (content: any): DeltaContent => {
   }
   
   return createEmptyDelta();
+};
+
+/**
+ * Converts a string or partial delta object into a proper DeltaContent object
+ */
+export const convertToDelta = (content: any): DeltaContent => {
+  // Check if it's already a properly structured Delta
+  if (isDeltaObject(content)) {
+    return content;
+  }
+  
+  // Handle string content
+  if (typeof content === 'string') {
+    return {
+      ops: [
+        { insert: content }
+      ]
+    };
+  }
+  
+  // Handle null or undefined
+  if (!content) {
+    return createEmptyDelta();
+  }
+  
+  // Try to parse as JSON if it's a string representation of a Delta
+  const parsed = safelyParseDelta(content);
+  if (parsed) {
+    return parsed;
+  }
+  
+  // Fallback to empty delta with toString() content
+  return {
+    ops: [
+      { insert: String(content) }
+    ]
+  };
 };

@@ -191,7 +191,7 @@ export const LineTrackingModule = {
     console.log('🔍 LineTrackingModule registering with Quill');
     
     // Check if already registered to prevent duplicate registrations
-    if (ReactQuill.Quill.imports['modules/lineTracking']) {
+    if (ReactQuill.Quill.import('modules/lineTracking')) {
       console.log('🔍 LineTrackingModule already registered, skipping');
       return;
     }
