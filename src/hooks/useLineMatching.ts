@@ -1,7 +1,11 @@
 
 import { useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
-import { findBestMatchingLine } from '@/utils/lineMatching';
+import { 
+  handleEnterAtZeroOperation,
+  matchNonEmptyLines,
+  matchWithPositionFallback
+} from '@/utils/lineMatchingStrategies';
 
 export const useLineMatching = (userId: string | null) => {
   const matchAndAssignLines = useCallback((
@@ -12,7 +16,7 @@ export const useLineMatching = (userId: string | null) => {
     quill: any
   ) => {
     const usedIndices = new Set<number>();
-    const newData: LineData[] = [];
+    const newData: LineData[] = Array(newContents.length).fill(null);
     const stats = {
       preserved: 0,
       regenerated: 0,
@@ -27,109 +31,74 @@ export const useLineMatching = (userId: string | null) => {
       console.log(`**** useLineMatching **** Found Enter-at-position-0 operation at line ${enterAtZeroOperation.lineIndex + 1}`);
     }
     
-    // Special handling for Enter at position 0
-    // This must run BEFORE any other matching to ensure proper UUID assignment
+    // Step 1: Special handling for Enter at position 0
     if (enterAtZeroOperation) {
       const emptyLineIndex = enterAtZeroOperation.lineIndex;
       const contentLineIndex = emptyLineIndex + 1;
       
-      // Only proceed if both lines exist in the new content
-      if (emptyLineIndex < newContents.length && contentLineIndex < newContents.length) {
-        const emptyLineContent = newContents[emptyLineIndex];
-        const movedContent = newContents[contentLineIndex];
-        const isEmpty = !emptyLineContent || !emptyLineContent.trim();
+      const result = handleEnterAtZeroOperation(
+        emptyLineIndex,
+        contentLineIndex,
+        newContents,
+        prevData,
+        usedIndices,
+        userId,
+        quill
+      );
+      
+      if (result.success) {
+        // Update stats
+        stats.preserved += result.stats.preserved;
+        stats.regenerated += result.stats.regenerated;
+        Object.entries(result.stats.matchStrategy).forEach(([key, value]) => {
+          stats.matchStrategy[key] = (stats.matchStrategy[key] || 0) + value;
+        });
         
-        // Verify this is actually our operation by checking content patterns
-        if (isEmpty && movedContent === enterAtZeroOperation.movedContent) {
-          console.log(`**** useLineMatching **** Processing Enter-at-position-0 operation`);
-          console.log(`**** useLineMatching **** Empty line at ${emptyLineIndex + 1}, moved content at ${contentLineIndex + 1}`);
+        // Assign the empty line data
+        if (result.emptyLineData) {
+          newData[emptyLineIndex] = result.emptyLineData;
+        }
+        
+        // Assign the content line data
+        if (result.contentLineData) {
+          newData[contentLineIndex] = result.contentLineData;
           
-          // 1. Generate new UUID for the empty line (emptyLineIndex)
-          const emptyLineUuid = crypto.randomUUID();
-          newData[emptyLineIndex] = {
-            uuid: emptyLineUuid,
-            lineNumber: emptyLineIndex + 1,
-            content: emptyLineContent,
-            originalAuthor: userId,
-            editedBy: []
-          };
-          
-          if (quill?.lineTracking) {
-            quill.lineTracking.setLineUuid(emptyLineIndex + 1, emptyLineUuid);
-          }
-          
-          // Mark this index as used
-          usedIndices.add(emptyLineIndex);
-          stats.regenerated++;
-          stats.matchStrategy['enter-new-line'] = (stats.matchStrategy['enter-new-line'] || 0) + 1;
-          
-          // 2. Preserve UUID for the moved content line (contentLineIndex)
-          // Find the line in previous data that matches the moved content
-          if (enterAtZeroOperation.lineIndex < prevData.length) {
-            const originalLine = prevData[enterAtZeroOperation.lineIndex];
-            
-            newData[contentLineIndex] = {
-              ...originalLine,
-              lineNumber: contentLineIndex + 1,
-              content: movedContent,
-              editedBy: movedContent !== originalLine.content && userId && 
-                      !originalLine.editedBy.includes(userId)
-                ? [...originalLine.editedBy, userId]
-                : originalLine.editedBy
-            };
-            
-            // Update mapping
-            contentToUuidMap.set(movedContent, originalLine.uuid);
-            
-            if (quill?.lineTracking) {
-              quill.lineTracking.setLineUuid(contentLineIndex + 1, originalLine.uuid);
-            }
-            
-            // Mark this index as used
-            usedIndices.add(enterAtZeroOperation.lineIndex);
-            stats.preserved++;
-            stats.matchStrategy['enter-moved-content'] = 
-              (stats.matchStrategy['enter-moved-content'] || 0) + 1;
-            
-            console.log(`**** useLineMatching **** Enter-at-position-0 handled: new empty line UUID=${emptyLineUuid}, moved content UUID=${originalLine.uuid}`);
-          }
+          // Update content-to-UUID mapping
+          contentToUuidMap.set(newContents[contentLineIndex], result.contentLineData.uuid);
         }
       }
     }
     
-    // First pass: match all non-empty lines to preserve content UUIDs
+    // Step 2: Match non-empty lines with content matching strategies
     for (let i = 0; i < newContents.length; i++) {
-      // Skip lines already handled by special cases
+      // Skip lines already handled
       if (newData[i]) continue;
       
       const content = newContents[i];
       const isEmpty = !content || !content.trim();
       
-      // Skip empty lines in first pass
-      if (isEmpty) {
-        newData[i] = null as any;
-        continue;
-      }
-
-      const match = findBestMatchingLine(
+      // Skip empty lines in this pass
+      if (isEmpty) continue;
+      
+      const { match, stats: lineStats } = matchNonEmptyLines(
         content,
         i,
         prevData,
         usedIndices,
         contentToUuidMap,
-        false,
         domUuidMap
       );
-        
+      
+      // Update global stats
+      stats.preserved += lineStats.preserved;
+      stats.regenerated += lineStats.regenerated;
+      Object.entries(lineStats.matchStrategy).forEach(([key, value]) => {
+        stats.matchStrategy[key] = (stats.matchStrategy[key] || 0) + value;
+      });
+      
       if (match) {
         const matchIndex = match.index;
         usedIndices.add(matchIndex);
-        
-        const strategy = match.matchStrategy;
-        stats.matchStrategy[strategy] = 
-          (stats.matchStrategy[strategy] || 0) + 1;
-        
-        stats.preserved++;
         
         const existingLine = prevData[matchIndex];
         newData[i] = {
@@ -148,84 +117,72 @@ export const useLineMatching = (userId: string | null) => {
         if (quill && quill.lineTracking) {
           quill.lineTracking.setLineUuid(i + 1, existingLine.uuid);
         }
-      } else {
-        // If no match found, leave a gap for the second pass
-        newData[i] = null as any;
       }
     }
     
-    // Second pass: handle empty lines and unmatched content
+    // Step 3: Handle empty lines and unmatched content with position-based fallback
     for (let i = 0; i < newContents.length; i++) {
-      if (!newData[i]) {
-        const content = newContents[i];
-        const isEmpty = !content || !content.trim();
+      if (newData[i]) continue;
+      
+      const content = newContents[i];
+      const isEmpty = !content || !content.trim();
+      
+      // For unmatched lines, try more aggressive matching strategies
+      const { match, stats: lineStats } = matchWithPositionFallback(
+        content,
+        i,
+        prevData,
+        usedIndices,
+        domUuidMap
+      );
+      
+      // Update global stats
+      stats.preserved += lineStats.preserved;
+      stats.regenerated += lineStats.regenerated;
+      Object.entries(lineStats.matchStrategy).forEach(([key, value]) => {
+        stats.matchStrategy[key] = (stats.matchStrategy[key] || 0) + value;
+      });
+      
+      if (match) {
+        const matchIndex = match.index;
+        usedIndices.add(matchIndex);
         
-        // For empty lines, try to find if they existed before
-        const match = isEmpty ? 
-          findBestMatchingLine(
-            content,
-            i,
-            prevData,
-            usedIndices,
-            contentToUuidMap,
-            false, // Don't use position fallback for empty lines
-            domUuidMap
-          ) : 
-          findBestMatchingLine(
-            content,
-            i,
-            prevData,
-            usedIndices,
-            contentToUuidMap,
-            true,
-            domUuidMap
-          );
+        const existingLine = prevData[matchIndex];
+        newData[i] = {
+          ...existingLine,
+          lineNumber: i + 1,
+          content,
+          editedBy: content !== existingLine.content && userId && 
+                   !existingLine.editedBy.includes(userId)
+            ? [...existingLine.editedBy, userId]
+            : existingLine.editedBy
+        };
         
-        if (match) {
-          const matchIndex = match.index;
-          usedIndices.add(matchIndex);
-          
-          const strategy = match.matchStrategy;
-          stats.matchStrategy[strategy] = 
-            (stats.matchStrategy[strategy] || 0) + 1;
-          
-          stats.preserved++;
-          
-          const existingLine = prevData[matchIndex];
-          newData[i] = {
-            ...existingLine,
-            lineNumber: i + 1,
-            content,
-            editedBy: content !== existingLine.content && userId && 
-                    !existingLine.editedBy.includes(userId)
-              ? [...existingLine.editedBy, userId]
-              : existingLine.editedBy
-          };
-          
+        if (!isEmpty) {
           contentToUuidMap.set(content, existingLine.uuid);
-          
-          if (quill && quill.lineTracking) {
-            quill.lineTracking.setLineUuid(i + 1, existingLine.uuid);
-          }
-        } else {
-          // Generate new UUID for unmatched lines
-          stats.regenerated++;
-          const newUuid = crypto.randomUUID();
-          newData[i] = {
-            uuid: newUuid,
-            lineNumber: i + 1,
-            content,
-            originalAuthor: userId,
-            editedBy: []
-          };
-          
-          if (!isEmpty) {
-            contentToUuidMap.set(content, newUuid);
-          }
-          
-          if (quill?.lineTracking) {
-            quill.lineTracking.setLineUuid(i + 1, newUuid);
-          }
+        }
+        
+        if (quill && quill.lineTracking) {
+          quill.lineTracking.setLineUuid(i + 1, existingLine.uuid);
+        }
+      } else {
+        // Generate new UUID for unmatched lines
+        stats.regenerated++;
+        const newUuid = crypto.randomUUID();
+        newData[i] = {
+          uuid: newUuid,
+          lineNumber: i + 1,
+          content,
+          originalAuthor: userId,
+          editedBy: []
+        };
+        
+        if (!isEmpty) {
+          contentToUuidMap.set(content, newUuid);
+        }
+        
+        if (quill?.lineTracking) {
+          quill.lineTracking.setLineUuid(i + 1, newUuid);
         }
       }
     }
