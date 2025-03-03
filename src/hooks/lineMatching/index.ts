@@ -7,7 +7,7 @@ export {
   splitContentIntoLines,
   joinLinesWithBreaks
 } from './contentUtils';
-export { findBestMatchingLine } from './matchingStrategies';
+export { findBestMatchingLine } from './findBestMatchingLine';
 export { 
   generateStatsTemplate, 
   updateMatchStats

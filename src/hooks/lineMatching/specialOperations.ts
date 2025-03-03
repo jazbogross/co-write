@@ -1,7 +1,7 @@
 
 import { LineData } from '@/types/lineTypes';
 import { generateStatsTemplate } from './statsUtils';
-import { isContentEmpty, getPlainTextContent } from './contentUtils';
+import { isContentEmpty, getPlainTextContent, safeIncludes } from './contentUtils';
 
 /**
  * Handle special operation: Enter at position 0
@@ -44,7 +44,7 @@ export const handleSpecialOperations = (
   
   // Moved content can be slightly different due to formatting changes
   const movedContent = enterAtZeroOperation.movedContent;
-  const contentSimilar = contentLinePlainText.includes(movedContent) ||
+  const contentSimilar = safeIncludes(contentLinePlainText, movedContent) ||
                           movedContent.includes(contentLinePlainText);
   
   if (!isFirstLineEmpty || !contentSimilar) {
@@ -108,3 +108,4 @@ export const handleSpecialOperations = (
   
   return result;
 };
+

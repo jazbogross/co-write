@@ -51,3 +51,19 @@ export const splitContentIntoLines = (content: string): string[] => {
 export const joinLinesWithBreaks = (lines: string[]): string => {
   return lines.join('\n');
 };
+
+/**
+ * Safely check if content includes a substring (works for both strings and Delta objects)
+ */
+export const safeIncludes = (content: any, substring: string): boolean => {
+  if (!content || !substring) return false;
+  return getPlainTextContent(content).includes(substring);
+};
+
+/**
+ * Safely trim content (works for both strings and Delta objects)
+ */
+export const safeTrim = (content: any): string => {
+  return getPlainTextContent(content).trim();
+};
+
