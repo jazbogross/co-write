@@ -6,17 +6,20 @@ import { useEditorInitialization } from './useEditorInitialization';
 import { useContentInitialization } from './useContentInitialization';
 import { useContentUpdates } from './useContentUpdates';
 import { useDraftManagement } from './useDraftManagement';
+import { EDITOR_MODULES } from '@/components/editor/LineTrackingModule';
 
 export const useTextEditor = (
   originalContent: string, 
   scriptId: string,
-  quillRef: React.RefObject<ReactQuill>,
   lineData: LineData[],
   setLineData: React.Dispatch<React.SetStateAction<LineData[]>>,
   isDataReady: boolean,
   initializeEditor: (editor: any) => boolean,
   updateLineContents: (lines: any[], editor: any) => void
 ) => {
+  // Create quill reference
+  const quillRef = useRef<ReactQuill>(null);
+  
   // Initialize content state
   const {
     content,
@@ -88,7 +91,11 @@ export const useTextEditor = (
     updateLineContents(lineContents, editor);
   };
 
+  const formats = ['bold', 'italic', 'align'];
+  const modules = EDITOR_MODULES;
+
   return {
+    quillRef,
     content,
     setContent,
     lineCount,
@@ -96,6 +103,8 @@ export const useTextEditor = (
     handleChange,
     updateEditorContent,
     flushContentToLineData,
+    formats,
+    modules,
     // These could be used by the parent component if needed
     draftLoadAttempted,
     draftApplied

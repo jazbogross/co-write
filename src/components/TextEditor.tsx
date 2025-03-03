@@ -1,19 +1,12 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+
+import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { SuggestionsPanel } from './editor/SuggestionsPanel';
-import { LineTrackingModule, EDITOR_MODULES } from './editor/LineTrackingModule';
-import { EditorContainer } from './editor/EditorContainer';
-import { EditorActions } from './editor/EditorActions';
+import { useTextEditor } from '@/hooks/useTextEditor';
 import { useLineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
-import { useTextEditor } from '@/hooks/useTextEditor';
-
-// Register the module
-LineTrackingModule.register(ReactQuill.Quill);
-
-const formats = ['bold', 'italic', 'align'];
+import { TextEditorActions } from './editor/TextEditorActions';
+import { TextEditorContent } from './editor/TextEditorContent';
+import { SuggestionsPanel } from './editor/SuggestionsPanel';
 
 interface TextEditorProps {
   isAdmin: boolean;
@@ -28,7 +21,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   scriptId,
   onSuggestChange,
 }) => {
-  const quillRef = useRef<ReactQuill>(null);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   
@@ -41,7 +33,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     fetchUser();
   }, []);
 
-  // We initialize with an empty string and will load content from script_content table
+  // Initialize line data and editor reference
   const { 
     lineData, 
     setLineData,
@@ -51,19 +43,21 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     initializeEditor 
   } = useLineData(scriptId, "", userId);
 
-  // Set up and initialize text editor
-  const {
+  // Initialize text editor with quill reference
+  const { 
+    quillRef,
     content,
     setContent,
     lineCount,
     editorInitialized,
     handleChange,
     updateEditorContent,
-    flushContentToLineData
+    flushContentToLineData,
+    formats,
+    modules
   } = useTextEditor(
-    "", // Replace originalContent with empty string 
+    "", 
     scriptId, 
-    quillRef, 
     lineData,
     setLineData, 
     isDataReady, 
@@ -71,11 +65,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateLineContents
   );
 
-  // Set up draft management with proper userId
+  // Setup draft loading
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
   const [draftApplied, setDraftApplied] = useState(false);
 
-  // Load drafts when userId becomes available
   useEffect(() => {
     if (userId && isDataReady && !draftLoadAttempted) {
       console.log('TextEditor: User ID available, loading drafts:', userId);
@@ -84,59 +77,47 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [userId, isDataReady, loadDraftsForCurrentUser, draftLoadAttempted]);
 
-  // Force editor content update when lineData changes due to draft loading
+  // Apply loaded drafts to editor
   useEffect(() => {
     if (editorInitialized && draftLoadAttempted && lineData.length > 0 && !draftApplied) {
       const editor = quillRef.current?.getEditor();
       if (editor) {
         try {
-          // Turn on programmatic update mode
           if (editor.lineTracking) {
             editor.lineTracking.setProgrammaticUpdate(true);
           }
           
-          // Check if any line has Delta content
           const hasDeltaContent = lineData.some(line => typeof line.content === 'object' && line.content.ops);
           
           if (hasDeltaContent) {
-            // Use the reconstructed Delta content from lineData
             const combinedDelta = {
               ops: lineData.flatMap(line => {
                 if (typeof line.content === 'object' && line.content.ops) {
-                  // Get the ops from the Delta
                   const ops = [...line.content.ops];
-                  // Ensure the line ends with a newline
                   const lastOp = ops[ops.length - 1];
                   if (lastOp && typeof lastOp.insert === 'string' && !lastOp.insert.endsWith('\n')) {
                     ops.push({ insert: '\n' });
                   }
                   return ops;
                 } else {
-                  // Convert string content to ops
                   const content = typeof line.content === 'string' ? line.content : String(line.content);
                   return [{ insert: content }, { insert: '\n' }];
                 }
               })
             };
             
-            // Update editor content with the Delta
             updateEditorContent(combinedDelta);
           } else {
-            // Combine all line content as plain text
             const combinedContent = lineData.map(line => line.content).join('\n');
             
-            // Only update if content is different
             if (combinedContent !== content) {
               console.log('TextEditor: Updating editor content from loaded drafts');
-              
-              // Use the controlled update method to prevent loops
               updateEditorContent(combinedContent);
             }
           }
           
           setDraftApplied(true);
         } finally {
-          // Turn off programmatic update mode
           if (editor.lineTracking) {
             editor.lineTracking.setProgrammaticUpdate(false);
           }
@@ -145,22 +126,19 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent]);
 
-  // Handler for content changes
+  // Handle content changes and submission
   const handleContentChange = (newContent: string) => {
     handleChange(newContent);
     
-    // Important: Flush changes to line data when content changes
-    // This ensures lineData is always up-to-date with editor content
     if (editorInitialized) {
-      setTimeout(() => flushContentToLineData(), 50); // Small timeout to let Quill finish its updates
+      setTimeout(() => flushContentToLineData(), 50);
     }
   };
 
-  // Set up submission and saving functionality
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
     scriptId,
-    "", // Replace originalContent with empty string
+    "",
     content,
     lineData,
     userId,
@@ -169,28 +147,25 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     quillRef.current?.getEditor()
   );
   
-  // Make sure we flush any pending updates when saving
-  const handleSave = useCallback(() => {
-    flushContentToLineData(); // First flush any pending content updates
-    saveToSupabase(); // Then save to Supabase
-  }, [flushContentToLineData, saveToSupabase]);
-
-  // Format text function for toolbar
+  // Format text handler and save handler
   const formatText = (format: string, value: any) => {
     const editor = quillRef.current?.getEditor();
     if (!editor) return;
-    
     editor.format(format, value);
   };
 
-  // Don't render editor until data is ready
+  const handleSave = () => {
+    flushContentToLineData();
+    saveToSupabase();
+  };
+
   if (!isDataReady) {
     return <div className="flex items-center justify-center p-8">Loading editor data...</div>;
   }
 
   return (
     <>
-      <EditorActions
+      <TextEditorActions 
         isAdmin={isAdmin}
         isSubmitting={isSubmitting}
         onFormat={formatText}
@@ -201,11 +176,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         onSave={handleSave}
       />
       
-      <EditorContainer
+      <TextEditorContent
         content={content}
         lineCount={lineCount}
         quillRef={quillRef}
-        modules={EDITOR_MODULES}
+        modules={modules}
         formats={formats}
         onChange={handleContentChange}
       />
