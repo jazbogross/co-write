@@ -1,7 +1,7 @@
 
 import React, { useCallback } from 'react';
 import ReactQuill from 'react-quill';
-import { extractLineContents } from '@/utils/editorUtils';
+import { extractLineContents } from '@/utils/editor';
 import { useContentBuffer } from '@/hooks/useContentBuffer';
 
 interface EditorFormattingProps {
