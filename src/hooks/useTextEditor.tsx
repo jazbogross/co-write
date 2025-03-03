@@ -11,7 +11,7 @@ export const useTextEditor = (
   lineData: LineData[],
   isDataReady: boolean,
   initializeEditor: (editor: any) => boolean,
-  updateLineContents: (lines: string[], editor: any) => void
+  updateLineContents: (lines: any[], editor: any) => void
 ) => {
   const [content, setContent] = useState(originalContent);
   const [isContentInitialized, setIsContentInitialized] = useState(false);
@@ -127,7 +127,7 @@ export const useTextEditor = (
   };
 
   // Set content directly from external sources (like when drafts are loaded)
-  const updateEditorContent = (newContent: string) => {
+  const updateEditorContent = (newContent: string | any) => {
     // Mark this as a programmatic update to avoid infinite loops
     contentUpdateRef.current = true;
     isProcessingLinesRef.current = true;
@@ -149,11 +149,12 @@ export const useTextEditor = (
             console.log('**** useTextEditor.tsx **** Set editor contents from Delta object');
           } else {
             // If Delta parsing failed, insert as text
-            editor.insertText(0, newContent);
+            editor.insertText(0, typeof newContent === 'string' ? newContent : JSON.stringify(newContent));
           }
         } else {
           // If content has multiple lines, split and insert line by line to ensure proper structure
-          const lines = newContent.split('\n');
+          const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
+          const lines = contentStr.split('\n');
           
           lines.forEach((line, index) => {
             const position = editor.getLength() - 1;
@@ -177,7 +178,11 @@ export const useTextEditor = (
       } catch (error) {
         console.error('**** useTextEditor.tsx **** Error updating editor content:', error);
         // Fallback to plain text insertion
-        editor.insertText(0, newContent);
+        if (typeof newContent === 'string') {
+          editor.insertText(0, newContent);
+        } else {
+          editor.insertText(0, JSON.stringify(newContent));
+        }
       } finally {
         isProcessingLinesRef.current = false;
       }

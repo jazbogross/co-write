@@ -1,4 +1,3 @@
-
 export const extractLineContents = (lines: any[], quill: any): string[] => {
   return lines.map(line => {
     if (!line.domNode) return '';
@@ -9,46 +8,68 @@ export const extractLineContents = (lines: any[], quill: any): string[] => {
     
     // Extract the content while preserving formatting
     const delta = quill.getContents(startIndex, endIndex - startIndex);
-    return JSON.stringify(delta);
+    
+    // Return the delta object directly, not as a string
+    return delta;
   });
 };
 
-export const reconstructContent = (lineData: Array<{ content: string }>): string => {
+export const reconstructContent = (lineData: Array<{ content: string | any }>): any => {
   try {
-    // For first load, don't reconstruct at all, just return the original content
-    if (lineData.length === 1 && lineData[0].content.includes('\n') === false) {
+    // For first load, if we have a single line of plain text, return it directly
+    if (lineData.length === 1 && typeof lineData[0].content === 'string' && 
+        !lineData[0].content.includes('\n')) {
       return lineData[0].content;
     }
     
-    // For edited content, create a properly formatted delta object
-    const ops = lineData.flatMap(line => {
+    // Build combined ops from all lines
+    const ops: any[] = [];
+    
+    lineData.forEach(line => {
+      if (!line.content) return;
+      
       try {
-        // Try to parse the content as a delta object
-        if (line.content.startsWith('{') && line.content.includes('ops')) {
-          const delta = JSON.parse(line.content);
-          // Return the ops array from each delta
-          return delta.ops || [];
+        // If content is a Delta object, add its ops
+        if (typeof line.content === 'object' && line.content.ops) {
+          ops.push(...line.content.ops);
+        }
+        // If content is a stringified Delta, parse and add its ops
+        else if (typeof line.content === 'string' && 
+                line.content.startsWith('{') && 
+                line.content.includes('ops')) {
+          try {
+            const delta = JSON.parse(line.content);
+            if (delta && delta.ops) {
+              ops.push(...delta.ops);
+            }
+          } catch (e) {
+            // If parsing fails, add as plain text
+            ops.push({ insert: line.content + '\n' });
+          }
+        }
+        // Otherwise, add as plain text
+        else {
+          ops.push({ insert: (typeof line.content === 'string' ? line.content : String(line.content)) + '\n' });
         }
       } catch (e) {
-        // If parsing fails, treat as plain text
-        console.error('Error parsing delta:', e);
+        // Fallback: add as plain text
+        ops.push({ insert: (typeof line.content === 'string' ? line.content : String(line.content)) + '\n' });
       }
-      
-      // Fallback: treat as plain text
-      return [{ insert: line.content + '\n' }];
     });
     
-    // Create a single delta object with all ops
-    return JSON.stringify({ ops });
+    // Return a proper Delta object
+    return { ops };
   } catch (error) {
     console.error('Error reconstructing content:', error);
-    // Fallback to original behavior
-    return lineData.map(line => line.content).join('\n');
+    // Fallback to joining strings
+    return lineData.map(line => 
+      typeof line.content === 'string' ? line.content : String(line.content)
+    ).join('\n');
   }
 };
 
 // Extract plain text from a Delta object or string, handling nested Deltas properly
-export const extractPlainTextFromDelta = (content: string | null): string => {
+export const extractPlainTextFromDelta = (content: string | any | null): string => {
   if (!content) return '';
   
   try {
@@ -58,49 +79,25 @@ export const extractPlainTextFromDelta = (content: string | null): string => {
       return content;
     }
     
+    // Handle Delta objects directly
+    if (typeof content === 'object' && content.ops) {
+      return extractTextFromDeltaOps(content.ops);
+    }
+    
     // Parse if it's a JSON string
-    let delta = content;
     if (typeof content === 'string') {
       try {
-        delta = JSON.parse(content);
+        const delta = JSON.parse(content);
+        if (delta && delta.ops) {
+          return extractTextFromDeltaOps(delta.ops);
+        }
       } catch (e) {
         // If it can't be parsed as JSON, it's likely already plain text
         return content;
       }
     }
     
-    // Process Delta object to extract text
-    if (delta && typeof delta === 'object' && 'ops' in delta && Array.isArray(delta.ops)) {
-      // Build a string with proper newlines
-      let result = '';
-      delta.ops.forEach((op: any) => {
-        if (typeof op.insert === 'string') {
-          // Check if the insert itself is a nested Delta JSON string
-          if (op.insert.startsWith('{') && op.insert.includes('ops')) {
-            try {
-              // Recursively extract text from nested Delta
-              result += extractPlainTextFromDelta(op.insert);
-            } catch (e) {
-              // If recursive extraction fails, use the original string
-              result += op.insert;
-            }
-          } else {
-            result += op.insert;
-          }
-        } else if (op.insert && typeof op.insert === 'object') {
-          // Handle embeds or other non-string inserts
-          result += ' ';
-        }
-      });
-      
-      // Ensure the result has a proper newline if needed
-      if (!result.endsWith('\n')) {
-        result += '\n';
-      }
-      return result;
-    }
-    
-    // If we couldn't parse it as a Delta object, return the original content
+    // Fallback: Return as string
     return typeof content === 'string' ? content : JSON.stringify(content);
   } catch (e) {
     console.error('Error extracting plain text from delta:', e);
@@ -108,44 +105,69 @@ export const extractPlainTextFromDelta = (content: string | null): string => {
   }
 };
 
+// Helper function to extract text from Delta ops
+function extractTextFromDeltaOps(ops: any[]): string {
+  if (!Array.isArray(ops)) return '';
+  
+  let result = '';
+  ops.forEach((op: any) => {
+    if (typeof op.insert === 'string') {
+      result += op.insert;
+    } else if (op.insert && typeof op.insert === 'object') {
+      // Handle embeds or other non-string inserts
+      result += ' ';
+    }
+  });
+  
+  // Ensure the result has a proper newline if needed
+  if (!result.endsWith('\n')) {
+    result += '\n';
+  }
+  return result;
+}
+
 // Preserve formatted content from Quill, ensuring we don't double-wrap Delta objects
-export const preserveFormattedContent = (content: string, quill: any): string => {
+export const preserveFormattedContent = (content: string | any, quill: any): any => {
   if (!quill) return content;
   
-  // Check if content is already a Delta object
-  if (isDeltaObject(content)) {
+  // If content is already a Delta object, return it directly
+  if (typeof content === 'object' && content.ops) {
     console.log('Content is already a Delta object, not rewrapping');
     return content;
   }
   
   // If we already have a Quill editor with content, get its contents as Delta
   if (quill.getLength() > 1) { // > 1 because empty editor has length 1 (newline)
-    return JSON.stringify(quill.getContents());
+    return quill.getContents();
   }
   
   return content;
 };
 
 // Debug utility to log delta content structure
-export const logDeltaStructure = (content: string | null): void => {
+export const logDeltaStructure = (content: string | any | null): void => {
   if (!content) {
     console.log("Delta content is null or empty");
     return;
   }
   
   try {
-    if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
-      const delta = JSON.parse(content);
-      if (delta) {
-        console.log("Delta structure:", {
-          hasOps: !!(delta && delta.ops),
-          opsCount: delta?.ops?.length ?? 0,
-          firstOp: delta?.ops?.[0] ?? null,
-          plainText: extractPlainTextFromDelta(content)
-        });
-      } else {
-        console.log("Failed to parse delta object:", content);
-      }
+    let delta = null;
+    
+    // Handle different input types
+    if (typeof content === 'object' && content.ops) {
+      delta = content;
+    } else if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
+      delta = JSON.parse(content);
+    }
+    
+    if (delta) {
+      console.log("Delta structure:", {
+        hasOps: !!(delta && delta.ops),
+        opsCount: delta?.ops?.length ?? 0,
+        firstOp: delta?.ops?.[0] ?? null,
+        plainText: extractPlainTextFromDelta(content)
+      });
     } else {
       console.log("Not a delta object:", content);
     }
@@ -155,10 +177,16 @@ export const logDeltaStructure = (content: string | null): void => {
 };
 
 // Check if content is a Delta object
-export const isDeltaObject = (content: string | null): boolean => {
+export const isDeltaObject = (content: string | any | null): boolean => {
   if (!content) return false;
   
   try {
+    // If it's already an object with ops property
+    if (typeof content === 'object' && content.ops && Array.isArray(content.ops)) {
+      return true;
+    }
+    
+    // If it's a string, try parsing it
     if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
       const delta = JSON.parse(content);
       return !!delta && !!delta.ops && Array.isArray(delta.ops);
@@ -171,11 +199,16 @@ export const isDeltaObject = (content: string | null): boolean => {
 };
 
 // Safely parse a Delta object, handling double-wrapped Delta objects
-export const safelyParseDelta = (content: string | null): any => {
+export const safelyParseDelta = (content: string | any | null): any => {
   if (!content) return null;
   
   try {
-    // First, check if it's a Delta object
+    // If content is already a Delta object, return it directly
+    if (typeof content === 'object' && content.ops && Array.isArray(content.ops)) {
+      return content;
+    }
+    
+    // If it's a string, try parsing it
     if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
       const delta = JSON.parse(content);
       

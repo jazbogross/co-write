@@ -6,7 +6,7 @@ import { useContentBuffer } from '@/hooks/useContentBuffer';
 
 interface EditorFormattingProps {
   quillRef: React.RefObject<ReactQuill>;
-  updateLineContents: (lines: string[], editor: any) => void;
+  updateLineContents: (lines: any[], editor: any) => void;
   editorInitialized: boolean;
 }
 
