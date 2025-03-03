@@ -34,9 +34,15 @@ export const useContentInitialization = (
       try {
         // Log line data content types
         lineData.slice(0, 3).forEach((line, i) => {
-          const previewText = typeof line.content === 'string' 
-            ? line.content.substring(0, 30) 
-            : JSON.stringify(line.content).substring(0, 30) + '...';
+          let previewText: string;
+          
+          if (typeof line.content === 'string') {
+            previewText = line.content.substring(0, 30);
+          } else if (line.content) {
+            previewText = JSON.stringify(line.content).substring(0, 30) + '...';
+          } else {
+            previewText = '[empty content]';
+          }
             
           console.log(`🔄 Line ${i+1} content type:`, typeof line.content, 
             isDeltaObject(line.content) ? 'isDelta' : 'notDelta',
@@ -47,9 +53,14 @@ export const useContentInitialization = (
         // Instead of joining plain text, use reconstruction that preserves Delta formatting
         const reconstructedContent = reconstructContent(lineData);
         
-        const previewText = typeof reconstructedContent === 'string' 
-          ? reconstructedContent.substring(0, 100) + '...'
-          : JSON.stringify(reconstructedContent).substring(0, 100) + '...';
+        let previewText: string;
+        if (typeof reconstructedContent === 'string') {
+          previewText = reconstructedContent.substring(0, 100) + '...';
+        } else if (reconstructedContent) {
+          previewText = JSON.stringify(reconstructedContent).substring(0, 100) + '...';
+        } else {
+          previewText = '[empty content]';
+        }
           
         console.log('🔄 Reconstructed content type:', typeof reconstructedContent, 
           isDeltaObject(reconstructedContent) ? 'isDelta' : 'notDelta');

@@ -24,9 +24,15 @@ export const useContentUpdates = (
   const contentUpdateRef = useRef(false);
 
   const handleChange = (newContent: string | DeltaContent) => {
-    const previewText = typeof newContent === 'string' 
-      ? newContent.substring(0, 50) + '...' 
-      : JSON.stringify(newContent).substring(0, 50) + '...';
+    let previewText: string;
+    
+    if (typeof newContent === 'string') {
+      previewText = newContent.substring(0, 50) + '...';
+    } else if (newContent) {
+      previewText = JSON.stringify(newContent).substring(0, 50) + '...';
+    } else {
+      previewText = '[empty content]';
+    }
       
     console.log('📝 useContentUpdates: handleChange called with', {
       contentType: typeof newContent,

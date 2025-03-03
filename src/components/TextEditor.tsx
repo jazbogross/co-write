@@ -13,6 +13,7 @@ import { TextEditorContent } from './editor/TextEditorContent';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule } from './editor/LineTracker';
 import { DeltaContent } from '@/utils/editor/types';
+import { extractPlainTextFromDelta } from '@/utils/editor';
 
 // Register the LineTrackingModule with Quill
 ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
@@ -105,7 +106,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     isAdmin,
     scriptId,
     "",
-    content,
+    content, // This can be DeltaContent or string
     lineData,
     userId,
     onSuggestChange,
@@ -132,6 +133,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     return <div className="flex items-center justify-center p-8">Loading editor data...</div>;
   }
 
+  // Convert content to string if it's a DeltaContent for TextEditorContent
+  const contentString = typeof content === 'string' 
+    ? content 
+    : extractPlainTextFromDelta(content);
+
   console.log('📋 TextEditor: Rendering editor with ready data');
   return (
     <>
@@ -144,7 +150,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       />
       
       <TextEditorContent
-        content={content}
+        content={contentString}
         lineCount={lineCount}
         quillRef={quillRef}
         modules={modules}
