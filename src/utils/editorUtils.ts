@@ -53,13 +53,13 @@ export const extractPlainTextFromDelta = (content: string | null): string => {
   
   try {
     // If it's a Delta object (JSON string)
-    if (content.startsWith('{') && content.includes('ops')) {
+    if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
       const delta = JSON.parse(content);
       
       // Extract text from ops array
       if (delta.ops && Array.isArray(delta.ops)) {
         return delta.ops.reduce((text, op) => {
-          if (op.insert) {
+          if (typeof op.insert === 'string') {
             return text + op.insert;
           }
           return text;
@@ -72,7 +72,7 @@ export const extractPlainTextFromDelta = (content: string | null): string => {
   } catch (e) {
     // If parsing fails, return the original content
     console.error('Error extracting plain text from delta:', e);
-    return content;
+    return typeof content === 'string' ? content : JSON.stringify(content);
   }
 };
 
@@ -87,4 +87,3 @@ export const preserveFormattedContent = (content: string, quill: any): string =>
   
   return content;
 };
-

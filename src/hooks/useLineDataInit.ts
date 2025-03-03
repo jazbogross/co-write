@@ -33,7 +33,7 @@ export const useLineDataInit = (
           .from('script_content')
           .select('id, line_number, line_number_draft, content, draft')
           .eq('script_id', scriptId)
-          .order('line_number_draft', { ascending: true, nullsFirst: false }); // Prioritize drafts
+          .order('line_number', { ascending: true });
           
         if (allLinesError) throw allLinesError;
         
@@ -41,43 +41,58 @@ export const useLineDataInit = (
           console.log('**** UseLineData **** Data fetched successfully. Lines count:', allLines.length);
           
           // Log a sample of data for debugging
-          console.log('**** UseLineData **** Sample data:', {
-            sample: allLines[0],
-            hasDraft: allLines[0].draft !== null || allLines[0].line_number_draft !== null,
-            draftContent: allLines[0].draft ? extractPlainTextFromDelta(allLines[0].draft) : null
-          });
+          if (allLines[0]) {
+            console.log('**** UseLineData **** Sample data:', {
+              sample: allLines[0],
+              hasDraft: allLines[0].draft !== null || allLines[0].line_number_draft !== null,
+              draftContent: allLines[0].draft ? extractPlainTextFromDelta(allLines[0].draft) : null
+            });
+          }
           
-          // Simplified draft processing logic
-          const processedLineData = allLines
-            .filter(line => line.draft !== '{deleted-uuid}') // Filter out deleted lines
-            .map(line => {
-              // Check if this line has draft content or draft line number
-              const hasDraft = line.draft !== null || line.line_number_draft !== null;
+          // Create a map to store the final line data by line number
+          const lineNumberMap = new Map<number, LineData>();
+          
+          // First, process all lines without drafts to establish the base structure
+          allLines.forEach(line => {
+            if (line.draft !== '{deleted-uuid}') {
+              // Calculate effective line number (use draft if available)
+              const effectiveLineNumber = line.line_number_draft !== null ? line.line_number_draft : line.line_number;
               
               // Process content - extract plain text from Delta if needed
+              const hasDraft = line.draft !== null || line.line_number_draft !== null;
               const finalContent = hasDraft 
                 ? (line.draft !== null ? extractPlainTextFromDelta(line.draft) : line.content) 
                 : line.content;
               
-              return {
+              const lineDataItem: LineData = {
                 uuid: line.id,
                 content: finalContent,
-                lineNumber: hasDraft ? (line.line_number_draft || line.line_number) : line.line_number,
+                lineNumber: effectiveLineNumber,
                 originalAuthor: null, // Will be populated later
                 editedBy: [],
                 hasDraft: hasDraft,
                 originalContent: line.content, // Store original content for reference
                 originalLineNumber: line.line_number // Store original line number for reference
               };
-            })
-            // Sort by line number to ensure order
+              
+              // Store in map by effective line number
+              lineNumberMap.set(effectiveLineNumber, lineDataItem);
+              
+              // Also update the content-to-UUID map
+              contentToUuidMapRef.current.set(finalContent, line.id);
+            }
+          });
+          
+          // Convert map to array and sort by line number
+          const processedLineData = Array.from(lineNumberMap.values())
             .sort((a, b) => a.lineNumber - b.lineNumber);
           
-          // Update line numbers to ensure continuity
+          // Renumber lines to ensure continuity (1, 2, 3, ...)
           processedLineData.forEach((line, index) => {
             line.lineNumber = index + 1;
-            contentToUuidMapRef.current.set(line.content, line.uuid);
           });
+          
+          console.log('**** UseLineData **** Processed line data:', processedLineData.length, 'lines');
           
           setLineData(processedLineData);
           lastLineCountRef.current = processedLineData.length;
@@ -124,56 +139,65 @@ export const useLineDataInit = (
         .from('script_content')
         .select('id, line_number, line_number_draft, content, draft')
         .eq('script_id', scriptId)
-        .order('line_number_draft', { ascending: true, nullsFirst: false });
+        .order('line_number', { ascending: true });
         
       if (draftError) throw draftError;
       
       if (draftLines && draftLines.length > 0) {
         // Debug log for first draft
-        if (draftLines[0].draft) {
+        if (draftLines[0] && draftLines[0].draft) {
           console.log('**** UseLineData **** Sample draft data:', {
             raw: draftLines[0].draft,
             extracted: extractPlainTextFromDelta(draftLines[0].draft)
           });
         }
         
+        // Create a map to store the final line data by line number
+        const lineNumberMap = new Map<number, LineData>();
+        
         // Process all lines with simplified draft logic
-        setLineData(prevData => {
-          // Process all draft lines
-          const updatedLines = draftLines
-            .filter(line => line.draft !== '{deleted-uuid}') // Filter out deleted lines
-            .map(line => {
-              // Check if this line has draft content or draft line number
-              const hasDraft = line.draft !== null || line.line_number_draft !== null;
-              
-              // Process content - extract plain text from Delta if needed
-              const finalContent = hasDraft 
-                ? (line.draft !== null ? extractPlainTextFromDelta(line.draft) : line.content) 
-                : line.content;
-              
-              return {
-                uuid: line.id,
-                content: finalContent,
-                lineNumber: hasDraft ? (line.line_number_draft || line.line_number) : line.line_number,
-                originalAuthor: null,
-                editedBy: [],
-                hasDraft: hasDraft,
-                originalContent: line.content,
-                originalLineNumber: line.line_number
-              };
-            });
-          
-          // Sort and renumber
-          updatedLines.sort((a, b) => a.lineNumber - b.lineNumber);
-          updatedLines.forEach((line, index) => {
-            line.lineNumber = index + 1;
-            // Update content-to-uuid map
-            contentToUuidMapRef.current.set(line.content, line.uuid);
-          });
-          
-          console.log(`**** UseLineData **** Applied draft updates to ${updatedLines.length} lines`);
-          return updatedLines;
+        draftLines.forEach(line => {
+          if (line.draft !== '{deleted-uuid}') {
+            // Calculate effective line number (use draft if available)
+            const effectiveLineNumber = line.line_number_draft !== null ? line.line_number_draft : line.line_number;
+            
+            // Process content - extract plain text from Delta if needed
+            const hasDraft = line.draft !== null || line.line_number_draft !== null;
+            const finalContent = hasDraft 
+              ? (line.draft !== null ? extractPlainTextFromDelta(line.draft) : line.content) 
+              : line.content;
+            
+            const lineDataItem: LineData = {
+              uuid: line.id,
+              content: finalContent,
+              lineNumber: effectiveLineNumber,
+              originalAuthor: null,
+              editedBy: [],
+              hasDraft: hasDraft,
+              originalContent: line.content,
+              originalLineNumber: line.line_number
+            };
+            
+            // Store in map by effective line number
+            lineNumberMap.set(effectiveLineNumber, lineDataItem);
+            
+            // Also update the content-to-UUID map
+            contentToUuidMapRef.current.set(finalContent, line.id);
+          }
         });
+        
+        // Convert map to array and sort by line number
+        const updatedLines = Array.from(lineNumberMap.values())
+          .sort((a, b) => a.lineNumber - b.lineNumber);
+        
+        // Renumber lines to ensure continuity (1, 2, 3, ...)
+        updatedLines.forEach((line, index) => {
+          line.lineNumber = index + 1;
+        });
+        
+        console.log(`**** UseLineData **** Applied draft updates to ${updatedLines.length} lines`);
+        
+        setLineData(updatedLines);
       }
     } catch (error) {
       console.error('**** UseLineData **** Error loading drafts:', error);

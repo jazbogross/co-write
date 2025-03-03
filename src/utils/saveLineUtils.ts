@@ -13,16 +13,22 @@ export const saveLinesToDatabase = async (
     // First, get all existing lines
     const { data: existingLines, error: fetchError } = await supabase
       .from('script_content')
-      .select('id')
+      .select('id, line_number')
       .eq('script_id', scriptId);
       
     if (fetchError) throw fetchError;
     
     // Create a map of existing line UUIDs for quick lookup
-    const existingLineMap = new Set();
+    const existingLineMap = new Map();
     if (existingLines) {
-      existingLines.forEach(line => existingLineMap.add(line.id));
+      existingLines.forEach(line => existingLineMap.set(line.id, line.line_number));
     }
+    
+    console.log(`Found ${existingLineMap.size} existing lines, processing ${lineData.length} lines`);
+    
+    // First, make sure we're not trying to save duplicate line numbers
+    // Sort lineData by line number to ensure we save in order
+    lineData.sort((a, b) => a.lineNumber - b.lineNumber);
     
     // Process each line: update existing lines, insert new ones
     for (const line of lineData) {
@@ -38,9 +44,32 @@ export const saveLinesToDatabase = async (
           })
           .eq('id', line.uuid);
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating existing line:', error, line);
+          throw error;
+        }
       } else {
+        // Check if a line with this line number already exists
+        const duplicateLineNumber = existingLines?.find(existing => 
+          existing.line_number === line.lineNumber && existing.id !== line.uuid);
+          
+        if (duplicateLineNumber) {
+          console.warn(`Line number ${line.lineNumber} already exists with a different UUID. Adjusting...`);
+          
+          // Update the existing line's number to avoid conflict
+          const { error: updateError } = await supabase
+            .from('script_content')
+            .update({ line_number: -1 }) // Temporarily set to negative to avoid conflicts
+            .eq('id', duplicateLineNumber.id);
+            
+          if (updateError) {
+            console.error('Error updating duplicate line number:', updateError);
+            throw updateError;
+          }
+        }
+        
         // Insert new line
+        console.log(`Inserting new line: ${line.uuid}, line number: ${line.lineNumber}`);
         const { error } = await supabase
           .from('script_content')
           .insert({
@@ -54,7 +83,10 @@ export const saveLinesToDatabase = async (
             line_number_draft: null // No draft line number
           });
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error inserting new line:', error, line);
+          throw error;
+        }
       }
     }
     
@@ -64,6 +96,7 @@ export const saveLinesToDatabase = async (
       for (const line of existingLines) {
         if (!currentLineUUIDs.includes(line.id)) {
           // Line was deleted - remove it from the database
+          console.log(`Deleting line: ${line.id}`);
           const { error } = await supabase
             .from('script_content')
             .delete()
