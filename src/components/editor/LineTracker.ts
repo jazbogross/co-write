@@ -134,19 +134,27 @@ export class LineTracker {
     }
   }
 
-  // Example getters/setters
+  // Get UUID for a specific line index
   public getLineUuid(oneBasedIndex: number): string | undefined {
     return this.linePosition.getLineUuid(oneBasedIndex);
   }
 
+  // Set UUID for a specific line
   public setLineUuid(oneBasedIndex: number, uuid: string) {
     this.linePosition.setLineUuid(oneBasedIndex, uuid, this.quill);
   }
 
+  // Get mapping of line indices to UUIDs from DOM
+  public getDomUuidMap(): Map<number, string> {
+    return this.linePosition.getDomUuidMap(this.quill);
+  }
+
+  // Get last operation
   public getLastOperation(): { type: string; lineIndex: number; movedContent?: string } | null {
     return this.cursorTracker.getLastOperation();
   }
 
+  // Get change history for a UUID
   public getChangeHistory(uuid: string): { content: string; timestamp: number }[] {
     return this.changeHistory.getChangeHistory(uuid);
   }

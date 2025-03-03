@@ -150,7 +150,7 @@ export class LinePosition {
     return this.contentToUuid;
   }
 
-  // Get DOM UUID map
+  // Get DOM UUID map - Modified to not require quill parameter
   getDomUuidMap(quill: any): Map<number, string> {
     const map = new Map<number, string>();
     const lines = quill.getLines(0);

@@ -80,7 +80,18 @@ export const useLineData = (
       }
       lastLineCountRef.current = newContents.length;
       
-      const domUuidMap = quill.lineTracking.getDomUuidMap();
+      // Get the DOM UUID map safely
+      let domUuidMap = new Map<number, string>();
+      try {
+        if (typeof quill.lineTracking.getDomUuidMap === 'function') {
+          domUuidMap = quill.lineTracking.getDomUuidMap();
+        } else {
+          console.warn('🔠 useLineData: getDomUuidMap is not a function, using empty map');
+        }
+      } catch (error) {
+        console.error('🔠 useLineData: Error calling getDomUuidMap:', error);
+      }
+      
       console.log(`🔠 useLineData: DOM UUID map size: ${domUuidMap.size}`);
       
       const { newData, stats } = matchAndAssignLines(
