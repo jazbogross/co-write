@@ -10,10 +10,16 @@ import { extractPlainTextFromDelta } from './contentUtils';
  */
 export const reconstructContent = (lineData: Array<{ content: string | any }>): any => {
   try {
-    // For first load, if we have a single line of plain text, return it directly
-    if (lineData.length === 1 && typeof lineData[0].content === 'string' && 
-        !lineData[0].content.includes('\n')) {
-      return lineData[0].content;
+    // Check if we have any Delta content to preserve
+    const hasFormattedContent = lineData.some(line => 
+      isDeltaObject(line.content)
+    );
+    
+    // If no formatted content, just return plain text
+    if (!hasFormattedContent) {
+      return lineData.map(line => 
+        typeof line.content === 'string' ? line.content : String(line.content)
+      ).join('\n');
     }
     
     // Build combined ops from all lines
