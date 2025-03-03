@@ -1,7 +1,7 @@
 
 import { LineData } from '@/types/lineTypes';
 import { isContentEmpty, getPlainTextContent } from './contentUtils';
-import { findBestMatchingLine } from './matchingStrategies';
+import { findBestMatchingLine } from './findBestMatchingLine';
 import { recordStrategyUsage } from './statsUtils';
 
 /**
