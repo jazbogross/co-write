@@ -14,7 +14,7 @@ export const saveDraft = async (
     // First get all existing lines for this script
     const { data: existingLines, error: fetchError } = await supabase
       .from('script_content')
-      .select('id, line_number, content, draft')
+      .select('id, line_number, content, draft, line_number_draft')
       .eq('script_id', scriptId);
       
     if (fetchError) {
@@ -38,18 +38,38 @@ export const saveDraft = async (
       const existingLine = existingLineMap.get(line.uuid);
       
       if (existingLine) {
-        // Line exists - update its draft content and draft line number
-        const { error } = await supabase
-          .from('script_content')
-          .update({
-            draft: line.content,
-            line_number_draft: line.lineNumber
-          })
-          .eq('id', line.uuid);
-          
-        if (error) {
-          console.error('Error updating existing line:', error);
-          throw error;
+        // Line exists - check if we need to update draft content or line number
+        const updates = {};
+        let needsUpdate = false;
+        
+        // Only update draft if content changed
+        if (line.content !== existingLine.content && line.content !== existingLine.draft) {
+          updates.draft = line.content;
+          needsUpdate = true;
+          console.log(`Updating draft content for line ${line.uuid}: content changed`);
+        }
+        
+        // Only update line_number_draft if position changed
+        if (line.lineNumber !== existingLine.line_number && 
+            line.lineNumber !== existingLine.line_number_draft) {
+          updates.line_number_draft = line.lineNumber;
+          needsUpdate = true;
+          console.log(`Updating draft position for line ${line.uuid}: ${existingLine.line_number} -> ${line.lineNumber}`);
+        }
+        
+        // Only perform update if there are changes
+        if (needsUpdate) {
+          const { error } = await supabase
+            .from('script_content')
+            .update(updates)
+            .eq('id', line.uuid);
+            
+          if (error) {
+            console.error('Error updating existing line:', error);
+            throw error;
+          }
+        } else {
+          console.log(`No changes needed for line ${line.uuid}`);
         }
       } else {
         // New line - add it to script_content with draft content only
