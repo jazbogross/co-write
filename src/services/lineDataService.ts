@@ -23,26 +23,7 @@ export const fetchAllLines = async (scriptId: string) => {
 };
 
 /**
- * Fetches all draft lines for a script
- */
-export const fetchDraftLines = async (scriptId: string) => {
-  try {
-    const { data, error } = await supabase
-      .from('script_content')
-      .select('id, line_number, line_number_draft, content, draft')
-      .eq('script_id', scriptId)
-      .order('line_number', { ascending: true });
-      
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching draft lines:', error);
-    throw error;
-  }
-};
-
-/**
- * Loads user drafts from the database
+ * Loads user drafts from the database and returns processed line data
  */
 export const loadDrafts = async (
   scriptId: string,
@@ -57,22 +38,32 @@ export const loadDrafts = async (
   console.log('**** LineDataService **** Loading drafts for user:', userId);
   
   try {
-    // Reload all line data to ensure we have the latest drafts
-    const draftLines = await fetchDraftLines(scriptId);
+    // Fetch all lines including drafts
+    const allLines = await fetchAllLines(scriptId);
     
-    if (draftLines && draftLines.length > 0) {
-      // Process the draft lines
-      const updatedLines = processDraftLines(draftLines, contentToUuidMapRef);
-      
-      console.log(`**** LineDataService **** Applied draft updates to ${updatedLines.length} lines`);
-      
-      if (updatedLines.length > 0) {
-        return updatedLines;
-      } else {
-        console.log('**** LineDataService **** No valid lines with drafts found');
-      }
-    } else {
+    if (!allLines || allLines.length === 0) {
       console.log('**** LineDataService **** No lines found for script:', scriptId);
+      return [];
+    }
+    
+    // Check if any lines have draft content
+    const hasDrafts = allLines.some(line => 
+      line.draft !== null || line.line_number_draft !== null
+    );
+    
+    if (!hasDrafts) {
+      console.log('**** LineDataService **** No drafts found for this script');
+      return [];
+    }
+    
+    // Process the lines with draft content
+    const updatedLines = processDraftLines(allLines, contentToUuidMapRef);
+    console.log(`**** LineDataService **** Applied draft updates to ${updatedLines.length} lines`);
+    
+    if (updatedLines.length > 0) {
+      return updatedLines;
+    } else {
+      console.log('**** LineDataService **** No valid lines with drafts found');
     }
     
     return [];
