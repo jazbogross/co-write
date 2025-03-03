@@ -1,6 +1,6 @@
 
 import { LineData } from '@/types/lineTypes';
-import { isContentEmpty, getPlainTextContent, getTrimmedContent } from './contentUtils';
+import { isContentEmpty, getPlainTextContent, getTrimmedContent, safeTrim } from './contentUtils';
 
 /**
  * Calculates text similarity between two strings
@@ -201,3 +201,4 @@ export const findBestMatchingLine = (
   
   return null;
 };
+
