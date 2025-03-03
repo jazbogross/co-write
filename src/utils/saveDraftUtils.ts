@@ -42,20 +42,15 @@ export const saveDraft = async (
         const updates: { draft?: string; line_number_draft?: number } = {};
         let needsUpdate = false;
         
-        // Use explicit draft state flag if available, or compare content
-        const contentChanged = line.hasDraft || 
-          (line.content !== existingLine.content && line.content !== existingLine.draft);
-        
-        // Only update draft if content changed
-        if (contentChanged) {
+        // Check if content has changed compared to the original
+        if (line.content !== existingLine.content) {
           updates.draft = line.content;
           needsUpdate = true;
-          console.log(`Updating draft content for line ${line.uuid}: content changed`);
+          console.log(`Updating draft content for line ${line.uuid}`);
         }
         
-        // Only update line_number_draft if position changed
-        if (line.lineNumber !== existingLine.line_number && 
-            line.lineNumber !== existingLine.line_number_draft) {
+        // Check if line number has changed compared to the original
+        if (line.lineNumber !== existingLine.line_number) {
           updates.line_number_draft = line.lineNumber;
           needsUpdate = true;
           console.log(`Updating draft position for line ${line.uuid}: ${existingLine.line_number} -> ${line.lineNumber}`);

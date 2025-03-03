@@ -1,13 +1,11 @@
+
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/hooks/useLineData';
-import { 
-  saveLinesToDatabase, 
-  saveSuggestions, 
-  saveDraft, 
-  saveLineDrafts 
-} from '@/utils/saveUtils';
+import { saveLinesToDatabase } from '@/utils/saveLineUtils';
+import { saveDraft } from '@/utils/saveDraftUtils';
+import { saveSuggestions, saveLineDrafts } from '@/utils/saveSuggestionUtils';
 
 export const useSubmitEdits = (
   isAdmin: boolean,
@@ -17,7 +15,7 @@ export const useSubmitEdits = (
   lineData: LineData[],
   userId: string | null,
   onSuggestChange: (suggestion: string) => void,
-  loadDraftsForCurrentUser?: () => Promise<void> // Accept this from useLineData
+  loadDraftsForCurrentUser?: () => Promise<void>
 ) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -35,7 +33,7 @@ export const useSubmitEdits = (
     setIsSubmitting(true);
     try {
       if (isAdmin) {
-        // Save to database first regardless of GitHub commit
+        // Save to database and clear all drafts
         await saveLinesToDatabase(scriptId, lineData, content);
         
         try {
@@ -99,7 +97,7 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, originalContent, userId, onSuggestChange]);
+  }, [isAdmin, scriptId, lineData, content, originalContent, userId, onSuggestChange, toast]);
 
   const saveToSupabase = useCallback(async () => {
     if (content === originalContent) {
@@ -144,7 +142,7 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, originalContent, userId, loadDraftsForCurrentUser]);
+  }, [isAdmin, scriptId, lineData, content, originalContent, userId, loadDraftsForCurrentUser, toast]);
 
   return { isSubmitting, handleSubmit, saveToSupabase };
 };

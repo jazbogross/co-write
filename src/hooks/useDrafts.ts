@@ -18,7 +18,7 @@ export const useDrafts = () => {
     console.log('Loading drafts for user:', userId);
     
     try {
-      // Use the consolidated implementation from useLineDataInit
+      // Use the simplified implementation from useLineDataInit
       await loadDraftsImplementation(userId);
     } catch (error) {
       console.error('Error loading drafts:', error);
