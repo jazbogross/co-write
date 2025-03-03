@@ -16,7 +16,7 @@ import { DeltaContent } from '@/utils/editor/types';
 import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 // Register the LineTrackingModule with Quill - only do this once
-if (!ReactQuill.Quill.imports['modules/lineTracking']) {
+if (!ReactQuill.Quill.import('modules/lineTracking')) {
   ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
 }
 

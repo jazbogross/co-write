@@ -16,6 +16,7 @@ export interface LineData {
 declare module 'quill' {
   interface Quill {
     lineTracking?: {
+      initialize: () => void;
       setProgrammaticUpdate: (value: boolean) => void;
       getLineUuid: (oneBasedIndex: number) => string | undefined;
       setLineUuid: (oneBasedIndex: number, uuid: string) => void;

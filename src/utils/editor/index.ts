@@ -3,8 +3,14 @@
  * Editor utility exports
  */
 
-// Export from delta utilities
-export * from './deltaUtils';
+// Export from delta utilities - explicitly choose which exports to use
+export { 
+  isDeltaObject,
+  safelyParseDelta,
+  convertToDelta,
+  // Only export normalizeDelta once
+  normalizeDelta 
+} from './deltaUtils';
 
 // Export text extraction utilities
 export * from './content/textExtraction';

@@ -72,8 +72,10 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     const editor = quillRef.current?.getEditor();
     if (editor && editor.lineTracking) {
       console.log('📝 TextEditorContent: Initializing line tracking');
-      // Ensure line tracking is initialized
-      editor.lineTracking.initialize();
+      // Call LineTracker's initialize method if it exists
+      if (typeof editor.lineTracking.initialize === 'function') {
+        editor.lineTracking.initialize();
+      }
     }
   };
   
@@ -92,6 +94,13 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     }
   };
   
+  // Handle component mount effect
+  useEffect(() => {
+    if (quillRef.current && !isEditorMountedRef.current) {
+      handleEditorInit();
+    }
+  }, [quillRef]);
+  
   return (
     <div className="flex min-h-screen text-black">
       <div className="flex-1 overflow-auto">
@@ -106,7 +115,6 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
                 modules={modules}
                 formats={formats}
                 theme="snow"
-                onMount={handleEditorInit}
               />
             </div>
           </div>
