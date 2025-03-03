@@ -1,4 +1,3 @@
-
 import { LineData } from '@/types/lineTypes';
 import { calculateTextSimilarity } from './lineMatching';
 
@@ -25,22 +24,34 @@ export const handleEnterAtZeroOperation = (
 
   // Only proceed if both lines exist in the new content
   if (emptyLineIndex >= newContents.length || contentLineIndex >= newContents.length) {
+    console.log(`**** lineMatchingStrategies **** Enter-at-position-0 failed: Line indices out of range`);
     return { success: false, emptyLineData: null, contentLineData: null, stats };
   }
 
   const emptyLineContent = newContents[emptyLineIndex];
-  const movedContent = newContents[contentLineIndex];
-  const isEmpty = !emptyLineContent || !emptyLineContent.trim();
+  const contentLineContent = newContents[contentLineIndex];
   
+  // Check if the empty line is indeed empty or has minimal content
+  const isEmpty = !emptyLineContent || emptyLineContent.trim() === '';
+
   const enterAtZeroOperation = quill?.lineTracking?.getLastOperation() || null;
   
-  // Verify this is actually our operation by checking content patterns
-  if (!isEmpty || movedContent !== enterAtZeroOperation?.movedContent) {
+  if (!enterAtZeroOperation) {
+    console.log(`**** lineMatchingStrategies **** Enter-at-position-0 failed: No operation data`);
     return { success: false, emptyLineData: null, contentLineData: null, stats };
   }
-
+  
   console.log(`**** lineMatchingStrategies **** Processing Enter-at-position-0 operation`);
-  console.log(`**** lineMatchingStrategies **** Empty line at ${emptyLineIndex + 1}, moved content at ${contentLineIndex + 1}`);
+  console.log(`**** lineMatchingStrategies **** Empty line at ${emptyLineIndex + 1}, content line at ${contentLineIndex + 1}`);
+  console.log(`**** lineMatchingStrategies **** Empty line content: "${emptyLineContent}"`);
+  console.log(`**** lineMatchingStrategies **** Content line content: "${contentLineContent}"`);
+  console.log(`**** lineMatchingStrategies **** Moved content from operation: "${enterAtZeroOperation.movedContent}"`);
+  
+  // Find the original line that had the cursor at position 0
+  if (enterAtZeroOperation.lineIndex >= prevData.length) {
+    console.log(`**** lineMatchingStrategies **** Enter-at-position-0 failed: Original line index out of range`);
+    return { success: false, emptyLineData: null, contentLineData: null, stats };
+  }
   
   // 1. Generate new UUID for the empty line (emptyLineIndex)
   const emptyLineUuid = crypto.randomUUID();
@@ -62,33 +73,31 @@ export const handleEnterAtZeroOperation = (
   stats.matchStrategy['enter-new-line'] = (stats.matchStrategy['enter-new-line'] || 0) + 1;
   
   // 2. Find the original line from previous data to preserve UUID for moved content
-  let contentLineData = null;
+  const originalLine = prevData[enterAtZeroOperation.lineIndex];
   
-  if (enterAtZeroOperation.lineIndex < prevData.length) {
-    const originalLine = prevData[enterAtZeroOperation.lineIndex];
-    
-    contentLineData = {
-      ...originalLine,
-      lineNumber: contentLineIndex + 1,
-      content: movedContent,
-      editedBy: movedContent !== originalLine.content && userId && 
-              !originalLine.editedBy.includes(userId)
-        ? [...originalLine.editedBy, userId]
-        : originalLine.editedBy
-    };
-    
-    if (quill?.lineTracking) {
-      quill.lineTracking.setLineUuid(contentLineIndex + 1, originalLine.uuid);
-    }
-    
-    // Mark the original index as used
-    usedIndices.add(enterAtZeroOperation.lineIndex);
-    stats.preserved++;
-    stats.matchStrategy['enter-moved-content'] = 
-      (stats.matchStrategy['enter-moved-content'] || 0) + 1;
-    
-    console.log(`**** lineMatchingStrategies **** Enter-at-position-0 handled: new empty line UUID=${emptyLineUuid}, moved content UUID=${originalLine.uuid}`);
+  const contentLineData = {
+    ...originalLine,
+    lineNumber: contentLineIndex + 1,
+    content: contentLineContent,
+    editedBy: contentLineContent !== originalLine.content && userId && 
+            !originalLine.editedBy.includes(userId)
+      ? [...originalLine.editedBy, userId]
+      : originalLine.editedBy
+  };
+  
+  if (quill?.lineTracking) {
+    quill.lineTracking.setLineUuid(contentLineIndex + 1, originalLine.uuid);
   }
+  
+  // Mark the original index as used
+  usedIndices.add(enterAtZeroOperation.lineIndex);
+  stats.preserved++;
+  stats.matchStrategy['enter-moved-content'] = 
+    (stats.matchStrategy['enter-moved-content'] || 0) + 1;
+  
+  console.log(`**** lineMatchingStrategies **** Enter-at-position-0 handled successfully:`);
+  console.log(`**** lineMatchingStrategies **** New empty line UUID=${emptyLineUuid}`);
+  console.log(`**** lineMatchingStrategies **** Moved content UUID=${originalLine.uuid}`);
 
   return { 
     success: true, 

@@ -68,12 +68,24 @@ export class CursorTracker {
       
       // Check if cursor was at position 0 of the line
       if (cursorPosition === lineStart) {
-        const lineContent = this.getLineContent(line);
+        // Get the actual line content BEFORE the split
+        // This is the critical fix - we need to capture what was on the line
+        // before it gets moved to the next line
+        let lineContent = '';
         
+        // Get the current line's text content from the DOM node
+        if (line && line.domNode) {
+          lineContent = line.domNode.textContent || '';
+        } else {
+          // Fallback to delta if DOM node isn't available
+          lineContent = this.getLineContent(line);
+        }
+        
+        // Store complete operation details for line matching
         this.lastOperation = {
           type: 'enter-at-position-0',
           lineIndex: cursorLineIndex,
-          movedContent: lineContent
+          movedContent: lineContent.trim() // Store trimmed content that will move
         };
         
         console.log(`**** CursorTracker **** Detected Enter at position 0 of line ${cursorLineIndex + 1}`);
@@ -84,6 +96,7 @@ export class CursorTracker {
 
   // Get content from a line
   private getLineContent(line: any): string {
+    if (!line) return '';
     return line.cache?.delta?.ops?.[0]?.insert || '';
   }
 

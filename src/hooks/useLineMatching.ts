@@ -29,6 +29,7 @@ export const useLineMatching = (userId: string | null) => {
     
     if (enterAtZeroOperation) {
       console.log(`**** useLineMatching **** Found Enter-at-position-0 operation at line ${enterAtZeroOperation.lineIndex + 1}`);
+      console.log(`**** useLineMatching **** Moved content: "${enterAtZeroOperation.movedContent}"`);
     }
     
     // Step 1: Special handling for Enter at position 0
@@ -66,6 +67,10 @@ export const useLineMatching = (userId: string | null) => {
           // Update content-to-UUID mapping
           contentToUuidMap.set(newContents[contentLineIndex], result.contentLineData.uuid);
         }
+        
+        console.log(`**** useLineMatching **** Successfully handled Enter-at-position-0 operation`);
+      } else {
+        console.log(`**** useLineMatching **** Failed to handle Enter-at-position-0 operation`);
       }
     }
     
