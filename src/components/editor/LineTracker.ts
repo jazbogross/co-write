@@ -1,3 +1,4 @@
+
 // File: src/components/editor/LineTracker.ts
 
 import ReactQuill from 'react-quill';
@@ -35,8 +36,8 @@ export class LineTracker {
     });
 
     // Handle text changes
-    this.quill.on('text-change', (delta: any) => {
-      console.log('🔍 LineTracker text-change event, isProgrammaticUpdate:', this.isProgrammaticUpdate);
+    this.quill.on('text-change', (delta: any, oldDelta: any, source: string) => {
+      console.log('🔍 LineTracker text-change event, isProgrammaticUpdate:', this.isProgrammaticUpdate, 'source:', source);
 
       if (this.isUpdating) {
         console.log('🔍 LineTracker is already updating, skipping');
@@ -58,6 +59,9 @@ export class LineTracker {
 
           // Restore UUIDs after changes
           this.restoreLineUuids();
+          
+          // Make sure all lines have UUIDs
+          this.ensureAllLinesHaveUuids();
         } else {
           console.log('🔍 LineTracker skipping line tracking for programmatic update');
           // Still update line indices
@@ -107,6 +111,36 @@ export class LineTracker {
 
     console.log(`🔍 LineTracker restored ${restoredCount} line UUIDs`);
   }
+  
+  // Ensure all lines have UUIDs
+  private ensureAllLinesHaveUuids() {
+    console.log('🔍 LineTracker ensuring all lines have UUIDs');
+    
+    const lines = this.quill.getLines();
+    let missingCount = 0;
+    let assignedCount = 0;
+    
+    lines.forEach((line: any, index: number) => {
+      if (!line.domNode) return;
+      
+      if (!line.domNode.getAttribute('data-line-uuid')) {
+        missingCount++;
+        
+        // Try to get UUID from our tracking class
+        const uuid = this.getLineUuid(index + 1);
+        
+        if (uuid) {
+          line.domNode.setAttribute('data-line-uuid', uuid);
+          assignedCount++;
+          console.log(`🔍 LineTracker assigned UUID ${uuid} to line ${index + 1}`);
+        }
+      }
+    });
+    
+    if (missingCount > 0) {
+      console.log(`🔍 LineTracker found ${missingCount} lines without UUIDs, assigned ${assignedCount}`);
+    }
+  }
 
   public initialize() {
     if (this.isInitialized) {
@@ -120,6 +154,9 @@ export class LineTracker {
     // Optionally, check how many lines are found initially
     const lines = this.quill.getLines();
     console.log(`🔍 Found ${lines.length} lines on initialize`);
+    
+    // Ensure all lines have UUIDs
+    this.ensureAllLinesHaveUuids();
   }
 
   public setProgrammaticUpdate(value: boolean) {
@@ -131,6 +168,8 @@ export class LineTracker {
     } else if (this.preservedUuids.size > 0) {
       // When turning off, restore them
       this.restoreLineUuids();
+      // Ensure all lines have UUIDs after programmatic updates
+      this.ensureAllLinesHaveUuids();
     }
   }
 

@@ -13,6 +13,8 @@ export const useEditorInit = (lineData: LineData[], isDataReady: boolean) => {
     try {
       // Only assign UUIDs to DOM elements if we have them from the database
       const lines = editor.getLines(0);
+      let appliedCount = 0;
+      
       lines.forEach((line: any, index: number) => {
         if (line.domNode && index < lineData.length) {
           const uuid = lineData[index].uuid;
@@ -21,6 +23,7 @@ export const useEditorInit = (lineData: LineData[], isDataReady: boolean) => {
           if (!currentUuid || currentUuid !== uuid) {
             console.log(`**** UseLineData **** Setting line ${index + 1} UUID: ${uuid}`);
             line.domNode.setAttribute('data-line-uuid', uuid);
+            appliedCount++;
             
             // Also set the line index attribute
             line.domNode.setAttribute('data-line-index', String(index + 1));
@@ -32,6 +35,21 @@ export const useEditorInit = (lineData: LineData[], isDataReady: boolean) => {
           }
         }
       });
+      
+      console.log(`**** UseLineData **** Applied ${appliedCount} UUIDs to DOM elements`);
+      
+      // Make sure line tracking is initialized
+      if (editor.lineTracking && typeof editor.lineTracking.initialize === 'function') {
+        editor.lineTracking.initialize();
+      }
+      
+      // Verify that UUIDs were applied
+      const uuidVerificationCount = lines.filter(
+        (line: any) => line.domNode && line.domNode.getAttribute('data-line-uuid')
+      ).length;
+      
+      console.log(`**** UseLineData **** UUID verification: ${uuidVerificationCount}/${lines.length} lines have UUIDs`);
+      
       return true;
     } catch (error) {
       console.error('**** UseLineData **** Error initializing editor UUIDs:', error);

@@ -28,6 +28,13 @@ export class LinePosition {
           this.contentHistory.set(uuid, content);
           
           console.log(`**** LinePosition **** Mapped line ${index + 1} to UUID ${uuid}`);
+        } else {
+          // If no UUID exists, check if we have one in our map
+          if (this.lineUuids.has(index)) {
+            const existingUuid = this.lineUuids.get(index);
+            line.domNode.setAttribute('data-line-uuid', existingUuid || '');
+            console.log(`**** LinePosition **** Applied existing UUID ${existingUuid} to line ${index + 1}`);
+          }
         }
       }
     });
@@ -47,6 +54,8 @@ export class LinePosition {
     }
     
     const lines = quill.getLines(0);
+    let missingUuidCount = 0;
+    
     lines.forEach((line: any, index: number) => {
       if (!line.domNode) return;
       
@@ -58,7 +67,31 @@ export class LinePosition {
       }
       
       // Read the UUID from DOM and update our maps
-      const uuid = line.domNode.getAttribute('data-line-uuid');
+      let uuid = line.domNode.getAttribute('data-line-uuid');
+      
+      // If UUID is missing, try to find one based on position or content
+      if (!uuid) {
+        missingUuidCount++;
+        
+        // Try to get UUID from our position map
+        uuid = this.lineUuids.get(index);
+        
+        // If still no UUID, try content matching
+        if (!uuid) {
+          const content = this.getLineContent(line);
+          if (content && content.trim() !== '') {
+            uuid = this.contentToUuid.get(content);
+          }
+        }
+        
+        // Apply the UUID if we found one
+        if (uuid) {
+          line.domNode.setAttribute('data-line-uuid', uuid);
+          console.log(`**** LinePosition **** Applied missing UUID ${uuid} to line ${index + 1}`);
+        }
+      }
+      
+      // Always update our tracking maps with the current state
       if (uuid) {
         const content = this.getLineContent(line);
         const previousContent = this.contentHistory.get(uuid);
@@ -78,6 +111,10 @@ export class LinePosition {
         }
       }
     });
+    
+    if (missingUuidCount > 0) {
+      console.log(`**** LinePosition **** Found ${missingUuidCount} lines with missing UUIDs`);
+    }
     
     // Detect if the UUID is missing on any line and try to find it based on content
     lines.forEach((line: any, index: number) => {

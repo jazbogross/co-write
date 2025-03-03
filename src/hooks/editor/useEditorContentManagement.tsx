@@ -49,14 +49,39 @@ export const useEditorContentManagement = (
         editor.lineTracking.setProgrammaticUpdate(true);
       }
       
-      // Clear existing content first but preserve DOM UUIDs
+      // Preserve DOM UUIDs before making any changes
       const domUuids = new Map<number, string>();
       const lines = editor.getLines(0);
+      
+      console.log(`📝 useEditorContentManagement: Preserving UUIDs from ${lines.length} existing lines`);
       lines.forEach((line: any, index: number) => {
-        if (line.domNode && line.domNode.getAttribute('data-line-uuid')) {
-          domUuids.set(index, line.domNode.getAttribute('data-line-uuid'));
+        if (line.domNode) {
+          const uuid = line.domNode.getAttribute('data-line-uuid');
+          if (uuid) {
+            domUuids.set(index, uuid);
+            console.log(`📝 useEditorContentManagement: Preserved UUID ${uuid} from line ${index + 1}`);
+          }
         }
       });
+      
+      // Get UUIDs from lineTracking as well to ensure we have as many as possible
+      let lineTrackingUuids = new Map<number, string>();
+      if (editor.lineTracking && typeof editor.lineTracking.getDomUuidMap === 'function') {
+        try {
+          lineTrackingUuids = editor.lineTracking.getDomUuidMap();
+          console.log(`📝 useEditorContentManagement: Got ${lineTrackingUuids.size} UUIDs from lineTracking`);
+        } catch (error) {
+          console.error('📝 useEditorContentManagement: Error getting UUIDs from lineTracking:', error);
+        }
+      }
+      
+      // Merge UUIDs from both sources
+      for (const [index, uuid] of lineTrackingUuids.entries()) {
+        if (!domUuids.has(index)) {
+          domUuids.set(index, uuid);
+          console.log(`📝 useEditorContentManagement: Added UUID ${uuid} from lineTracking for line ${index + 1}`);
+        }
+      }
       
       const currentLength = editor.getLength();
       console.log(`📝 useEditorContentManagement: Clearing existing content (length: ${currentLength})`);
@@ -94,13 +119,28 @@ export const useEditorContentManagement = (
         console.log('📝 useEditorContentManagement: Content state updated with text');
       }
       
-      // Restore UUIDs to DOM elements
+      // Apply UUIDs to DOM elements
       const updatedLines = editor.getLines(0);
+      console.log(`📝 useEditorContentManagement: Restoring UUIDs to ${updatedLines.length} updated lines`);
+      
+      // First pass: Apply preserved UUIDs to matching positions
+      let restoredCount = 0;
       updatedLines.forEach((line: any, index: number) => {
-        if (domUuids.has(index) && line.domNode) {
-          line.domNode.setAttribute('data-line-uuid', domUuids.get(index) || '');
+        if (line.domNode && domUuids.has(index)) {
+          const uuid = domUuids.get(index);
+          line.domNode.setAttribute('data-line-uuid', uuid || '');
+          line.domNode.setAttribute('data-line-index', String(index + 1));
+          restoredCount++;
         }
       });
+      
+      console.log(`📝 useEditorContentManagement: Restored ${restoredCount} UUIDs to DOM elements`);
+      
+      // Ensure any lineTracking knows about the applied UUIDs
+      if (editor.lineTracking && typeof editor.lineTracking.initialize === 'function') {
+        console.log('📝 useEditorContentManagement: Re-initializing line tracking after UUID restoration');
+        editor.lineTracking.initialize();
+      }
       
       // Log line UUIDs after update
       if (updatedLines.length > 0) {
