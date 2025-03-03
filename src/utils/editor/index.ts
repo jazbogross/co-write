@@ -19,6 +19,7 @@ export { logDeltaStructure } from './debug/deltaDebug';
 
 // Export text extraction utilities
 export * from './content/textExtraction';
+export * from './content/insertionUtils';
 
 // Export editor utilities
 export * from './editorUtils';
