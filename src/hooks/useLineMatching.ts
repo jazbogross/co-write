@@ -6,7 +6,7 @@ import {
   matchNonEmptyLines,
   matchWithPositionFallback,
   isContentEmpty
-} from '@/utils/lineMatchingStrategies';
+} from '@/utils/lineMatching';
 import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 export const useLineMatching = (userId: string | null) => {
