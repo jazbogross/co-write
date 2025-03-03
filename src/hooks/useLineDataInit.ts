@@ -33,8 +33,8 @@ export const useLineDataInit = (
       setIsDataReady(false); // Reset ready state while loading
       
       try {
-        // Get all lines including drafts
-        const allLines = await fetchAllLines(scriptId);
+        // Get all lines including drafts if admin
+        const allLines = await fetchAllLines(scriptId, isAdmin);
         
         if (allLines && allLines.length > 0) {
           console.log('📊 useLineDataInit: Data fetched successfully. Lines count:', allLines.length);
@@ -106,8 +106,8 @@ export const useLineDataInit = (
   const loadDrafts = async (userId: string | null) => {
     console.log('📊 useLineDataInit: loadDrafts called for user:', userId);
     
-    if (!scriptId || !userId || isDraftLoaded) {
-      console.log('📊 useLineDataInit: loadDrafts aborted: missing scriptId or userId, or drafts already loaded');
+    if (!scriptId || !userId || isDraftLoaded || !isAdmin) {
+      console.log('📊 useLineDataInit: loadDrafts aborted: missing scriptId or userId, drafts already loaded, or not admin');
       return;
     }
     

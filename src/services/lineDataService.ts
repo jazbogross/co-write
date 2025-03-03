@@ -6,11 +6,16 @@ import { processLinesData, processDraftLines } from '@/utils/lineDataProcessing'
 /**
  * Fetches all lines for a specific script
  */
-export const fetchAllLines = async (scriptId: string) => {
+export const fetchAllLines = async (scriptId: string, isAdmin: boolean = false) => {
   try {
+    // Select only necessary columns based on user role
+    const columnSelection = isAdmin 
+      ? 'id, line_number, line_number_draft, content, draft'
+      : 'id, line_number, content';
+
     const { data, error } = await supabase
       .from('script_content')
-      .select('id, line_number, line_number_draft, content, draft')
+      .select(columnSelection)
       .eq('script_id', scriptId)
       .order('line_number', { ascending: true });
       
@@ -39,7 +44,7 @@ export const loadDrafts = async (
   
   try {
     // Fetch all lines including drafts
-    const allLines = await fetchAllLines(scriptId);
+    const allLines = await fetchAllLines(scriptId, true); // Pass isAdmin=true to get draft data
     
     if (!allLines || allLines.length === 0) {
       console.log('**** LineDataService **** No lines found for script:', scriptId);

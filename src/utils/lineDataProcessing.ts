@@ -1,3 +1,4 @@
+
 import { LineData } from '@/types/lineTypes';
 import { isDeltaObject, extractPlainTextFromDelta, logDeltaStructure, safelyParseDelta } from '@/utils/editor';
 
@@ -42,7 +43,7 @@ export const processLinesData = (
       originalContent = line.content || '';
     }
     
-    // Process draft content if it exists - preserve Delta structure
+    // Process draft content if it exists and user is admin - preserve Delta structure
     if (useDraftContent) {
       if (isDeltaObject(line.draft)) {
         finalContent = line.draft; // Keep original Delta object
@@ -51,7 +52,7 @@ export const processLinesData = (
         finalContent = line.draft || '';
       }
     } else {
-      // Use original content if there's no draft
+      // Use original content if there's no draft or user is not admin
       finalContent = originalContent;
     }
     
@@ -61,7 +62,7 @@ export const processLinesData = (
       lineNumber: effectiveLineNumber,
       originalAuthor: null, // Will be populated later
       editedBy: [],
-      hasDraft: useLineNumberDraft || useDraftContent,
+      hasDraft: isAdmin && (useLineNumberDraft || useDraftContent), // Only mark as draft for admins
       originalContent: originalContent, // Store original content for reference
       originalLineNumber: line.line_number // Store original line number for reference
     };
