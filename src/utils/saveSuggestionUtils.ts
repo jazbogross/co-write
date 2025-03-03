@@ -1,6 +1,7 @@
 
 import { LineData } from '@/hooks/useLineData';
 import { supabase } from '@/integrations/supabase/client';
+import { getPlainTextContent, stringifyContent, trimContent } from '@/utils/contentUtils';
 
 export const saveSuggestions = async (
   scriptId: string,
@@ -24,14 +25,15 @@ export const saveSuggestions = async (
     // Find modified lines and added lines
     for (let i = 0; i < lineData.length; i++) {
       const currentLine = lineData[i];
+      const currentLineTrimmed = trimContent(currentLine.content);
       
       if (i < originalLines.length) {
-        if (currentLine.content.trim() !== originalLines[i].trim()) {
+        if (currentLineTrimmed !== originalLines[i].trim()) {
           changes.push({
             type: 'modified',
             lineNumber: currentLine.lineNumber,
             originalLineNumber: i + 1,
-            content: currentLine.content,
+            content: stringifyContent(currentLine.content),
             uuid: currentLine.uuid
           });
         }
@@ -39,7 +41,7 @@ export const saveSuggestions = async (
         changes.push({
           type: 'added',
           lineNumber: currentLine.lineNumber,
-          content: currentLine.content,
+          content: stringifyContent(currentLine.content),
           uuid: currentLine.uuid
         });
       }
@@ -85,7 +87,7 @@ export const saveSuggestions = async (
     for (const change of changes) {
       const suggestionData = {
         script_id: scriptId,
-        content: change.content,
+        content: change.content, // Already stringified
         user_id: userId,
         line_uuid: change.uuid,
         status: 'pending',
@@ -142,13 +144,14 @@ export const saveLineDrafts = async (
     // First, update draft position for all lines
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
+      const contentAsString = stringifyContent(line.content);
       
       if (existingLine) {
         // Line exists - update its draft content and draft line number
         const { error } = await supabase
           .from('script_suggestions')
           .update({
-            draft: line.content !== existingLine.content ? line.content : existingLine.draft,
+            draft: contentAsString !== existingLine.content ? contentAsString : existingLine.draft,
             line_number_draft: line.lineNumber
           })
           .eq('id', existingLine.id);
@@ -161,7 +164,7 @@ export const saveLineDrafts = async (
           .insert({
             script_id: scriptId,
             content: '',  // Original content is empty for new lines
-            draft: line.content,
+            draft: contentAsString, // Store as string
             user_id: userId,
             line_uuid: line.uuid,
             status: 'pending',
