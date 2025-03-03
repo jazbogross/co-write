@@ -254,4 +254,4 @@ export const useContentUpdates = (
     handleChange,
     updateEditorContent
   };
-}, []);
+};
