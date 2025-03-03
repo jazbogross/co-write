@@ -1,7 +1,12 @@
 
 // Export all line matching functions and utilities
 
-export { isContentEmpty } from './contentUtils';
+export { 
+  isContentEmpty, 
+  getPlainTextContent,
+  splitContentIntoLines,
+  joinLinesWithBreaks
+} from './contentUtils';
 export { findBestMatchingLine } from './matchingStrategies';
 export { 
   generateStatsTemplate, 

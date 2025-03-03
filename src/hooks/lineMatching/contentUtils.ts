@@ -29,3 +29,18 @@ export const getPlainTextContent = (content: any): string => {
   }
   return typeof content === 'string' ? content : '';
 };
+
+/**
+ * Split content into lines, preserving line breaks
+ */
+export const splitContentIntoLines = (content: string): string[] => {
+  if (!content) return [];
+  return content.split('\n');
+};
+
+/**
+ * Join lines with proper line breaks
+ */
+export const joinLinesWithBreaks = (lines: string[]): string => {
+  return lines.join('\n');
+};
