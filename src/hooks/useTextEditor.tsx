@@ -1,5 +1,5 @@
 
-import { useRef } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 import { LineData } from '@/hooks/useLineData';
 import { useEditorState } from './editor/useEditorState';
 import { useEditorIntegration } from './editor/useEditorIntegration';
@@ -26,7 +26,11 @@ export const useTextEditor = (
     isDataReady
   });
   
-  // Initialize editor state
+  // Track if editor has been fully initialized to prevent re-initialization
+  const fullyInitializedRef = useRef(false);
+  
+  // Initialize editor state - use memo to prevent recreation
+  const editorState = useEditorState(originalContent);
   const {
     content,
     setContent,
@@ -34,39 +38,48 @@ export const useTextEditor = (
     setLineCount,
     editorInitialized,
     setEditorInitialized,
-    isProcessingLinesRef
-  } = useEditorState(originalContent);
+    isProcessingLinesRef,
+    hasInitializedRef
+  } = editorState;
   
-  // Set up content flushing
-  const { quillRef, formats, modules, flushContent } = useEditorIntegration({
+  // Set up content flushing - memoize to prevent recreation
+  const editorIntegration = useEditorIntegration({
     editorInitialized,
     content,
     setContent,
     flushContentToLineData: () => contentFlushing.flushContentToLineData()
   });
+  const { quillRef, formats, modules } = editorIntegration;
   
-  // Initialize content flushing
+  // Initialize content flushing - memoize to prevent recreation
   const contentFlushing = useContentFlushing(quillRef, updateLineContents);
   const { flushContentToLineData } = contentFlushing;
   
-  // Initialize editor
-  const { editorInitialized: editorInitResult } = useEditorInitialization(
+  // Initialize editor - memoize to prevent recreation
+  const editorInitResult = useEditorInitialization(
     quillRef,
     lineData,
     isDataReady,
-    (editor) => {
+    useCallback((editor) => {
+      // Only initialize once
+      if (hasInitializedRef.current) {
+        console.log('🪝 useTextEditor: Editor already initialized, skipping');
+        return true;
+      }
+      
       const result = initializeEditor(editor);
       setEditorInitialized(result);
+      
+      if (result) {
+        fullyInitializedRef.current = true;
+      }
+      
       return result;
-    }
+    }, [initializeEditor, setEditorInitialized, hasInitializedRef])
   );
   
-  // Set up content update handlers
-  const {
-    contentUpdateRef,
-    handleChange,
-    updateEditorContent
-  } = useContentUpdates(
+  // Set up content update handlers - memoize to prevent recreation
+  const contentUpdates = useContentUpdates(
     content,
     setContent,
     lineCount,
@@ -75,15 +88,16 @@ export const useTextEditor = (
     isProcessingLinesRef,
     quillRef
   );
+  const { contentUpdateRef, handleChange, updateEditorContent } = contentUpdates;
   
   // Placeholder for userId (will be connected in TextEditor)
   const userId = null;
-  const loadDraftsForCurrentUser = () => {
+  const loadDraftsForCurrentUser = useCallback(() => {
     console.log('🪝 useTextEditor: loadDraftsForCurrentUser placeholder called');
-  };
+  }, []);
   
-  // Manage drafts (will be properly connected in TextEditor)
-  const { draftLoadAttempted, draftApplied } = useDraftManagement(
+  // Manage drafts - memoize to prevent recreation
+  const draftManagement = useDraftManagement(
     editorInitialized,
     userId,
     isDataReady,
@@ -93,13 +107,15 @@ export const useTextEditor = (
     updateEditorContent,
     loadDraftsForCurrentUser
   );
+  const { draftLoadAttempted, draftApplied } = draftManagement;
 
   console.log('🪝 useTextEditor: Hook state', { 
     contentType: typeof content, 
     isDelta: isDeltaObject(content),
     lineCount, 
     editorInitialized,
-    draftApplied
+    draftApplied,
+    fullyInitialized: fullyInitializedRef.current
   });
 
   return {

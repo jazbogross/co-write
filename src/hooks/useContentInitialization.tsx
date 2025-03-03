@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import { LineData } from '@/hooks/useLineData';
 import { isDeltaObject, extractPlainTextFromDelta, reconstructContent } from '@/utils/editor';
@@ -19,16 +19,33 @@ export const useContentInitialization = (
   const [isContentInitialized, setIsContentInitialized] = useState(false);
   const [lineCount, setLineCount] = useState(1);
   const isProcessingLinesRef = useRef(false);
+  const initAttemptedRef = useRef(false);
+
+  // Memoize content update to prevent unnecessary re-renders
+  const updateContent = useCallback((newContent: string | DeltaContent) => {
+    console.log('🔄 useContentInitialization: updateContent called');
+    let previewText: string;
+      
+    if (typeof newContent === 'string') {
+      previewText = newContent.substring(0, 50) + '...';
+    } else if (newContent) {
+      previewText = JSON.stringify(newContent).substring(0, 50) + '...';
+    } else {
+      previewText = '[empty content]';
+    }
+    
+    console.log('🔄 useContentInitialization: Setting content, type:', 
+      typeof newContent, isDeltaObject(newContent) ? 'isDelta' : 'notDelta', 
+      'preview:', previewText);
+    
+    setContent(newContent);
+  }, []);
 
   useEffect(() => {
-    console.log('🔄 useContentInitialization: Effect triggered with', {
-      lineDataLength: lineData.length,
-      isContentInitialized,
-      isProcessing: isProcessingLinesRef.current
-    });
-    
-    if (lineData.length > 0 && !isContentInitialized && !isProcessingLinesRef.current) {
-      console.log('🔄 useContentInitialization: Setting initial content');
+    // Only initialize content once when data becomes available
+    if (lineData.length > 0 && !isContentInitialized && !isProcessingLinesRef.current && !initAttemptedRef.current) {
+      console.log('🔄 useContentInitialization: Setting initial content, lineData length:', lineData.length);
+      initAttemptedRef.current = true;
       isProcessingLinesRef.current = true;
       
       try {
@@ -39,7 +56,6 @@ export const useContentInitialization = (
           if (typeof line.content === 'string') {
             previewText = line.content.substring(0, 30);
           } else if (line.content && typeof line.content === 'object') {
-            // Handle case where line.content is a DeltaContent
             const contentStr = JSON.stringify(line.content);
             previewText = contentStr ? contentStr.substring(0, 30) + '...' : '[empty content]';
           } else {
@@ -52,7 +68,7 @@ export const useContentInitialization = (
           );
         });
         
-        // Instead of joining plain text, use reconstruction that preserves Delta formatting
+        // Reconstruct Delta content from line data
         const reconstructedContent = reconstructContent(lineData);
         
         let previewText: string;
@@ -69,8 +85,8 @@ export const useContentInitialization = (
           isDeltaObject(reconstructedContent) ? 'isDelta' : 'notDelta');
         console.log('🔄 Reconstructed content preview:', previewText);
         
-        // Set the reconstructed content (could be a Delta object or string)
-        setContent(reconstructedContent);
+        // Update content - ensure it's a Delta object for proper formatting
+        updateContent(reconstructedContent);
         setIsContentInitialized(true);
         console.log('🔄 Content initialized');
         
@@ -102,11 +118,11 @@ export const useContentInitialization = (
         console.log('🔄 Processing complete');
       }
     }
-  }, [lineData, isContentInitialized, quillRef]);
+  }, [lineData, isContentInitialized, quillRef, updateContent]);
 
   return {
     content,
-    setContent,
+    setContent: updateContent,
     lineCount,
     setLineCount,
     isContentInitialized,
