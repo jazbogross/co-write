@@ -39,7 +39,7 @@ export const saveDraft = async (
       
       if (existingLine) {
         // Line exists - check if we need to update draft content or line number
-        const updates = {};
+        const updates: { draft?: string; line_number_draft?: number } = {};
         let needsUpdate = false;
         
         // Only update draft if content changed
