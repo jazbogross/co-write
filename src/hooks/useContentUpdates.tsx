@@ -1,12 +1,11 @@
-
 import { useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { isDeltaObject, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
 import { splitContentIntoLines } from '@/hooks/lineMatching/contentUtils';
 
 export const useContentUpdates = (
-  content: string,
-  setContent: (value: string) => void,
+  content: string | any,
+  setContent: (value: string | any) => void,
   lineCount: number,
   setLineCount: (count: number) => void,
   editorInitialized: boolean,
@@ -15,7 +14,7 @@ export const useContentUpdates = (
 ) => {
   const contentUpdateRef = useRef(false);
 
-  const handleChange = (newContent: string) => {
+  const handleChange = (newContent: string | any) => {
     if (!editorInitialized) {
       console.log('**** useContentUpdates.tsx **** Ignoring content change before editor initialization');
       return;
@@ -36,7 +35,9 @@ export const useContentUpdates = (
     const editor = quillRef.current?.getEditor();
     if (!editor) return;
 
-    setContent(newContent);
+    // Get the actual Delta content from the editor to preserve formatting
+    const editorDelta = editor.getContents();
+    setContent(editorDelta);
     
     const lines = editor.getLines(0);
     setLineCount(lines.length);
@@ -76,12 +77,8 @@ export const useContentUpdates = (
           insertContentWithLineBreaks(editor, contentStr);
         }
         
-        // Update state
-        if (typeof newContent === 'string') {
-          setContent(newContent);
-        } else {
-          setContent(extractPlainTextFromDelta(newContent) || '');
-        }
+        // Update state with the content (keep formatted content)
+        setContent(newContent);
         
         const lines = editor.getLines(0);
         setLineCount(lines.length);

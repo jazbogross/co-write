@@ -29,22 +29,22 @@ export const processLinesData = (
     // Get the effective line number
     const effectiveLineNumber = useLineNumberDraft ? line.line_number_draft : line.line_number;
     
-    // Process the content - always extract text from Delta if needed
-    let finalContent = '';
-    let originalContent = '';
+    // Process the content - always keep original Delta if available
+    let finalContent: any = '';
+    let originalContent: any = '';
     
-    // Process original content
+    // Process original content - preserve Delta structure
     if (isDeltaObject(line.content)) {
-      originalContent = extractPlainTextFromDelta(line.content);
+      originalContent = line.content; // Keep original Delta object
     } else {
       originalContent = line.content || '';
     }
     
-    // Process draft content if it exists
+    // Process draft content if it exists - preserve Delta structure
     if (useDraftContent) {
       if (isDeltaObject(line.draft)) {
-        finalContent = extractPlainTextFromDelta(line.draft);
-        console.log(`Line ${effectiveLineNumber} draft content extracted:`, finalContent.substring(0, 50));
+        finalContent = line.draft; // Keep original Delta object
+        console.log(`Line ${effectiveLineNumber} preserving draft Delta`);
       } else {
         finalContent = line.draft || '';
       }
@@ -60,15 +60,16 @@ export const processLinesData = (
       originalAuthor: null, // Will be populated later
       editedBy: [],
       hasDraft: useLineNumberDraft || useDraftContent,
-      originalContent: originalContent, // Store processed original content for reference
+      originalContent: originalContent, // Store original content for reference
       originalLineNumber: line.line_number // Store original line number for reference
     };
     
     // Add to our line map using effective line number as key
     lineMap.set(effectiveLineNumber, lineDataItem);
     
-    // Update the content-to-UUID map
-    contentToUuidMapRef.current.set(finalContent, line.id);
+    // Update the content-to-UUID map - use plain text for mapping
+    const plainTextContent = getPlainTextForMapping(finalContent);
+    contentToUuidMapRef.current.set(plainTextContent, line.id);
   });
   
   // Convert map to array and sort by line number
@@ -108,18 +109,18 @@ export const processDraftLines = (
     const useLineNumberDraft = line.line_number_draft !== null;
     const useDraftContent = line.draft !== null;
     
-    // Process content - extract plain text from Delta if needed for both draft and original content
-    let finalContent = '';
-    let originalContent = '';
+    // Process content - preserve Delta structure if available for both draft and original content
+    let finalContent: any = '';
+    let originalContent: any = '';
     
-    // Process original content first
+    // Process original content first - preserve Delta structure
     if (isDeltaObject(line.content)) {
-      originalContent = extractPlainTextFromDelta(line.content);
+      originalContent = line.content; // Keep original Delta object
     } else {
       originalContent = line.content || '';
     }
     
-    // If no draft, we're done here - use the processed original content
+    // If no draft, we're done here - use the original content
     if (!useLineNumberDraft && !useDraftContent) {
       const lineDataItem: LineData = {
         uuid: line.id,
@@ -133,26 +134,24 @@ export const processDraftLines = (
       };
       
       lineMap.set(line.line_number, lineDataItem);
-      contentToUuidMapRef.current.set(originalContent, line.id);
+      const plainTextContent = getPlainTextForMapping(originalContent);
+      contentToUuidMapRef.current.set(plainTextContent, line.id);
       return;
     }
     
     // Get the effective line number
     const effectiveLineNumber = useLineNumberDraft ? line.line_number_draft : line.line_number;
     
-    // Process draft content if it exists
+    // Process draft content if it exists - preserve Delta structure
     if (useDraftContent) {
-      // Check if draft content is a Delta object
       if (isDeltaObject(line.draft)) {
-        // Using the improved extractor to handle nested Deltas
-        finalContent = extractPlainTextFromDelta(line.draft);
-        console.log(`Line ${effectiveLineNumber} draft Delta extracted to:`, finalContent.substring(0, 50));
+        finalContent = line.draft; // Keep original Delta object
+        console.log(`Line ${effectiveLineNumber} preserving draft Delta in processDraftLines`);
       } else {
-        // Use plain text draft content
         finalContent = line.draft || '';
       }
     } else {
-      // Use processed original content if no draft content
+      // Use original content if no draft content
       finalContent = originalContent;
     }
     
@@ -168,7 +167,8 @@ export const processDraftLines = (
     };
     
     lineMap.set(effectiveLineNumber, lineDataItem);
-    contentToUuidMapRef.current.set(finalContent, line.id);
+    const plainTextContent = getPlainTextForMapping(finalContent);
+    contentToUuidMapRef.current.set(plainTextContent, line.id);
   });
   
   // Convert map to array and sort by line number
@@ -182,3 +182,13 @@ export const processDraftLines = (
   
   return updatedLines;
 };
+
+/**
+ * Helper function to get plain text for mapping purposes
+ */
+function getPlainTextForMapping(content: any): string {
+  if (isDeltaObject(content)) {
+    return extractPlainTextFromDelta(content);
+  }
+  return typeof content === 'string' ? content : String(content);
+}
