@@ -48,7 +48,7 @@ export const loadDrafts = async (
     
     // Check if any lines have draft content
     const hasDrafts = allLines.some(line => 
-      line.draft !== null || line.line_number_draft !== null
+      line.draft !== null && line.draft !== '{deleted-uuid}'
     );
     
     if (!hasDrafts) {

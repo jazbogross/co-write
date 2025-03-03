@@ -52,7 +52,7 @@ export const extractPlainTextFromDelta = (content: string | null): string => {
   if (!content) return '';
   
   try {
-    // If it's a Delta object (JSON string)
+    // If it's already a Delta object (JSON string)
     if (typeof content === 'string' && content.startsWith('{') && content.includes('ops')) {
       const delta = JSON.parse(content);
       
@@ -60,6 +60,10 @@ export const extractPlainTextFromDelta = (content: string | null): string => {
       if (delta.ops && Array.isArray(delta.ops)) {
         return delta.ops.reduce((text, op) => {
           if (typeof op.insert === 'string') {
+            // Handle nested Delta objects (a Delta inside a Delta)
+            if (op.insert.startsWith('{') && op.insert.includes('ops')) {
+              return text + extractPlainTextFromDelta(op.insert);
+            }
             return text + op.insert;
           }
           return text;
