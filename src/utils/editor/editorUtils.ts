@@ -3,7 +3,7 @@
  * Utilities for working with Quill Editor
  */
 import { isDeltaObject } from './deltaUtils';
-import { extractPlainTextFromDelta } from './contentUtils';
+import { extractPlainTextFromDelta } from './content/textExtraction';
 
 /**
  * Extracts line contents from the editor

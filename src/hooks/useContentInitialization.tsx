@@ -34,11 +34,11 @@ export const useContentInitialization = (
       try {
         // Log line data content types
         lineData.slice(0, 3).forEach((line, i) => {
-          let previewText: string;
+          let previewText = '';
           
           if (typeof line.content === 'string') {
             previewText = line.content.substring(0, 30);
-          } else if (line.content) {
+          } else if (line.content && typeof line.content === 'object') {
             previewText = JSON.stringify(line.content).substring(0, 30) + '...';
           } else {
             previewText = '[empty content]';
@@ -53,10 +53,10 @@ export const useContentInitialization = (
         // Instead of joining plain text, use reconstruction that preserves Delta formatting
         const reconstructedContent = reconstructContent(lineData);
         
-        let previewText: string;
+        let previewText = '';
         if (typeof reconstructedContent === 'string') {
           previewText = reconstructedContent.substring(0, 100) + '...';
-        } else if (reconstructedContent) {
+        } else if (reconstructedContent && typeof reconstructedContent === 'object') {
           previewText = JSON.stringify(reconstructedContent).substring(0, 100) + '...';
         } else {
           previewText = '[empty content]';

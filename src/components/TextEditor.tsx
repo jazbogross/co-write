@@ -106,7 +106,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     isAdmin,
     scriptId,
     "",
-    content, // This can be DeltaContent or string
+    content instanceof Object ? JSON.stringify(content) : content, // Convert DeltaContent to string when needed
     lineData,
     userId,
     onSuggestChange,
