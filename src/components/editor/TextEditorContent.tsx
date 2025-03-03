@@ -3,7 +3,7 @@ import React from 'react';
 import ReactQuill from 'react-quill';
 import { LineNumbers } from './LineNumbers';
 
-interface EditorContainerProps {
+interface TextEditorContentProps {
   content: string;
   lineCount: number;
   quillRef: React.RefObject<ReactQuill>;
@@ -12,7 +12,7 @@ interface EditorContainerProps {
   onChange: (value: string) => void;
 }
 
-export const EditorContainer: React.FC<EditorContainerProps> = ({
+export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   content,
   lineCount,
   quillRef,

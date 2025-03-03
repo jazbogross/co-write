@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { EditorToolbar } from './EditorToolbar';
 import { Save } from 'lucide-react';
 
-interface EditorActionsProps {
+interface TextEditorActionsProps {
   isAdmin: boolean;
   isSubmitting: boolean;
   onFormat: (format: string, value: any) => void;
@@ -12,7 +12,7 @@ interface EditorActionsProps {
   onSave: () => void;
 }
 
-export const EditorActions: React.FC<EditorActionsProps> = ({
+export const TextEditorActions: React.FC<TextEditorActionsProps> = ({
   isAdmin,
   isSubmitting,
   onFormat,
