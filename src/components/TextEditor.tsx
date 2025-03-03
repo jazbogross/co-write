@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTextEditor } from '@/hooks/useTextEditor';
@@ -7,11 +6,10 @@ import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { TextEditorActions } from './editor/TextEditorActions';
 import { TextEditorContent } from './editor/TextEditorContent';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
-import { LineTrackingModule } from './editor/LineTracker'; // Import the module
+import { LineTrackingModule } from './editor/LineTracker';
 import ReactQuill from 'react-quill';
 import { isDeltaObject } from '@/utils/editor';
 
-// Register the module before you use it
 ReactQuill.Quill.register('modules/lineTracking', LineTrackingModule);
 
 interface TextEditorProps {
@@ -32,7 +30,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   
-  // Load user ID first
   useEffect(() => {
     console.log('📋 TextEditor: Fetching user...');
     const fetchUser = async () => {
@@ -43,7 +40,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     fetchUser();
   }, []);
 
-  // Initialize line data and editor reference
   const { 
     lineData, 
     setLineData,
@@ -53,14 +49,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     initializeEditor 
   } = useLineData(scriptId, "", userId);
 
-  // Log when lineData changes
   useEffect(() => {
     console.log(`📋 TextEditor: lineData updated:`, lineData.length > 0 ? 
       `${lineData.length} lines` :
       `[]`);
     
     if (lineData.length > 0) {
-      // Log first few and last few lines
       console.log('📋 First line:', JSON.stringify(lineData[0]).substring(0, 100) + '...');
       if (lineData.length > 1) {
         console.log('📋 Second line:', JSON.stringify(lineData[1]).substring(0, 100) + '...');
@@ -71,7 +65,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [lineData]);
 
-  // Initialize text editor with quill reference
   const { 
     quillRef,
     content,
@@ -93,7 +86,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateLineContents
   );
   
-  // Log when content changes
   useEffect(() => {
     console.log('📋 TextEditor: Content changed.');
     console.log('📋 Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
@@ -104,12 +96,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [content]);
 
-  // Log when lineCount changes
   useEffect(() => {
     console.log(`📋 TextEditor: Updated line count: ${lineCount}`);
   }, [lineCount]);
 
-  // Log when editorInitialized changes
   useEffect(() => {
     console.log(`📋 TextEditor: Editor initialized: ${editorInitialized}`);
     if (editorInitialized) {
@@ -118,7 +108,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         const lines = editor.getLines(0);
         console.log(`📋 TextEditor: Initial line count from editor: ${lines.length}`);
         
-        // Log DOM structure
         console.log('📋 TextEditor: Initializing line UUIDs in the DOM...');
         setTimeout(() => {
           const editorElement = document.querySelector('.ql-editor');
@@ -126,7 +115,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
             const paragraphs = editorElement.querySelectorAll('p');
             console.log(`📋 TextEditor: Found ${paragraphs.length} <p> elements`);
             
-            // Log UUIDs of first few paragraphs
             Array.from(paragraphs).slice(0, 3).forEach((p, i) => {
               console.log(`📋 Paragraph ${i+1} UUID:`, p.getAttribute('data-line-uuid'));
             });
@@ -137,7 +125,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [editorInitialized, quillRef]);
 
-  // Setup draft loading
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
   const [draftApplied, setDraftApplied] = useState(false);
 
@@ -149,7 +136,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [userId, isDataReady, loadDraftsForCurrentUser, draftLoadAttempted]);
 
-  // Apply loaded drafts to editor
   useEffect(() => {
     if (editorInitialized && draftLoadAttempted && lineData.length > 0 && !draftApplied) {
       console.log('📋 TextEditor: Applying drafts to editor. LineData length:', lineData.length);
@@ -170,7 +156,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
               ops: lineData.flatMap(line => {
                 if (isDeltaObject(line.content)) {
                   console.log(`📋 Line ${line.lineNumber} is a Delta`);
-                  const ops = [...line.content.ops];
+                  const content = line.content as { ops: Array<{ insert: string, attributes?: any }> };
+                  const ops = [...content.ops];
                   const lastOp = ops[ops.length - 1];
                   if (lastOp && typeof lastOp.insert === 'string' && !lastOp.insert.endsWith('\n')) {
                     ops.push({ insert: '\n' });
@@ -211,7 +198,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent]);
 
-  // Handle content changes and submission
   const handleContentChange = (newContent: string) => {
     console.log('📋 TextEditor: handleContentChange called');
     console.log('📋 TextEditor: Content preview:', newContent.substring(0, 100) + '...');
@@ -224,13 +210,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         console.log('📋 TextEditor: Running delayed flush content');
         flushContentToLineData();
         
-        // Log current line contents after flush
         const editor = quillRef.current?.getEditor();
         if (editor) {
           const lines = editor.getLines(0);
           console.log(`📋 TextEditor: Current line count: ${lines.length}`);
           
-          // Sample first few lines
           const lineContents = lines.slice(0, 3).map(line => {
             const lineIndex = editor.getIndex(line);
             const nextLineIndex = line.next ? editor.getIndex(line.next) : editor.getLength();
@@ -256,7 +240,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     quillRef.current?.getEditor()
   );
   
-  // Format text handler and save handler
   const formatText = (format: string, value: any) => {
     console.log(`📋 TextEditor: Formatting text with ${format}:`, value);
     const editor = quillRef.current?.getEditor();
