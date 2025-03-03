@@ -1,7 +1,12 @@
-
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
-import { preserveFormattedContent, isDeltaObject, logDeltaStructure } from '@/utils/editorUtils';
+import { 
+  preserveFormattedContent, 
+  isDeltaObject, 
+  logDeltaStructure, 
+  safelyParseDelta,
+  extractPlainTextFromDelta 
+} from '@/utils/editor';
 
 export const saveDraft = async (
   scriptId: string, 
@@ -41,12 +46,38 @@ export const saveDraft = async (
     // Process all current lines from the editor (source of truth)
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
-      const lineContent = quill ? preserveFormattedContent(line.content, quill) : line.content;
+      
+      // Get formatted content from quill if available, otherwise use plain text
+      let lineContent;
+      
+      if (quill) {
+        // If the line content is already a Delta object, don't rewrap it
+        if (isDeltaObject(line.content)) {
+          // If it's a Delta, make sure it's stored as Delta
+          lineContent = line.content;
+          console.log(`Line ${line.lineNumber} content is already a Delta, using as is`);
+        } else {
+          // Otherwise get the formatted content from Quill if possible
+          // If quill isn't capturing this line correctly, use the plain text
+          try {
+            lineContent = preserveFormattedContent(line.content, quill);
+          } catch (e) {
+            console.error('Error preserving formatted content for line', line.lineNumber, e);
+            lineContent = line.content;
+          }
+        }
+      } else {
+        lineContent = line.content;
+      }
       
       // Debug log formatted content
       if (quill && isDeltaObject(lineContent)) {
         console.log(`Line ${line.lineNumber} saving as Delta:`, lineContent.substring(0, 50) + '...');
         logDeltaStructure(lineContent);
+        
+        // Extract and log the plain text so we can verify it's being saved correctly
+        const plainText = extractPlainTextFromDelta(lineContent);
+        console.log(`Line ${line.lineNumber} plain text:`, plainText.substring(0, 50) + (plainText.length > 50 ? '...' : ''));
       }
       
       if (existingLine) {
@@ -54,8 +85,20 @@ export const saveDraft = async (
         const updates: { draft?: string; line_number_draft?: number } = {};
         let needsUpdate = false;
         
+        // Get plain text from Delta for accurate comparison
+        let existingPlainContent = existingLine.content;
+        let currentPlainContent = line.content;
+        
+        if (isDeltaObject(existingLine.content)) {
+          existingPlainContent = extractPlainTextFromDelta(existingLine.content);
+        }
+        
+        if (isDeltaObject(line.content)) {
+          currentPlainContent = extractPlainTextFromDelta(line.content);
+        }
+        
         // Check if content has changed compared to the original
-        if (line.content !== existingLine.content) {
+        if (currentPlainContent !== existingPlainContent) {
           updates.draft = lineContent;
           needsUpdate = true;
           console.log(`Updating draft content for line ${line.uuid}`);

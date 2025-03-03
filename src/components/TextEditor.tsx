@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -8,9 +9,10 @@ import { EditorContainer } from './editor/EditorContainer';
 import { EditorActions } from './editor/EditorActions';
 import { useLineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
-import { extractLineContents } from '@/utils/editorUtils';
+import { extractLineContents } from '@/utils/editor';
 import { useTextEditor } from '@/hooks/useTextEditor';
 import { useEditorFormatting } from './editor/EditorFormatting';
+import { useDraftManagement } from '@/hooks/useDraftManagement';
 
 // Register the module
 LineTrackingModule.register(ReactQuill.Quill);
@@ -33,8 +35,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const quillRef = useRef<ReactQuill>(null);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
-  const [draftApplied, setDraftApplied] = useState(false);
   
   // Load user ID first
   useEffect(() => {
@@ -71,6 +71,39 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     initializeEditor,
     updateLineContents
   );
+
+  // Set up draft management with proper userId
+  const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
+  const [draftApplied, setDraftApplied] = useState(false);
+
+  // Load drafts when userId becomes available
+  useEffect(() => {
+    if (userId && isDataReady && !draftLoadAttempted) {
+      console.log('TextEditor: User ID available, loading drafts:', userId);
+      loadDraftsForCurrentUser();
+      setDraftLoadAttempted(true);
+    }
+  }, [userId, isDataReady, loadDraftsForCurrentUser, draftLoadAttempted]);
+
+  // Force editor content update when lineData changes due to draft loading
+  useEffect(() => {
+    if (editorInitialized && draftLoadAttempted && lineData.length > 0 && !draftApplied) {
+      const editor = quillRef.current?.getEditor();
+      if (editor) {
+        // Combine all line content as plain text
+        const combinedContent = lineData.map(line => line.content).join('\n');
+        
+        // Only update if content is different
+        if (combinedContent !== content) {
+          console.log('TextEditor: Updating editor content from loaded drafts');
+          
+          // Use the controlled update method to prevent loops
+          updateEditorContent(combinedContent);
+          setDraftApplied(true);
+        }
+      }
+    }
+  }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent]);
 
   // Set up editor formatting and content processing
   const { 
@@ -109,35 +142,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     flushUpdate(); // First flush any pending content updates
     saveToSupabase(); // Then save to Supabase
   }, [flushUpdate, saveToSupabase]);
-
-  // Load drafts when userId becomes available
-  useEffect(() => {
-    if (userId && isDataReady && !draftLoadAttempted) {
-      console.log('TextEditor: User ID available, loading drafts:', userId);
-      loadDraftsForCurrentUser();
-      setDraftLoadAttempted(true);
-    }
-  }, [userId, isDataReady, loadDraftsForCurrentUser, draftLoadAttempted]);
-
-  // Force editor content update when lineData changes due to draft loading
-  useEffect(() => {
-    if (editorInitialized && draftLoadAttempted && lineData.length > 0 && !draftApplied) {
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        // Combine all line content as plain text
-        const combinedContent = lineData.map(line => line.content).join('\n');
-        
-        // Only update if content is different
-        if (combinedContent !== content) {
-          console.log('TextEditor: Updating editor content from loaded drafts');
-          
-          // Use the controlled update method to prevent loops
-          updateEditorContent(combinedContent);
-          setDraftApplied(true);
-        }
-      }
-    }
-  }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent]);
 
   // Don't render editor until data is ready
   if (!isDataReady) {

@@ -1,7 +1,9 @@
 import { LineData } from '@/types/lineTypes';
-import { calculateTextSimilarity } from './lineMatching';
+import { v4 as uuidv4 } from 'uuid';
+import { isDeltaObject, extractPlainTextFromDelta, isContentEmpty as editorIsContentEmpty } from '@/utils/editor';
 
-// Strategy 1: Handle Enter-at-position-0 operations
+export const isContentEmpty = editorIsContentEmpty;
+
 export const handleEnterAtZeroOperation = (
   emptyLineIndex: number,
   contentLineIndex: number,
@@ -21,233 +23,203 @@ export const handleEnterAtZeroOperation = (
     regenerated: 0,
     matchStrategy: {} as Record<string, number>
   };
-
-  // Only proceed if both lines exist in the new content
-  if (emptyLineIndex >= newContents.length || contentLineIndex >= newContents.length) {
-    console.log(`**** lineMatchingStrategies **** Enter-at-position-0 failed: Line indices out of range`);
+  
+  // Check if indices are valid
+  if (emptyLineIndex < 0 || emptyLineIndex >= newContents.length ||
+      contentLineIndex < 0 || contentLineIndex >= newContents.length) {
+    console.log('**** handleEnterAtZeroOperation **** Invalid line indices');
     return { success: false, emptyLineData: null, contentLineData: null, stats };
   }
-
+  
+  // Check if lines are already processed
+  if (usedIndices.has(emptyLineIndex) || usedIndices.has(contentLineIndex)) {
+    console.log('**** handleEnterAtZeroOperation **** Lines already processed');
+    return { success: false, emptyLineData: null, contentLineData: null, stats };
+  }
+  
+  // Get content from the relevant lines
   const emptyLineContent = newContents[emptyLineIndex];
   const contentLineContent = newContents[contentLineIndex];
   
-  // Check if the empty line is indeed empty or has minimal content
-  const isEmpty = !emptyLineContent || emptyLineContent.trim() === '';
-
-  const enterAtZeroOperation = quill?.lineTracking?.getLastOperation() || null;
-  
-  if (!enterAtZeroOperation) {
-    console.log(`**** lineMatchingStrategies **** Enter-at-position-0 failed: No operation data`);
+  // Check if the empty line is actually empty
+  if (!isContentEmpty(emptyLineContent)) {
+    console.log('**** handleEnterAtZeroOperation **** Empty line is not empty');
     return { success: false, emptyLineData: null, contentLineData: null, stats };
   }
   
-  console.log(`**** lineMatchingStrategies **** Processing Enter-at-position-0 operation`);
-  console.log(`**** lineMatchingStrategies **** Empty line at ${emptyLineIndex + 1}, content line at ${contentLineIndex + 1}`);
-  console.log(`**** lineMatchingStrategies **** Empty line content: "${emptyLineContent}"`);
-  console.log(`**** lineMatchingStrategies **** Content line content: "${contentLineContent}"`);
-  console.log(`**** lineMatchingStrategies **** Moved content from operation: "${enterAtZeroOperation.movedContent}"`);
+  // Find a matching UUID for the content line
+  let matchedContentLine = null;
+  let matchedContentIndex = -1;
   
-  // Find the original line that had the cursor at position 0
-  if (enterAtZeroOperation.lineIndex >= prevData.length) {
-    console.log(`**** lineMatchingStrategies **** Enter-at-position-0 failed: Original line index out of range`);
-    return { success: false, emptyLineData: null, contentLineData: null, stats };
+  for (let j = 0; j < prevData.length; j++) {
+    if (usedIndices.has(j)) continue;
+    
+    if (prevData[j].content === contentLineContent) {
+      matchedContentLine = prevData[j];
+      matchedContentIndex = j;
+      break;
+    }
   }
   
-  // 1. Generate new UUID for the empty line (emptyLineIndex)
-  const emptyLineUuid = crypto.randomUUID();
-  const emptyLineData = {
-    uuid: emptyLineUuid,
+  if (!matchedContentLine) {
+    console.log('**** handleEnterAtZeroOperation **** No matching content line found');
+    stats.regenerated++;
+  } else {
+    stats.preserved++;
+    usedIndices.add(matchedContentIndex);
+  }
+  
+  // Create new LineData objects
+  const newEmptyLineUuid = crypto.randomUUID();
+  const newEmptyLineData: LineData = {
+    uuid: newEmptyLineUuid,
     lineNumber: emptyLineIndex + 1,
-    content: emptyLineContent,
+    content: '',
     originalAuthor: userId,
     editedBy: []
   };
   
-  if (quill?.lineTracking) {
-    quill.lineTracking.setLineUuid(emptyLineIndex + 1, emptyLineUuid);
-  }
-  
-  // Mark this index as processed
-  usedIndices.add(emptyLineIndex);
-  stats.regenerated++;
-  stats.matchStrategy['enter-new-line'] = (stats.matchStrategy['enter-new-line'] || 0) + 1;
-  
-  // 2. Find the original line from previous data to preserve UUID for moved content
-  const originalLine = prevData[enterAtZeroOperation.lineIndex];
-  
-  const contentLineData = {
-    ...originalLine,
+  const newContentLineData: LineData = matchedContentLine ? {
+    ...matchedContentLine,
     lineNumber: contentLineIndex + 1,
     content: contentLineContent,
-    editedBy: contentLineContent !== originalLine.content && userId && 
-            !originalLine.editedBy.includes(userId)
-      ? [...originalLine.editedBy, userId]
-      : originalLine.editedBy
+    editedBy: contentLineContent !== matchedContentLine.content && userId &&
+             !matchedContentLine.editedBy.includes(userId)
+      ? [...matchedContentLine.editedBy, userId]
+      : matchedContentLine.editedBy
+  } : {
+    uuid: crypto.randomUUID(),
+    lineNumber: contentLineIndex + 1,
+    content: contentLineContent,
+    originalAuthor: userId,
+    editedBy: []
   };
   
-  if (quill?.lineTracking) {
-    quill.lineTracking.setLineUuid(contentLineIndex + 1, originalLine.uuid);
+  // Update line tracking if available
+  if (quill && quill.lineTracking) {
+    quill.lineTracking.setLineUuid(emptyLineIndex + 1, newEmptyLineUuid);
+    quill.lineTracking.setLineUuid(contentLineIndex + 1, newContentLineData.uuid);
   }
   
-  // Mark the original index as used
-  usedIndices.add(enterAtZeroOperation.lineIndex);
-  stats.preserved++;
-  stats.matchStrategy['enter-moved-content'] = 
-    (stats.matchStrategy['enter-moved-content'] || 0) + 1;
+  stats.matchStrategy['enterAtZero'] = (stats.matchStrategy['enterAtZero'] || 0) + 1;
   
-  console.log(`**** lineMatchingStrategies **** Enter-at-position-0 handled successfully:`);
-  console.log(`**** lineMatchingStrategies **** New empty line UUID=${emptyLineUuid}`);
-  console.log(`**** lineMatchingStrategies **** Moved content UUID=${originalLine.uuid}`);
-
-  return { 
-    success: true, 
-    emptyLineData, 
-    contentLineData, 
-    stats 
+  return {
+    success: true,
+    emptyLineData: newEmptyLineData,
+    contentLineData: newContentLineData,
+    stats
   };
 };
 
-// Strategy 2: Match non-empty lines by content
 export const matchNonEmptyLines = (
-  content: string,
+  content: any,
   lineIndex: number,
   prevData: LineData[],
   usedIndices: Set<number>,
   contentToUuidMap: Map<string, string>,
-  domUuidMap: Map<number, string> | undefined
-): {
-  match: { index: number; similarity: number; matchStrategy: string } | null;
-  stats: { preserved: number; regenerated: number; matchStrategy: Record<string, number> };
-} => {
+  domUuidMap: Map<number, string>
+) => {
   const stats = {
     preserved: 0,
     regenerated: 0,
     matchStrategy: {} as Record<string, number>
   };
-
-  // Check for exact content match
-  const exactContentIndex = prevData.findIndex(
-    (line, idx) => line.content === content && !usedIndices.has(idx)
-  );
   
-  if (exactContentIndex >= 0) {
-    const match = { index: exactContentIndex, similarity: 1, matchStrategy: 'exact-content' };
-    stats.preserved++;
-    stats.matchStrategy['exact-content'] = (stats.matchStrategy['exact-content'] || 0) + 1;
-    return { match, stats };
+  // Handle content that could be a Delta object
+  const contentIsEmpty = isContentEmpty(content);
+  
+  // Skip empty lines
+  if (contentIsEmpty) {
+    return { match: null, stats };
   }
   
-  // Check if we have this content in our content-to-UUID map
-  const existingUuid = contentToUuidMap.get(content);
-  if (existingUuid) {
-    const exactMatchIndex = prevData.findIndex(line => line.uuid === existingUuid && !usedIndices.has(prevData.indexOf(line)));
-    if (exactMatchIndex >= 0) {
-      const match = { index: exactMatchIndex, similarity: 1, matchStrategy: 'content-uuid' };
+  // Convert content to string for comparison if it's a Delta
+  let contentForComparison = content;
+  if (isDeltaObject(content)) {
+    contentForComparison = extractPlainTextFromDelta(content);
+  }
+  
+  let match = null;
+  
+  // First, try to match by UUID in DOM attributes
+  if (domUuidMap.has(lineIndex + 1)) {
+    const uuid = domUuidMap.get(lineIndex + 1);
+    const matchIndex = prevData.findIndex(line => line.uuid === uuid);
+    
+    if (matchIndex !== -1 && !usedIndices.has(matchIndex)) {
+      match = { type: 'uuid-dom', index: matchIndex };
       stats.preserved++;
-      stats.matchStrategy['content-uuid'] = (stats.matchStrategy['content-uuid'] || 0) + 1;
+      stats.matchStrategy['uuid-dom'] = (stats.matchStrategy['uuid-dom'] || 0) + 1;
       return { match, stats };
     }
   }
   
-  // Look for lines with similar content
-  let bestMatch = { index: -1, similarity: 0, matchStrategy: 'none' };
-  
-  // First check lines near the current position (most likely matches)
-  const nearbyRange = 3; // Check 3 lines before and after
-  const startIndex = Math.max(0, lineIndex - nearbyRange);
-  const endIndex = Math.min(prevData.length - 1, lineIndex + nearbyRange);
-  
-  // Nearby lines check
-  for (let i = startIndex; i <= endIndex; i++) {
-    if (usedIndices.has(i)) continue;
+  // Second, try to match by exact content
+  for (let j = 0; j < prevData.length; j++) {
+    if (usedIndices.has(j)) continue;
     
-    const similarity = calculateTextSimilarity(content, prevData[i].content);
-    
-    if (similarity > bestMatch.similarity && similarity >= 0.7) {
-      bestMatch = { index: i, similarity, matchStrategy: 'nearby-similar' };
-      
-      // Early exit for very good matches
-      if (similarity >= 0.9) {
-        break;
-      }
+    if (prevData[j].content === contentForComparison) {
+      match = { type: 'content', index: j };
+      stats.preserved++;
+      stats.matchStrategy['content'] = (stats.matchStrategy['content'] || 0) + 1;
+      return { match, stats };
     }
   }
   
-  if (bestMatch.index >= 0) {
-    stats.preserved++;
-    stats.matchStrategy[bestMatch.matchStrategy] = (stats.matchStrategy[bestMatch.matchStrategy] || 0) + 1;
-    return { match: bestMatch, stats };
-  }
-  
-  // No match found
   return { match: null, stats };
 };
 
-// Strategy 3: Match empty lines or lines with position-based fallback
 export const matchWithPositionFallback = (
-  content: string,
+  content: any,
   lineIndex: number,
   prevData: LineData[],
   usedIndices: Set<number>,
-  domUuidMap: Map<number, string> | undefined
-): {
-  match: { index: number; similarity: number; matchStrategy: string } | null;
-  stats: { preserved: number; regenerated: number; matchStrategy: Record<string, number> };
-} => {
+  domUuidMap: Map<number, string>
+) => {
   const stats = {
     preserved: 0,
     regenerated: 0,
     matchStrategy: {} as Record<string, number>
   };
-
-  const isEmpty = !content || !content.trim();
-
-  // For empty lines, try to find an existing empty line
-  if (isEmpty) {
-    const emptyLineIndex = prevData.findIndex(
-      (line, idx) => !line.content.trim() && !usedIndices.has(idx)
-    );
+  
+  // Handle content that could be a Delta object
+  const contentIsEmpty = isContentEmpty(content);
+  
+  // Convert content to string for comparison if it's a Delta
+  let contentForComparison = content;
+  if (isDeltaObject(content)) {
+    contentForComparison = extractPlainTextFromDelta(content);
+  }
+  
+  let match = null;
+  
+  // First, try to match by position (line number)
+  if (lineIndex < prevData.length && !usedIndices.has(lineIndex)) {
+    // Check if content is similar or identical
+    const prevLine = prevData[lineIndex];
     
-    if (emptyLineIndex >= 0) {
-      const match = { index: emptyLineIndex, similarity: 1, matchStrategy: 'empty-line-match' };
+    if (prevLine.content === contentForComparison ||
+        (!contentIsEmpty && prevLine.content.includes(contentForComparison)) ||
+        (!isContentEmpty(prevLine.content) && contentForComparison.includes(prevLine.content))) {
+      match = { type: 'position', index: lineIndex };
       stats.preserved++;
-      stats.matchStrategy['empty-line-match'] = (stats.matchStrategy['empty-line-match'] || 0) + 1;
+      stats.matchStrategy['position'] = (stats.matchStrategy['position'] || 0) + 1;
       return { match, stats };
     }
   }
   
-  // Try UUID matching from DOM
-  if (domUuidMap && domUuidMap.has(lineIndex)) {
-    const uuid = domUuidMap.get(lineIndex);
-    const uuidMatchIndex = prevData.findIndex(line => line.uuid === uuid && !usedIndices.has(prevData.indexOf(line)));
+  // Second, try to match by UUID in DOM attributes
+  if (domUuidMap.has(lineIndex + 1)) {
+    const uuid = domUuidMap.get(lineIndex + 1);
+    const matchIndex = prevData.findIndex(line => line.uuid === uuid);
     
-    if (uuidMatchIndex >= 0) {
-      const match = { index: uuidMatchIndex, similarity: 0.95, matchStrategy: 'dom-uuid' };
+    if (matchIndex !== -1 && !usedIndices.has(matchIndex)) {
+      match = { type: 'uuid-dom-fallback', index: matchIndex };
       stats.preserved++;
-      stats.matchStrategy['dom-uuid'] = (stats.matchStrategy['dom-uuid'] || 0) + 1;
+      stats.matchStrategy['uuid-dom-fallback'] = (stats.matchStrategy['uuid-dom-fallback'] || 0) + 1;
       return { match, stats };
     }
   }
   
-  // Last resort: Position-based fallback
-  const positionTolerance = 3; 
-  const idealPosition = lineIndex;
-  
-  for (let offset = 0; offset <= positionTolerance; offset++) {
-    for (const pos of [idealPosition - offset, idealPosition + offset]) {
-      if (pos >= 0 && pos < prevData.length && !usedIndices.has(pos)) {
-        const positionSimilarity = calculateTextSimilarity(content, prevData[pos].content);
-        
-        if ((positionSimilarity > 0.3) || (isEmpty && !prevData[pos].content.trim())) {
-          const match = { index: pos, similarity: positionSimilarity, matchStrategy: 'position-based' };
-          stats.preserved++;
-          stats.matchStrategy['position-based'] = (stats.matchStrategy['position-based'] || 0) + 1;
-          return { match, stats };
-        }
-      }
-    }
-  }
-  
-  // No match found
   return { match: null, stats };
 };
