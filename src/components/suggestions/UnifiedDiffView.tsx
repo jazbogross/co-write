@@ -11,7 +11,19 @@ interface UnifiedDiffViewProps {
 
 export const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({ suggestion, originalContent = '' }) => {
   // Generate a diff between the original and suggested content
+  console.log('🔍 UnifiedDiffView props:', { 
+    suggestionContent: suggestion.content,
+    originalContent,
+    suggestionId: suggestion.id,
+    lineUuid: suggestion.line_uuid,
+    lineNumber: suggestion.line_number
+  });
   const diff = generateLineDiff(originalContent, suggestion.content);
+  console.log('🔍 Generated diff:', {
+    segments: diff.segments,
+    originalContent: diff.originalContent,
+    suggestedContent: diff.suggestedContent
+  });
   
   return (
     <div className="border rounded-md mt-2">
