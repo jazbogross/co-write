@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 import { generateLineDiff } from '@/utils/diff/contentDiff';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Button } from '@/components/ui/button';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 interface UnifiedDiffViewProps {
   suggestion: GroupedSuggestion;
@@ -10,20 +11,28 @@ interface UnifiedDiffViewProps {
 }
 
 export const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({ suggestion, originalContent = '' }) => {
+  // Normalize both original and suggestion content to plain text for comparison
+  const normalizedOriginal = typeof originalContent === 'string' 
+    ? originalContent
+    : isDeltaObject(originalContent) 
+      ? extractPlainTextFromDelta(originalContent)
+      : '';
+  
+  const normalizedSuggestion = typeof suggestion.content === 'string'
+    ? suggestion.content
+    : isDeltaObject(suggestion.content)
+      ? extractPlainTextFromDelta(suggestion.content)
+      : '';
+  
+  console.log('🔍 UnifiedDiffView normalized content:', {
+    originalType: typeof originalContent,
+    suggestionType: typeof suggestion.content,
+    normalizedOriginal: normalizedOriginal.substring(0, 50) + '...',
+    normalizedSuggestion: normalizedSuggestion.substring(0, 50) + '...'
+  });
+  
   // Generate a diff between the original and suggested content
-  console.log('🔍 UnifiedDiffView props:', { 
-    suggestionContent: suggestion.content,
-    originalContent,
-    suggestionId: suggestion.id,
-    lineUuid: suggestion.line_uuid,
-    lineNumber: suggestion.line_number
-  });
-  const diff = generateLineDiff(originalContent, suggestion.content);
-  console.log('🔍 Generated diff:', {
-    segments: diff.segments,
-    originalContent: diff.originalContent,
-    suggestedContent: diff.suggestedContent
-  });
+  const diff = generateLineDiff(normalizedOriginal, normalizedSuggestion);
   
   return (
     <div className="border rounded-md mt-2">

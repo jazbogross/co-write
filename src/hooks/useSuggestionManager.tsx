@@ -1,8 +1,8 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { SuggestionGroupManager, UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
+import { isDeltaObject } from '@/utils/editor';
 
 export function useSuggestionManager(scriptId: string) {
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -10,7 +10,7 @@ export function useSuggestionManager(scriptId: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [expandedSuggestion, setExpandedSuggestion] = useState<GroupedSuggestion | null>(null);
-  const [originalContent, setOriginalContent] = useState('');
+  const [originalContent, setOriginalContent] = useState<string | any>('');
   const { toast } = useToast();
 
   const loadSuggestions = async () => {
@@ -227,6 +227,15 @@ export function useSuggestionManager(scriptId: string) {
         if (error) throw error;
         
         if (data) {
+          console.log('Original content fetched:', {
+            type: typeof data.content,
+            isDelta: isDeltaObject(data.content),
+            preview: typeof data.content === 'string' 
+              ? data.content.substring(0, 30) 
+              : JSON.stringify(data.content).substring(0, 30)
+          });
+          
+          // Keep the original format (Delta or string)
           setOriginalContent(data.content);
         }
       } catch (error) {

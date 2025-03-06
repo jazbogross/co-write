@@ -24,6 +24,7 @@ export interface LineDiff {
 
 /**
  * Convert any content type to plain text for comparison
+ * This ensures we handle both string and Delta objects consistently
  */
 const normalizeContent = (content: string | DeltaContent | null): string => {
   if (!content) return '';
@@ -32,14 +33,32 @@ const normalizeContent = (content: string | DeltaContent | null): string => {
     return extractPlainTextFromDelta(content);
   }
   
-  return typeof content === 'string' ? content : '';
+  if (typeof content === 'string') {
+    try {
+      // Check if it's a stringified Delta object
+      const parsed = JSON.parse(content);
+      if (parsed && parsed.ops && Array.isArray(parsed.ops)) {
+        return extractPlainTextFromDelta(parsed);
+      }
+    } catch (e) {
+      // Not JSON, treat as plain string
+    }
+    return content;
+  }
+  
+  return String(content);
 };
 
 /**
  * Compare two strings character by character to identify changes
  */
 export const generateCharacterDiff = (original: string, modified: string): DiffSegment[] => {
-  console.log('🔄 Comparing:', { original, modified });
+  console.log('🔄 Comparing:', { 
+    originalType: typeof original,
+    modifiedType: typeof modified,
+    originalPreview: original.substring(0, 30) + (original.length > 30 ? '...' : ''),
+    modifiedPreview: modified.substring(0, 30) + (modified.length > 30 ? '...' : '')
+  });
   
   // Handle simple cases
   if (original === modified) {
@@ -114,7 +133,7 @@ export const generateCharacterDiff = (original: string, modified: string): DiffS
     });
   }
   
-  console.log('🔄 Generated segments:', segments);
+  console.log('🔄 Generated segments:', segments.length);
   return segments;
 };
 

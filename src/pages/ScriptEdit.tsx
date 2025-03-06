@@ -22,6 +22,7 @@ const ScriptEdit = () => {
   } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [originalContent, setOriginalContent] = useState("");
 
   useEffect(() => {
     const loadScript = async () => {
@@ -51,6 +52,23 @@ const ScriptEdit = () => {
           return;
         }
 
+        // Fetch script content from script_content table
+        const { data: contentData, error: contentError } = await supabase
+          .from("script_content")
+          .select("content")
+          .eq("script_id", id)
+          .order("line_number", { ascending: true });
+
+        if (!contentError && contentData && contentData.length > 0) {
+          // Combine the content from all lines
+          const combinedContent = contentData.map(line => line.content).join("\n");
+          setOriginalContent(combinedContent);
+          console.log("Original content loaded:", combinedContent.substring(0, 100) + "...");
+        } else {
+          console.log("No content found or error fetching content:", contentError);
+          setOriginalContent("");
+        }
+
         setScript(scriptData);
         setIsAdmin(user.id === scriptData.admin_id);
         setLoading(false);
@@ -71,7 +89,6 @@ const ScriptEdit = () => {
   const handleSuggestChange = async () => {
     if (!script || !id) return;
 
-    // We no longer update the scripts table content field
     // All content updates happen directly on script_content through the TextEditor
     toast({
       title: "Success",
@@ -99,7 +116,7 @@ const ScriptEdit = () => {
         <CardContent>
           <TextEditor
             isAdmin={isAdmin}
-            originalContent=""
+            originalContent={originalContent}
             scriptId={id}
             onSuggestChange={handleSuggestChange}
           />
