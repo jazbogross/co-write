@@ -1,4 +1,3 @@
-
 // File: src/components/editor/TextEditor.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -22,10 +21,16 @@ import { isDeltaObject } from '@/utils/editor';
 import 'react-quill/dist/quill.snow.css';
 
 // --- Register modules just once ---
-// Register SuggestionFormatModule first
-SuggestionFormatModule.register(ReactQuill.Quill);
-// Then register LineTrackingModule
-LineTrackingModule.register(ReactQuill.Quill);
+// Register SuggestionFormatModule first - make sure it happens before the LineTrackingModule
+try {
+  // Try to register SuggestionFormatModule first
+  SuggestionFormatModule.register(ReactQuill.Quill);
+  // Then register LineTrackingModule
+  LineTrackingModule.register(ReactQuill.Quill);
+  console.log('📝 All Quill modules registered successfully');
+} catch (error) {
+  console.error('📝 Error registering Quill modules:', error);
+}
 
 interface TextEditorProps {
   isAdmin: boolean;

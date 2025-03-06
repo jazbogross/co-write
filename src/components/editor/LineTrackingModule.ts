@@ -22,19 +22,27 @@ export const LineTrackingModule = {
       return;
     }
 
-    // Register the suggestion format module FIRST
-    SuggestionFormatModule.register(Quill);
-    
-    // Mark as registered
-    (ReactQuill.Quill as any)._lineTrackingModuleRegistered = true;
+    try {
+      // Register the suggestion format module FIRST if it hasn't been registered
+      if (!(ReactQuill.Quill as any)._suggestionFormatModuleRegistered) {
+        console.log('🔍 [LineTrackingModule] registering SuggestionFormatModule');
+        SuggestionFormatModule.register(Quill);
+        (ReactQuill.Quill as any)._suggestionFormatModuleRegistered = true;
+      }
+      
+      // Mark as registered
+      (ReactQuill.Quill as any)._lineTrackingModuleRegistered = true;
 
-    // Register as a Quill module named 'lineTracking'
-    ReactQuill.Quill.register('modules/lineTracking', function (quill: any) {
-      console.log('🔍 [LineTrackingModule] initializing new LineTracker for Quill instance');
-      const tracker = new LineTracker(quill);
-      quill.lineTracking = tracker;
-      return tracker;
-    });
+      // Register as a Quill module named 'lineTracking'
+      ReactQuill.Quill.register('modules/lineTracking', function (quill: any) {
+        console.log('🔍 [LineTrackingModule] initializing new LineTracker for Quill instance');
+        const tracker = new LineTracker(quill);
+        quill.lineTracking = tracker;
+        return tracker;
+      });
+    } catch (error) {
+      console.error('🔍 [LineTrackingModule] error during registration:', error);
+    }
   },
 };
 

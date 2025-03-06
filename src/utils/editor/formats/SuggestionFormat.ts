@@ -13,43 +13,55 @@ export const FORMATS = {
 
 // Create custom formats for Quill
 export function registerSuggestionFormats(QuillInstance: typeof Quill) {
-  // Get the base Inline format
-  const InlineFormat = QuillInstance.import('formats/inline');
-  
-  // Register format for additions (new content)
-  class SuggestionAddition extends InlineFormat {
-    static blotName = 'suggestion-addition';
-    static tagName = 'span';
-    static className = FORMATS.ADDITION;
+  try {
+    // Try to safely import the Inline format
+    const Inline = QuillInstance.import('blots/inline');
+    
+    if (!Inline) {
+      console.error('📝 Error: Could not import Inline blot from Quill');
+      return null;
+    }
+    
+    console.log('📝 Successfully imported Inline blot from Quill');
+    
+    // Register format for additions (new content)
+    class SuggestionAddition extends Inline {
+      static blotName = 'suggestion-addition';
+      static tagName = 'span';
+      static className = FORMATS.ADDITION;
+    }
+    
+    // Register format for deletions (removed content)
+    class SuggestionDeletion extends Inline {
+      static blotName = 'suggestion-deletion';
+      static tagName = 'span';
+      static className = FORMATS.DELETION;
+    }
+    
+    // Register format for modified content
+    class SuggestionModified extends Inline {
+      static blotName = 'suggestion-modified';
+      static tagName = 'span';
+      static className = FORMATS.MODIFIED;
+    }
+    
+    // Register the new formats with Quill
+    QuillInstance.register(SuggestionAddition, true);
+    QuillInstance.register(SuggestionDeletion, true);
+    QuillInstance.register(SuggestionModified, true);
+    
+    console.log('📝 Suggestion formats registered with Quill');
+    
+    return {
+      FORMATS,
+      SuggestionAddition,
+      SuggestionDeletion,
+      SuggestionModified
+    };
+  } catch (error) {
+    console.error('📝 Error registering suggestion formats:', error);
+    return null;
   }
-  
-  // Register format for deletions (removed content)
-  class SuggestionDeletion extends InlineFormat {
-    static blotName = 'suggestion-deletion';
-    static tagName = 'span';
-    static className = FORMATS.DELETION;
-  }
-  
-  // Register format for modified content
-  class SuggestionModified extends InlineFormat {
-    static blotName = 'suggestion-modified';
-    static tagName = 'span';
-    static className = FORMATS.MODIFIED;
-  }
-  
-  // Register the new formats with Quill
-  QuillInstance.register(SuggestionAddition, true);
-  QuillInstance.register(SuggestionDeletion, true);
-  QuillInstance.register(SuggestionModified, true);
-  
-  console.log('📝 Suggestion formats registered with Quill');
-  
-  return {
-    FORMATS,
-    SuggestionAddition,
-    SuggestionDeletion,
-    SuggestionModified
-  };
 }
 
 // CSS classes to be added to the document
