@@ -51,18 +51,16 @@ export const SuggestionFormatModule = {
     Quill.register('modules/suggestionFormat', function(quill: any) {
       console.log('📝 Initializing SuggestionFormatModule for Quill instance');
       
-      // Return the module API
+      // Return a plain object instead of a class
       return {
         name: 'suggestionFormat',
         quill: quill,
         
         // Apply suggestion formats to the editor's content
         applySuggestionFormats: function(diffChanges: any[]) {
-          // This would be implemented in a full solution to apply 
-          // formats to the editor's content based on diff changes
           console.log('📝 SuggestionFormatModule: Apply formats called with', diffChanges.length, 'changes');
         }
       };
-    });
+    }, true); // Add true as second argument to force register
   }
 };

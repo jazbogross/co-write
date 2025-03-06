@@ -13,25 +13,25 @@ export const FORMATS = {
 
 // Create custom formats for Quill
 export function registerSuggestionFormats(QuillInstance: typeof Quill) {
+  // Get the base Inline format
+  const InlineFormat = QuillInstance.import('formats/inline');
+  
   // Register format for additions (new content)
-  const AdditionFormat = QuillInstance.import('formats/inline');
-  class SuggestionAddition extends AdditionFormat {
+  class SuggestionAddition extends InlineFormat {
     static blotName = 'suggestion-addition';
     static tagName = 'span';
     static className = FORMATS.ADDITION;
   }
   
   // Register format for deletions (removed content)
-  const DeletionFormat = QuillInstance.import('formats/inline');
-  class SuggestionDeletion extends DeletionFormat {
+  class SuggestionDeletion extends InlineFormat {
     static blotName = 'suggestion-deletion';
     static tagName = 'span';
     static className = FORMATS.DELETION;
   }
   
   // Register format for modified content
-  const ModifiedFormat = QuillInstance.import('formats/inline');
-  class SuggestionModified extends ModifiedFormat {
+  class SuggestionModified extends InlineFormat {
     static blotName = 'suggestion-modified';
     static tagName = 'span';
     static className = FORMATS.MODIFIED;
