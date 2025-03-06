@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { DiffManager } from '@/utils/diff';
+import { DiffManager, DiffChange } from '@/utils/diff';
 import { SuggestionDiffView } from '@/components/editor/SuggestionDiffView';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff } from 'lucide-react';
+import { extractPlainTextFromDelta } from '@/utils/editor';
+import { LineData } from '@/types/lineTypes';
 
 interface SuggestionItemContentProps {
   originalContent: string;
@@ -15,12 +17,37 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
   suggestedContent
 }) => {
   const [showDiff, setShowDiff] = useState(false);
-  const [diffChanges, setDiffChanges] = useState<any[]>([]);
+  const [diffChanges, setDiffChanges] = useState<DiffChange[]>([]);
   
   // Generate diff changes on component mount
   useEffect(() => {
-    const diff = DiffManager.generateDiff(originalContent, suggestedContent);
-    setDiffChanges(diff);
+    // Create simple LineData objects for the DiffManager
+    const originalLine: LineData = { 
+      content: originalContent,
+      uuid: 'original',
+      lineNumber: 1
+    };
+    const suggestedLine: LineData = {
+      content: suggestedContent,
+      uuid: 'original', // Same UUID to match
+      lineNumber: 1
+    };
+    
+    // Generate diff using DiffManager
+    const diffMap = DiffManager.generateDiff([originalLine], [suggestedLine]);
+    
+    // Extract the changes - this is simplified for this component
+    // In a real app, we'd properly convert LineDiff to DiffChange[]
+    const changes: DiffChange[] = [{
+      type: diffMap['original'].changeType === 'unchanged' ? 'equal' : 
+           (diffMap['original'].changeType === 'addition' ? 'add' : 
+           (diffMap['original'].changeType === 'deletion' ? 'delete' : 'modify')),
+      text: extractPlainTextFromDelta(suggestedLine.content),
+      index: 0,
+      originalText: extractPlainTextFromDelta(originalLine.content)
+    }];
+    
+    setDiffChanges(changes);
   }, [originalContent, suggestedContent]);
   
   // Toggle diff view

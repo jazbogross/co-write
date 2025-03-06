@@ -1,17 +1,11 @@
 
-// File: src/components/editor/LineTracker.ts
+// File: src/components/editor/LineTrackingModule.ts
 
 import ReactQuill from 'react-quill';
 import { LineTracker } from './LineTracker';
 import { SuggestionFormatModule } from './SuggestionFormatModule';
 
 const Quill = ReactQuill.Quill;
-
-// Export the LineTrackingModule for use in TextEditor
-export { LineTrackingModule };
-
-// Export the SuggestionFormatModule
-export { SuggestionFormatModule };
 
 /**
  * Singleton module definition for line tracking. We mark
@@ -54,3 +48,6 @@ export const EDITOR_MODULES = {
     matchVisual: true,
   },
 };
+
+// Export the SuggestionFormatModule
+export { SuggestionFormatModule };

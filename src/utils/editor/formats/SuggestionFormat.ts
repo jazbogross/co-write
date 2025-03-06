@@ -5,7 +5,7 @@
 import Quill from 'quill';
 
 // We'll use these classes for styling suggestions
-const FORMATS = {
+export const FORMATS = {
   ADDITION: 'suggestion-addition',
   DELETION: 'suggestion-deletion',
   MODIFIED: 'suggestion-modified'
