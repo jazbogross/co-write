@@ -2,7 +2,7 @@
 // File: src/components/editor/LineTrackingModule.ts
 
 import ReactQuill from 'react-quill';
-import { LineTracker } from './LineTracker';
+import { LineTracker } from './trackers/LineTracker';
 import { SuggestionFormatModule } from './SuggestionFormatModule';
 
 const Quill = ReactQuill.Quill;

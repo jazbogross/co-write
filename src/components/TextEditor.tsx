@@ -1,3 +1,4 @@
+
 // File: src/components/editor/TextEditor.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -12,7 +13,7 @@ import { useEditorOperations } from '@/components/editor/TextEditorOperations';
 import { TextEditorActions } from './editor/TextEditorActions';
 import { TextEditorContent } from './editor/TextEditorContent';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
-import { LineTrackingModule } from './editor/LineTracker';
+import { LineTrackingModule } from './editor/LineTrackingModule';
 import { SuggestionFormatModule } from './editor/SuggestionFormatModule';
 import { DeltaContent } from '@/utils/editor/types';
 import { isDeltaObject } from '@/utils/editor';

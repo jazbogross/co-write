@@ -1,11 +1,9 @@
-// File: src/components/editor/LineTracker.ts
 
-import ReactQuill from 'react-quill';
-import { LinePosition } from './trackers/LinePosition';
-import { CursorTracker } from './trackers/CursorTracker';
-import { ChangeHistory } from './trackers/ChangeHistory';
+// File: src/components/editor/trackers/LineTracker.ts
 
-const Quill = ReactQuill.Quill;
+import { LinePosition } from './LinePosition';
+import { CursorTracker } from './CursorTracker';
+import { ChangeHistory } from './ChangeHistory';
 
 export class LineTracker {
   private quill: any;
@@ -199,7 +197,7 @@ export class LineTracker {
     return this.changeHistory.getChangeHistory(uuid);
   }
   
-  // Refresh UUIDs from lineData - ensure this is fully implemented
+  // Refresh UUIDs from lineData
   public refreshLineUuids(lineData: any[]) {
     console.log('🔍 LineTracker refreshing UUIDs from lineData');
     if (this.linePosition && typeof this.linePosition.refreshLineUuids === 'function') {
@@ -209,31 +207,3 @@ export class LineTracker {
     }
   }
 }
-
-/**
- * Singleton module definition for line tracking. We mark
- * _lineTrackingModuleRegistered on ReactQuill.Quill to avoid multiple registration.
- */
-export const LineTrackingModule = {
-  name: 'lineTracking',
-  register: function (Quill: any) {
-    console.log('🔍 [LineTrackingModule] registering with Quill');
-
-    // If we've already registered, skip
-    if ((ReactQuill.Quill as any)._lineTrackingModuleRegistered) {
-      console.log('🔍 [LineTrackingModule] already registered, skipping');
-      return;
-    }
-
-    // Mark as registered
-    (ReactQuill.Quill as any)._lineTrackingModuleRegistered = true;
-
-    // Register as a Quill module named 'lineTracking'
-    ReactQuill.Quill.register('modules/lineTracking', function (quill: any) {
-      console.log('🔍 [LineTrackingModule] initializing new LineTracker for Quill instance');
-      const tracker = new LineTracker(quill);
-      quill.lineTracking = tracker;
-      return tracker;
-    });
-  },
-};
