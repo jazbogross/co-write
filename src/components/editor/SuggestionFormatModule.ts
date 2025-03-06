@@ -9,11 +9,22 @@ import { registerSuggestionFormats, suggestionFormatCSS } from '@/utils/editor/f
  * Register suggestion formats with Quill and initialize CSS
  */
 export const initializeSuggestionFormats = (Quill: typeof ReactQuill.Quill): void => {
-  // Register formats with Quill
-  registerSuggestionFormats(Quill);
-  
-  // Add CSS to the document
-  injectSuggestionCSS();
+  try {
+    // Register formats with Quill
+    const formatResult = registerSuggestionFormats(Quill);
+    
+    if (!formatResult) {
+      console.warn('📝 Failed to register suggestion formats with Quill');
+      return;
+    }
+    
+    // Add CSS to the document
+    injectSuggestionCSS();
+    
+    console.log('📝 Suggestion formats initialized successfully');
+  } catch (error) {
+    console.error('📝 Error initializing suggestion formats:', error);
+  }
 };
 
 /**
