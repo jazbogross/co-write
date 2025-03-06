@@ -3,7 +3,8 @@
  * diffTestUtils.ts - Utilities for testing diff functionality
  */
 import { LineDiff, DiffSegment } from './contentDiff';
-import { DiffManager, ChangedLine } from './DiffManager';
+import { DiffManager } from './DiffManager';
+import { ChangedLine } from './diffManagerTypes';
 import { LineData } from '@/types/lineTypes';
 
 /**

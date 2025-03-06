@@ -1,9 +1,8 @@
-
 /**
  * changeClassification.ts - Utilities for classifying changes
  */
 import { DiffSegment, DiffChangeType } from './contentDiff';
-import { ChangedLine } from './DiffManager';
+import { ChangedLine } from './diffManagerTypes';
 
 export interface ChangeClassification {
   isAddition: boolean;
