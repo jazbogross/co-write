@@ -8,6 +8,7 @@ export const saveSuggestions = async (
   originalContent: string,
   userId: string | null
 ) => {
+  console.log('********Line Data********', lineData);
   try {
     // Get original content lines
     const originalLines = originalContent.split('\n');
@@ -120,7 +121,7 @@ export const saveSuggestions = async (
         user_id: userId,
         line_uuid: change.uuid, // Preserve the original UUID
         status: 'pending',
-        line_number: change.originalLineNumber, // Preserve the original line number
+        line_number: change.lineNumber, // Preserve the original line number
         metadata: { 
           changeType: change.type,
           lineNumber: change.lineNumber,
