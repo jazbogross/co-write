@@ -13,8 +13,13 @@ export interface DiffChange {
   originalText?: string;
 }
 
+// Export types
+export * from './diffManagerTypes';
+
 // Re-export all diff utilities
 export * from './contentDiff';
 export * from './DiffManager';
 export * from './changeClassification';
 export * from './diffTestUtils';
+export * from './changeDetection';
+export * from './lineGrouping';
