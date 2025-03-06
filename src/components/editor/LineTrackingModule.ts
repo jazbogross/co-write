@@ -22,6 +22,9 @@ export const LineTrackingModule = {
       return;
     }
 
+    // Register the suggestion format module FIRST
+    SuggestionFormatModule.register(Quill);
+    
     // Mark as registered
     (ReactQuill.Quill as any)._lineTrackingModuleRegistered = true;
 
@@ -32,9 +35,6 @@ export const LineTrackingModule = {
       quill.lineTracking = tracker;
       return tracker;
     });
-    
-    // Also register the suggestion format module
-    SuggestionFormatModule.register(Quill);
   },
 };
 

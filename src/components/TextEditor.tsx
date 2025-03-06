@@ -14,13 +14,17 @@ import { TextEditorActions } from './editor/TextEditorActions';
 import { TextEditorContent } from './editor/TextEditorContent';
 import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule } from './editor/LineTracker';
+import { SuggestionFormatModule } from './editor/SuggestionFormatModule';
 import { DeltaContent } from '@/utils/editor/types';
 import { isDeltaObject } from '@/utils/editor';
 
 // Quill's default Snow theme CSS
 import 'react-quill/dist/quill.snow.css';
 
-// --- Register the line tracking module just once ---
+// --- Register modules just once ---
+// Register SuggestionFormatModule first
+SuggestionFormatModule.register(ReactQuill.Quill);
+// Then register LineTrackingModule
 LineTrackingModule.register(ReactQuill.Quill);
 
 interface TextEditorProps {
