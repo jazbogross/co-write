@@ -32,13 +32,20 @@ export type DeltaValidationResult = {
  * Adding the minimum properties needed for compatibility
  */
 export interface QuillCompatibleDelta extends DeltaContent {
-  retain?: (index: number, length?: number) => QuillCompatibleDelta;
-  delete?: (index: number) => QuillCompatibleDelta;
+  // Additional methods required by Quill's DeltaStatic interface
+  insert?: (text: string, attributes?: Record<string, any>) => QuillCompatibleDelta;
+  retain?: (length: number, attributes?: Record<string, any>) => QuillCompatibleDelta;
+  delete?: (length: number) => QuillCompatibleDelta;
   filter?: (predicate: (op: DeltaOp) => boolean) => DeltaOp[];
   forEach?: (predicate: (op: DeltaOp) => void) => void;
   map?: <T>(predicate: (op: DeltaOp) => T) => T[];
   partition?: (predicate: (op: DeltaOp) => boolean) => [DeltaOp[], DeltaOp[]];
   reduce?: <T>(predicate: (acc: T, op: DeltaOp) => T, initial: T) => T;
+  chop?: () => QuillCompatibleDelta;
+  slice?: (start?: number, end?: number) => QuillCompatibleDelta;
+  compose?: (other: QuillCompatibleDelta) => QuillCompatibleDelta;
+  transform?: (other: QuillCompatibleDelta, priority?: boolean) => QuillCompatibleDelta;
+  transformPosition?: (index: number, priority?: boolean) => number;
   changeLength?: () => number;
   length?: () => number;
 }

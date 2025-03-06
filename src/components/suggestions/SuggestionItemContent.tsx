@@ -21,16 +21,21 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
   
   // Generate diff changes on component mount
   useEffect(() => {
-    // Create simple LineData objects for the DiffManager
+    // Create complete LineData objects for the DiffManager
     const originalLine: LineData = { 
       content: originalContent,
       uuid: 'original',
-      lineNumber: 1
+      lineNumber: 1,
+      originalAuthor: null,  // Add required properties
+      editedBy: []           // Add required properties
     };
+    
     const suggestedLine: LineData = {
       content: suggestedContent,
       uuid: 'original', // Same UUID to match
-      lineNumber: 1
+      lineNumber: 1,
+      originalAuthor: null,  // Add required properties
+      editedBy: []           // Add required properties
     };
     
     // Generate diff using DiffManager

@@ -4,7 +4,7 @@ import ReactQuill from 'react-quill';
 import { SuggestionFormatter } from '@/utils/editor/formats';
 import { DiffChange } from '@/utils/diff';
 import { initializeSuggestionFormats } from './SuggestionFormatModule';
-import { DeltaContent, QuillCompatibleDelta } from '@/utils/editor/types';
+import { DeltaContent } from '@/utils/editor/types';
 import 'react-quill/dist/quill.bubble.css';
 
 interface SuggestionDiffViewProps {
@@ -38,9 +38,9 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
     // Set the editor content
     if (quillRef.current) {
       const editor = quillRef.current.getEditor();
-      // Convert our DeltaContent to be compatible with Quill's Delta type
-      // This is a simplification - in a real app we'd implement a proper adapter
-      editor.setContents(comparisonDelta as unknown as QuillCompatibleDelta);
+      // Convert our DeltaContent to Quill's Delta type using a direct cast
+      // In a production environment, we would implement a proper adapter
+      editor.setContents(comparisonDelta as any);
       editor.disable(); // Make it read-only
     }
   }, []);
