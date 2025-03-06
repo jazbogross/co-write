@@ -1,4 +1,3 @@
-
 import { LineData } from '@/hooks/useLineData';
 import { supabase } from '@/integrations/supabase/client';
 import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
@@ -22,6 +21,28 @@ export const saveSuggestions = async (
       uuid?: string;
     }> = [];
     
+    // First, get the existing script content to track UUIDs and line numbers
+    const { data: existingContent, error: contentError } = await supabase
+      .from('script_content')
+      .select('id, line_number, content')
+      .eq('script_id', scriptId)
+      .order('line_number', { ascending: true });
+      
+    if (contentError) {
+      throw contentError;
+    }
+    
+    // Create a map of content to existing UUIDs and line numbers
+    const existingContentMap = new Map();
+    if (existingContent) {
+      existingContent.forEach(line => {
+        existingContentMap.set(line.content.trim(), {
+          uuid: line.id,
+          lineNumber: line.line_number
+        });
+      });
+    }
+    
     // Find modified lines and added lines
     for (let i = 0; i < lineData.length; i++) {
       const currentLine = lineData[i];
@@ -38,12 +59,15 @@ export const saveSuggestions = async (
             ? JSON.stringify(currentLine.content)
             : currentLine.content as string;
             
+          // Try to find existing UUID and line number for this content
+          const existingData = existingContentMap.get(originalLines[i].trim());
+          
           changes.push({
             type: 'modified',
             lineNumber: currentLine.lineNumber,
-            originalLineNumber: i + 1,
+            originalLineNumber: existingData ? existingData.lineNumber : i + 1,
             content: contentToStore,
-            uuid: currentLine.uuid
+            uuid: existingData ? existingData.uuid : currentLine.uuid
           });
         }
       } else {
@@ -66,17 +90,8 @@ export const saveSuggestions = async (
       // Create a map of all line UUIDs currently in use
       const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
       
-      // Get original line data from Supabase to find UUIDs of deleted lines
-      const { data: originalLineData, error } = await supabase
-        .from('script_content')
-        .select('id, line_number, content')
-        .eq('script_id', scriptId)
-        .order('line_number', { ascending: true });
-        
-      if (error) throw error;
-      
-      if (originalLineData) {
-        for (const line of originalLineData) {
+      if (existingContent) {
+        for (const line of existingContent) {
           // If a line UUID from the database is not in our current line UUIDs, it was deleted
           if (!currentLineUUIDs.has(line.id)) {
             changes.push({
@@ -95,17 +110,17 @@ export const saveSuggestions = async (
       throw new Error('No changes detected');
     }
 
-    console.log('Detected changes:', changes);
+    console.log('Detected changes with preserved UUIDs:', changes);
 
-    // Submit all changes as suggestions
+    // Submit all changes as suggestions with preserved UUIDs and line numbers
     for (const change of changes) {
       const suggestionData = {
         script_id: scriptId,
         content: change.content,
         user_id: userId,
-        line_uuid: change.uuid,
+        line_uuid: change.uuid, // Preserve the original UUID
         status: 'pending',
-        line_number: change.originalLineNumber,
+        line_number: change.originalLineNumber, // Preserve the original line number
         metadata: { 
           changeType: change.type,
           lineNumber: change.lineNumber,
