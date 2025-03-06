@@ -4,22 +4,24 @@
 import { LinePosition } from './LinePosition';
 import { CursorTracker } from './CursorTracker';
 import { ChangeHistory } from './ChangeHistory';
+import { UuidPreservationService } from './UuidPreservationService';
 
 export class LineTracker {
   private quill: any;
   private linePosition: LinePosition;
   private cursorTracker: CursorTracker;
   private changeHistory: ChangeHistory;
+  private uuidPreservation: UuidPreservationService;
   private isUpdating: boolean = false;
   private isInitialized: boolean = false;
   private isProgrammaticUpdate: boolean = false;
-  private preservedUuids: Map<number, string> = new Map();
 
   constructor(quill: any) {
     this.quill = quill;
     this.linePosition = new LinePosition();
     this.cursorTracker = new CursorTracker();
     this.changeHistory = new ChangeHistory();
+    this.uuidPreservation = new UuidPreservationService(quill);
     console.log('🔍 LineTracker constructor initialized');
     this.setupEventListeners();
   }
@@ -47,7 +49,7 @@ export class LineTracker {
         if (!this.isProgrammaticUpdate) {
           console.log('🔍 LineTracker analyzing user-driven text change');
           // Preserve UUIDs before changes
-          this.preserveLineUuids();
+          this.uuidPreservation.preserveLineUuids();
 
           // Analyze delta to detect line operations, update line positions, etc.
           this.cursorTracker.analyzeTextChange(delta, this.quill);
@@ -55,10 +57,12 @@ export class LineTracker {
           this.linePosition.detectLineCountChanges(this.quill, false);
 
           // Restore UUIDs after changes
-          this.restoreLineUuids();
+          this.uuidPreservation.restoreLineUuids();
           
           // Make sure all lines have UUIDs
-          this.ensureAllLinesHaveUuids();
+          this.uuidPreservation.ensureAllLinesHaveUuids(
+            (index) => this.getLineUuid(index)
+          );
         } else {
           console.log('🔍 LineTracker skipping line tracking for programmatic update');
           // Still update line indices
@@ -71,74 +75,6 @@ export class LineTracker {
 
     // Initialize after a small delay
     setTimeout(() => this.initialize(), 300);
-  }
-
-  // Preserve line UUIDs before text changes
-  private preserveLineUuids() {
-    console.log('🔍 LineTracker preserving line UUIDs');
-    this.preservedUuids.clear();
-
-    const lines = this.quill.getLines();
-    lines.forEach((line: any, index: number) => {
-      if (line.domNode) {
-        const uuid = line.domNode.getAttribute('data-line-uuid');
-        if (uuid) {
-          this.preservedUuids.set(index, uuid);
-          console.log(`🔍 Preserved UUID for line ${index + 1}: ${uuid}`);
-        }
-      }
-    });
-  }
-
-  // Restore line UUIDs after text changes
-  private restoreLineUuids() {
-    console.log('🔍 LineTracker restoring line UUIDs');
-
-    const lines = this.quill.getLines();
-    let restoredCount = 0;
-
-    lines.forEach((line: any, index: number) => {
-      if (line.domNode && this.preservedUuids.has(index)) {
-        const uuid = this.preservedUuids.get(index);
-        if (uuid) {
-          line.domNode.setAttribute('data-line-uuid', uuid);
-          line.domNode.setAttribute('data-line-index', (index + 1).toString());
-          restoredCount++;
-        }
-      }
-    });
-
-    console.log(`🔍 LineTracker restored ${restoredCount} line UUIDs`);
-  }
-  
-  // Ensure all lines have UUIDs
-  private ensureAllLinesHaveUuids() {
-    console.log('🔍 LineTracker ensuring all lines have UUIDs');
-    
-    const lines = this.quill.getLines();
-    let missingCount = 0;
-    let assignedCount = 0;
-    
-    lines.forEach((line: any, index: number) => {
-      if (!line.domNode) return;
-      
-      if (!line.domNode.getAttribute('data-line-uuid')) {
-        missingCount++;
-        
-        // Try to get UUID from our tracking class
-        const uuid = this.getLineUuid(index + 1);
-        
-        if (uuid) {
-          line.domNode.setAttribute('data-line-uuid', uuid);
-          assignedCount++;
-          console.log(`🔍 LineTracker assigned UUID ${uuid} to line ${index + 1}`);
-        }
-      }
-    });
-    
-    if (missingCount > 0) {
-      console.log(`🔍 LineTracker found ${missingCount} lines without UUIDs, assigned ${assignedCount}`);
-    }
   }
 
   public initialize() {
@@ -155,7 +91,9 @@ export class LineTracker {
     console.log(`🔍 Found ${lines.length} lines on initialize`);
     
     // Ensure all lines have UUIDs
-    this.ensureAllLinesHaveUuids();
+    this.uuidPreservation.ensureAllLinesHaveUuids(
+      (index) => this.getLineUuid(index)
+    );
   }
 
   public setProgrammaticUpdate(value: boolean) {
@@ -163,12 +101,14 @@ export class LineTracker {
     this.isProgrammaticUpdate = value;
     if (value) {
       // If turning on programmatic mode, preserve current UUIDs
-      this.preserveLineUuids();
-    } else if (this.preservedUuids.size > 0) {
+      this.uuidPreservation.preserveLineUuids();
+    } else if (this.uuidPreservation.hasPreservedUuids()) {
       // When turning off, restore them
-      this.restoreLineUuids();
+      this.uuidPreservation.restoreLineUuids();
       // Ensure all lines have UUIDs after programmatic updates
-      this.ensureAllLinesHaveUuids();
+      this.uuidPreservation.ensureAllLinesHaveUuids(
+        (index) => this.getLineUuid(index)
+      );
     }
   }
 
