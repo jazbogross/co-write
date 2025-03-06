@@ -23,3 +23,4 @@ export * from './changeClassification';
 export * from './diffTestUtils';
 export * from './changeDetection';
 export * from './lineGrouping';
+export * from './SuggestionGroupManager';  // Export the new module
