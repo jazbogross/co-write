@@ -12,6 +12,7 @@ interface DraftLoaderProps {
   quillRef: React.RefObject<ReactQuill>;
   content: string | DeltaContent;
   updateEditorContent: (content: string | DeltaContent) => void;
+  isAdmin: boolean; // Add isAdmin parameter to know context
 }
 
 export const useDraftLoader = ({
@@ -20,13 +21,24 @@ export const useDraftLoader = ({
   lineData,
   quillRef,
   content,
-  updateEditorContent
+  updateEditorContent,
+  isAdmin
 }: DraftLoaderProps) => {
   const [draftApplied, setDraftApplied] = useState(false);
 
   useEffect(() => {
     if (editorInitialized && draftLoadAttempted && lineData.length > 0 && !draftApplied) {
-      console.log('📙 useDraftLoader: Applying drafts to editor. LineData length:', lineData.length);
+      console.log('📙 useDraftLoader: Applying drafts to editor. LineData length:', lineData.length, 'isAdmin:', isAdmin);
+      
+      // Check if any lines have draft content
+      const hasDraftLines = lineData.some(line => line.hasDraft === true);
+      
+      if (!hasDraftLines) {
+        console.log('📙 useDraftLoader: No draft lines found, skipping draft application');
+        setDraftApplied(true);
+        return;
+      }
+      
       const editor = quillRef.current?.getEditor();
       if (editor) {
         try {
@@ -86,7 +98,7 @@ export const useDraftLoader = ({
         }
       }
     }
-  }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent]);
+  }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent, isAdmin]);
 
   return { draftApplied };
 };

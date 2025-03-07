@@ -28,6 +28,26 @@ export const fetchAllLines = async (scriptId: string, isAdmin: boolean = false) 
 };
 
 /**
+ * Check if user has any drafts in script_suggestions table
+ */
+export const checkForUserDrafts = async (scriptId: string, userId: string) => {
+  try {
+    const { count, error } = await supabase
+      .from('script_suggestions')
+      .select('*', { count: 'exact', head: true })
+      .eq('script_id', scriptId)
+      .eq('user_id', userId)
+      .eq('status', 'pending');
+      
+    if (error) throw error;
+    return count && count > 0;
+  } catch (error) {
+    console.error('Error checking for user drafts:', error);
+    return false;
+  }
+};
+
+/**
  * Loads user drafts from the database and returns processed line data
  */
 export const loadDrafts = async (
@@ -101,17 +121,29 @@ export const loadDrafts = async (
         return [];
       }
       
-      if (!suggestionDrafts || suggestionDrafts.length === 0) {
+      // Important debugging: log what was actually found in script_suggestions
+      console.log(`**** LineDataService **** Found ${suggestionDrafts?.length || 0} suggestion drafts for user ${userId}`);
+      if (suggestionDrafts && suggestionDrafts.length > 0) {
+        // Log the first few drafts for debugging
+        suggestionDrafts.slice(0, 3).forEach((draft, i) => {
+          console.log(`**** LineDataService **** Draft ${i+1}:`, {
+            id: draft.id,
+            line_uuid: draft.line_uuid,
+            content: draft.content?.substring(0, 30) + '...',
+            draft: draft.draft?.substring(0, 30) + '...',
+            line_number: draft.line_number,
+            line_number_draft: draft.line_number_draft
+          });
+        });
+      } else {
         console.log('**** LineDataService **** No suggestion drafts found for this user');
         return [];
       }
       
-      console.log(`**** LineDataService **** Found ${suggestionDrafts.length} suggestion drafts`);
-      
       // Create a merged dataset with both base content and suggestions
       const mergedLines = allLines.map((line: any) => {
         // Try to find a matching suggestion for this line
-        const suggestion = suggestionDrafts.find(s => s.line_uuid === line.id);
+        const suggestion = suggestionDrafts?.find(s => s.line_uuid === line.id);
         
         if (suggestion) {
           // Convert line to include suggestion data
@@ -127,10 +159,10 @@ export const loadDrafts = async (
       });
       
       // Also add any new lines from suggestions that don't have matching line_uuid
-      const newLines = suggestionDrafts.filter(s => 
+      const newLines = suggestionDrafts?.filter(s => 
         // Include suggestions without line_uuid or with line_uuid that doesn't match any existing line
         !s.line_uuid || !allLines.some((line: any) => line.id === s.line_uuid)
-      );
+      ) || [];
       
       // Add new lines to the merged dataset
       newLines.forEach(newLine => {
@@ -144,11 +176,24 @@ export const loadDrafts = async (
         });
       });
       
+      console.log(`**** LineDataService **** Processing ${mergedLines.length} merged lines, including ${newLines.length} new lines`);
+      
       // Process the merged lines
       const updatedLines = processDraftLines(mergedLines, contentToUuidMapRef);
       console.log(`**** LineDataService **** Applied suggestion drafts to ${updatedLines.length} lines`);
       
       if (updatedLines.length > 0) {
+        // Log the first few processed lines
+        updatedLines.slice(0, 3).forEach((line, i) => {
+          console.log(`**** LineDataService **** Processed line ${i+1}:`, {
+            uuid: line.uuid,
+            lineNumber: line.lineNumber,
+            contentPreview: typeof line.content === 'string' 
+              ? line.content.substring(0, 30) + '...' 
+              : 'Delta object',
+            hasDraft: line.hasDraft
+          });
+        });
         return updatedLines;
       }
     }
