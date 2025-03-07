@@ -32,6 +32,17 @@ export const useLineDataInitialization = (
     }
   }
   
+  // Log the actual content we're passing to the core initialization hook
+  console.log('📊 useLineDataInitialization: Using processed content of type:', 
+    typeof processedContent, isDeltaObject(processedContent) ? 'isDelta' : 'notDelta');
+  
+  if (typeof processedContent === 'string' && processedContent.length > 0) {
+    console.log('📊 useLineDataInitialization: Content preview:', processedContent.substring(0, 50) + '...');
+  } else if (isDeltaObject(processedContent)) {
+    console.log('📊 useLineDataInitialization: Delta preview:', 
+      JSON.stringify(processedContent).substring(0, 50) + '...');
+  }
+  
   // Use the core initialization hook
   const { 
     lineData, 
@@ -42,7 +53,7 @@ export const useLineDataInitialization = (
     loadDrafts 
   } = useLineDataInitCore(scriptId, processedContent, userId, isAdmin);
   
-  // Return the initialization functionality
+  // Return the initialization functionality with additional logging
   return {
     lineData,
     setLineData,
