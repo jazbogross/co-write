@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { createInitialLineData } from '@/utils/lineDataUtils';
-import { fetchAllLines, loadDrafts as loadDraftsService } from '@/services/lineDataService';
-import { processLinesData } from '@/utils/lineDataProcessing';
+import { fetchAllLines, loadDrafts as loadDraftsFromService } from '@/services/lineDataService';
+import { processLinesData } from '@/utils/lineProcessing';
 import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 export const useLineDataInit = (
@@ -107,8 +107,8 @@ export const useLineDataInit = (
     fetchLineData();
   }, [scriptId, userId, initialized, lineData.length, isAdmin]);
 
-  // Function to handle loading drafts - now with protection against duplicate calls
-  const loadDrafts = async (userId: string | null) => {
+  // Function to handle loading drafts
+  const loadUserDrafts = async (userId: string | null) => {
     console.log('📊 useLineDataInit: loadDrafts called for user:', userId, 'isAdmin:', isAdmin);
     
     if (!scriptId || !userId || isDraftLoaded) {
@@ -119,7 +119,8 @@ export const useLineDataInit = (
     try {
       setIsDraftLoaded(true); // Set flag to prevent duplicate calls
       
-      const updatedLines = await loadDraftsService(scriptId, userId, contentToUuidMapRef, isAdmin);
+      // Use the imported service function with proper parameters
+      const updatedLines = await loadDraftsFromService(scriptId, userId, contentToUuidMapRef, isAdmin);
       
       if (updatedLines.length > 0) {
         console.log('📊 useLineDataInit: Draft lines loaded:', updatedLines.length);
@@ -162,6 +163,6 @@ export const useLineDataInit = (
     isDataReady, 
     contentToUuidMapRef, 
     lastLineCountRef,
-    loadDrafts
+    loadDrafts: loadUserDrafts // Rename the returned function to avoid confusion
   };
 };
