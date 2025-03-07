@@ -83,10 +83,10 @@ const ScriptEdit = () => {
           // Safely access the content property with type checking
           const combinedContent = contentData
             .slice(0, 5)
-            .map(item => {
+            .map((item: NonNullable<typeof contentData[0]>) => {
               // Fix: Add null check for item before accessing properties
-              if (item && typeof item === 'object' && 'content' in item) {
-                return item.content || "";
+              if (item != null && typeof item === 'object' && 'content' in item!) {
+                return item!.content;
               }
               return "";
             })
