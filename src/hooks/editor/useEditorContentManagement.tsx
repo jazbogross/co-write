@@ -95,7 +95,6 @@ export const useEditorContentManagement = (
         const delta = safelyParseDelta(newContent);
         if (delta) {
           console.log('📝 useEditorContentManagement: Setting editor contents with delta object, ops:', delta.ops.length);
-          // Cast to any to work around the type issues with Quill's Delta type
           editor.setContents(delta as any);
           
           // Update content state
@@ -110,6 +109,25 @@ export const useEditorContentManagement = (
           // Update content state with text
           setContent(textContent || '');
           console.log('📝 useEditorContentManagement: Content state updated with text');
+        }
+      } else if (typeof newContent === 'string' && newContent.startsWith('{') && newContent.includes('"ops"')) {
+        // Handle stringified Delta objects by parsing and setting
+        try {
+          const parsedDelta = JSON.parse(newContent);
+          if (parsedDelta && Array.isArray(parsedDelta.ops)) {
+            console.log('📝 useEditorContentManagement: Parsed stringified Delta, applying to editor');
+            editor.setContents(parsedDelta);
+            
+            // Update content state with parsed Delta
+            setContent(parsedDelta);
+            console.log('📝 useEditorContentManagement: Content state updated with parsed Delta');
+          } else {
+            throw new Error('Invalid Delta structure');
+          }
+        } catch (error) {
+          console.error('📝 useEditorContentManagement: Error parsing stringified Delta:', error);
+          insertContentWithLineBreaks(editor, newContent);
+          setContent(newContent);
         }
       } else {
         // For string content, split by newlines and insert properly

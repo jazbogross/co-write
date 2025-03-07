@@ -128,6 +128,8 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
       typeof content === 'string' ? content.length : 'N/A (Delta object)');
     if (typeof content === 'string' && content.length > 0) {
       console.log(`📝 Content preview:`, content.substring(0, 50) + '...');
+    } else if (isDeltaObject(content)) {
+      console.log(`📝 Content preview (Delta):`, JSON.stringify(content).substring(0, 50) + '...');
     }
   }, [content]);
   
