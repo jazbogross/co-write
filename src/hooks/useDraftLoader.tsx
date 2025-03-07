@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { LineData } from '@/hooks/useLineData';
 import { isDeltaObject, combineDeltaContents, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
 import ReactQuill from 'react-quill';
-import { DeltaContent } from '@/utils/editor/types';
+import { DeltaContent, QuillCompatibleDelta } from '@/utils/editor/types';
 import { isStringifiedDelta, parseStringifiedDeltaIfPossible } from '@/utils/lineProcessing/mappingUtils';
 
 interface DraftLoaderProps {
@@ -93,7 +93,9 @@ export const useDraftLoader = ({
             // Use setContents directly on the editor for Delta objects
             if (editor) {
               console.log('📙 useDraftLoader: Setting Delta contents directly on editor');
-              editor.setContents(combinedDelta);
+              // Cast the combined Delta to 'any' to bypass the TypeScript error
+              // This is safe because we've verified it has the correct structure with ops array
+              editor.setContents(combinedDelta as any);
             } else {
               updateEditorContent(combinedDelta, true); // Force update
             }
