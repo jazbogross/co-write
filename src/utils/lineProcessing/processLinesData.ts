@@ -10,7 +10,8 @@ export const processLinesData = (
   contentToUuidMapRef: React.MutableRefObject<Map<string, string>>,
   isAdmin: boolean = false
 ): LineData[] => {
-  if (!allLines || allLines.length === 0) {
+  if (!allLines || !Array.isArray(allLines) || allLines.length === 0) {
+    console.log('processLinesData: Invalid or empty lines array');
     return [];
   }
   
@@ -19,8 +20,14 @@ export const processLinesData = (
   
   // Process all lines
   allLines.forEach(line => {
+    if (!line || typeof line !== 'object') {
+      console.log('processLinesData: Skipping invalid line object');
+      return;
+    }
+    
+    // Skip deleted lines
     if (line.draft === '{deleted-uuid}') {
-      // Skip deleted lines
+      console.log(`processLinesData: Skipping deleted line ${line.id}`);
       return;
     }
     
@@ -31,6 +38,11 @@ export const processLinesData = (
     
     // Get the effective line number
     const effectiveLineNumber = useLineNumberDraft ? line.line_number_draft : line.line_number;
+    
+    if (effectiveLineNumber === null || effectiveLineNumber === undefined) {
+      console.log(`processLinesData: Skipping line ${line.id} with invalid line number`);
+      return;
+    }
     
     // Process the content - always keep original Delta if available
     let finalContent: any = '';
@@ -100,7 +112,9 @@ export const processLinesData = (
     
     // Update the content-to-UUID map - use plain text for mapping
     const plainTextContent = getPlainTextForMapping(finalContent);
-    contentToUuidMapRef.current.set(plainTextContent, line.id);
+    if (plainTextContent && typeof plainTextContent === 'string') {
+      contentToUuidMapRef.current.set(plainTextContent, line.id);
+    }
   });
   
   // Convert map to array and sort by line number
