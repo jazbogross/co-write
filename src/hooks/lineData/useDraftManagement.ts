@@ -14,7 +14,7 @@ export const useDraftManagement = (
 
   // Create the function to load user drafts
   const loadUserDrafts = useCallback(() => {
-    console.log('🔠 useDraftManagement: loadUserDrafts called');
+    console.log('🔠 useDraftManagement: loadUserDrafts called for userId:', userId);
     return loadDraftsForCurrentUser(
       scriptId, 
       userId, 

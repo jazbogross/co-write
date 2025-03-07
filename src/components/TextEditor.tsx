@@ -46,7 +46,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   scriptId,
   onSuggestChange,
 }) => {
-  console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin);
+  console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin, 'originalContent length:', originalContent?.length || 0);
 
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
@@ -63,7 +63,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     loadDraftsForCurrentUser,
     isDataReady,
     initializeEditor,
-  } = useLineData(scriptId, '', userId, isAdmin);
+  } = useLineData(scriptId, originalContent, userId, isAdmin);
 
   // Initialize text editor
   const {
@@ -78,7 +78,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     formats,
     modules,
   } = useTextEditor(
-    '',
+    originalContent, // Pass the original content here
     scriptId,
     lineData,
     setLineData,
@@ -106,7 +106,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     quillRef,
     content,
     updateEditorContent,
-    isAdmin, // Pass isAdmin to the hook
+    isAdmin,
   });
 
   // Attempt draft load
@@ -127,8 +127,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
     scriptId,
-    '',
-    content, // can be string or DeltaContent
+    originalContent, // Pass the original content here
+    content,
     lineData,
     userId,
     onSuggestChange,
@@ -170,7 +170,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       />
 
       <TextEditorContent
-        content={content} // Direct pass of content, which can be string or Delta
+        content={content}
         lineCount={lineCount}
         quillRef={quillRef}
         modules={modules}
