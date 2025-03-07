@@ -1,8 +1,7 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { createInitialLineData } from '@/utils/lineDataUtils';
-import { fetchAllLines, loadDrafts as loadDraftsService } from '@/services/lineDataService';
+import { fetchAllLines, loadDrafts } from '@/services/lineDataService';
 import { processLinesData } from '@/utils/lineProcessing';
 import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
@@ -119,7 +118,7 @@ export const useLineDataInit = (
     try {
       setIsDraftLoaded(true); // Set flag to prevent duplicate calls
       
-      const updatedLines = await loadDraftsService(scriptId, userId, contentToUuidMapRef, isAdmin);
+      const updatedLines = await loadDrafts(scriptId, userId, contentToUuidMapRef, isAdmin);
       
       if (updatedLines.length > 0) {
         console.log('📊 useLineDataInit: Draft lines loaded:', updatedLines.length);
