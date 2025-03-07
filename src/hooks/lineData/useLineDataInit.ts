@@ -23,7 +23,7 @@ export const useLineDataInitialization = (
     try {
       console.log('📊 useLineDataInitialization: Original content appears to be a stringified Delta, attempting to parse');
       const parsedContent = parseStringifiedDeltaIfPossible(originalContent);
-      if (parsedContent && Array.isArray(parsedContent.ops)) {
+      if (parsedContent && typeof parsedContent === 'object' && 'ops' in parsedContent) {
         console.log('📊 useLineDataInitialization: Successfully parsed Delta from original content');
         processedContent = parsedContent; // Use the parsed Delta object directly
       }

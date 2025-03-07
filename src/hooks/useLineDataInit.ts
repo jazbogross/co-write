@@ -41,16 +41,24 @@ export const useLineDataInit = (
           
           // Type safe iteration over fetched lines
           if (Array.isArray(allLines)) {
-            // Log the first few lines for debugging
+            // Log the first few lines for debugging - with safe type checking
             allLines.slice(0, 3).forEach((line, i) => {
-              console.log(`📊 useLineDataInit: Fetched line ${i+1}:`, {
-                id: line.id,
-                line_number: line.line_number,
-                content_type: typeof line.content,
-                content_preview: typeof line.content === 'string' ? 
+              // Type guard to ensure line is an object with the expected properties
+              if (line && typeof line === 'object' && 'id' in line) {
+                const contentType = line.content ? typeof line.content : 'undefined';
+                const contentPreview = typeof line.content === 'string' ? 
                   line.content.substring(0, 30) + '...' : 
-                  'non-string content'
-              });
+                  'non-string content';
+
+                console.log(`📊 useLineDataInit: Fetched line ${i+1}:`, {
+                  id: line.id,
+                  line_number: line.line_number,
+                  content_type: contentType,
+                  content_preview: contentPreview
+                });
+              } else {
+                console.log(`📊 useLineDataInit: Fetched line ${i+1}: Invalid format`);
+              }
             });
             
             // Process the line data, passing the isAdmin flag
