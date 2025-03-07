@@ -98,7 +98,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     flushContentToLineData,
   });
 
-  // Draft loader
+  // Draft loader - now with isAdmin parameter
   const { draftApplied } = useDraftLoader({
     editorInitialized,
     draftLoadAttempted,
@@ -106,17 +106,18 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     quillRef,
     content,
     updateEditorContent,
+    isAdmin, // Pass isAdmin to the hook
   });
 
   // Attempt draft load
   const attemptDraftLoad = useCallback(() => {
     if (userId && isDataReady && !draftLoadAttempted && !initializedRef.current) {
-      console.log('📋 TextEditor: User ID available, loading drafts:', userId);
+      console.log('📋 TextEditor: User ID available, loading drafts:', userId, 'isAdmin:', isAdmin);
       initializedRef.current = true;
       loadDraftsForCurrentUser();
       setDraftLoadAttempted(true);
     }
-  }, [userId, isDataReady, draftLoadAttempted, loadDraftsForCurrentUser]);
+  }, [userId, isDataReady, draftLoadAttempted, loadDraftsForCurrentUser, isAdmin]);
 
   useEffect(() => {
     attemptDraftLoad();
