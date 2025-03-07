@@ -1,7 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
-import { processLinesData, processDraftLines } from '@/utils/lineDataProcessing';
+import { processLinesData, processDraftLines } from '@/utils/lineProcessing';
 import { fetchAllLines } from './fetchLineData';
 
 /**

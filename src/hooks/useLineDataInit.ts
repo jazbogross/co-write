@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { createInitialLineData } from '@/utils/lineDataUtils';
 import { fetchAllLines, loadDrafts as loadDraftsService } from '@/services/lineDataService';
-import { processLinesData } from '@/utils/lineDataProcessing';
+import { processLinesData } from '@/utils/lineProcessing';
 import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 export const useLineDataInit = (
