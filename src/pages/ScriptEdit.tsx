@@ -63,12 +63,10 @@ const ScriptEdit = () => {
           .order("line_number", { ascending: true });
 
         if (!contentError && contentData && contentData.length > 0) {
-          // Combine the content from all lines
-          const combinedContent = contentData.map(line => line.content).join("\n");
-          setOriginalContent(combinedContent);
-          console.log("🔄 Original content loaded:", 
-            combinedContent.substring(0, 100) + "...", 
-            "Length:", combinedContent.length);
+          // Just pass the first content line or empty string
+          // We won't combine lines here anymore - the line data system will handle this
+          setOriginalContent(contentData.length > 0 ? contentData[0].content : "");
+          console.log("🔄 Original content reference loaded, length:", contentData.length);
         } else {
           console.log("🔄 No content found or error fetching content:", contentError);
           setOriginalContent("");

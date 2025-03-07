@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { LineData } from '@/hooks/useLineData';
 import { isDeltaObject, combineDeltaContents, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
 import ReactQuill from 'react-quill';
-import { DeltaContent } from '@/utils/editor/types';
+import { DeltaContent, QuillCompatibleDelta } from '@/utils/editor/types';
+import { isStringifiedDelta, parseStringifiedDeltaIfPossible } from '@/utils/lineProcessing/mappingUtils';
 
 interface DraftLoaderProps {
   editorInitialized: boolean;
@@ -44,9 +45,9 @@ export const useDraftLoader = ({
         
         // Process line data to ensure we have Delta objects where appropriate
         const processedLineData = lineData.map(line => {
-          if (typeof line.content === 'string' && line.content.startsWith('{') && line.content.includes('"ops"')) {
+          if (isStringifiedDelta(line.content)) {
             try {
-              const parsedDelta = JSON.parse(line.content);
+              const parsedDelta = parseStringifiedDeltaIfPossible(line.content);
               if (parsedDelta && Array.isArray(parsedDelta.ops)) {
                 console.log(`📙 useDraftLoader: Parsed stringified Delta for line ${line.lineNumber}`);
                 return { ...line, content: parsedDelta };
@@ -75,13 +76,29 @@ export const useDraftLoader = ({
         if (hasDeltaContent) {
           console.log('📙 useDraftLoader: Creating combined Delta from line data');
           
-          const deltaContents = processedLineData.map(line => line.content);
+          const deltaContents = processedLineData.map(line => {
+            // Ensure each line's content is properly parsed if it's a stringified Delta
+            if (isStringifiedDelta(line.content)) {
+              return parseStringifiedDeltaIfPossible(line.content);
+            }
+            return line.content;
+          });
+          
           const combinedDelta = combineDeltaContents(deltaContents);
           
           if (combinedDelta) {
             console.log('📙 useDraftLoader: Final Delta ops count:', combinedDelta.ops.length);
             console.log('📙 useDraftLoader: First few ops:', JSON.stringify(combinedDelta.ops.slice(0, 2)));
-            updateEditorContent(combinedDelta, true); // Force update
+            
+            // Use setContents directly on the editor for Delta objects
+            if (editor) {
+              console.log('📙 useDraftLoader: Setting Delta contents directly on editor');
+              // Cast the combined Delta to 'any' to bypass the TypeScript error
+              // This is safe because we've verified it has the correct structure with ops array
+              editor.setContents(combinedDelta as any);
+            } else {
+              updateEditorContent(combinedDelta, true); // Force update
+            }
           } else {
             console.log('📙 useDraftLoader: Failed to create combined Delta, using plain text fallback');
             const combinedContent = processedLineData.map(line => 

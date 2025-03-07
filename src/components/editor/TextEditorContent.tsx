@@ -1,11 +1,9 @@
 
-// Update the TextEditorContent.tsx to handle UUID refresh
-// File: src/components/editor/TextEditorContent.tsx
-
 import React, { useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { LineNumbers } from './LineNumbers';
-import { isDeltaObject } from '@/utils/editor';
+import { isDeltaObject, safelyParseDelta } from '@/utils/editor';
+import { isStringifiedDelta, parseStringifiedDeltaIfPossible } from '@/utils/lineProcessing/mappingUtils';
 
 interface TextEditorContentProps {
   content: any; // Changed from string to any to support Delta objects
@@ -32,6 +30,11 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   // Track editor mount state
   const isEditorMountedRef = useRef(false);
   const contentChangeRef = useRef(0);
+  
+  // Process content to ensure it's properly parsed if it's a stringified Delta
+  const processedContent = isStringifiedDelta(content) 
+    ? parseStringifiedDeltaIfPossible(content) 
+    : content;
   
   // Log DOM structure periodically to check line number sync
   useEffect(() => {
@@ -81,6 +84,20 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
         editor.lineTracking.initialize();
       }
     }
+    
+    // If content is a Delta object or a stringified Delta, set it properly
+    if (editor) {
+      if (isDeltaObject(processedContent)) {
+        console.log('📝 TextEditorContent: Setting Delta content directly on editor after mount');
+        editor.setContents(processedContent);
+      } else if (isStringifiedDelta(processedContent)) {
+        const parsedDelta = parseStringifiedDeltaIfPossible(processedContent);
+        if (parsedDelta) {
+          console.log('📝 TextEditorContent: Setting parsed Delta content directly on editor after mount');
+          editor.setContents(parsedDelta);
+        }
+      }
+    }
   };
   
   // Only trigger onChange when content actually changes
@@ -125,13 +142,13 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   // Log if content changes
   useEffect(() => {
     console.log(`📝 TextEditorContent: Content updated, length:`, 
-      typeof content === 'string' ? content.length : 'N/A (Delta object)');
-    if (typeof content === 'string' && content.length > 0) {
-      console.log(`📝 Content preview:`, content.substring(0, 50) + '...');
-    } else if (isDeltaObject(content)) {
-      console.log(`📝 Content preview (Delta):`, JSON.stringify(content).substring(0, 50) + '...');
+      typeof processedContent === 'string' ? processedContent.length : 'N/A (Delta object)');
+    if (typeof processedContent === 'string' && processedContent.length > 0) {
+      console.log(`📝 Content preview:`, processedContent.substring(0, 50) + '...');
+    } else if (isDeltaObject(processedContent)) {
+      console.log(`📝 Content preview (Delta):`, JSON.stringify(processedContent).substring(0, 50) + '...');
     }
-  }, [content]);
+  }, [processedContent]);
   
   return (
     <div className="flex min-h-screen text-black">
@@ -142,7 +159,7 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
             <div className="flex-1">
               <ReactQuill
                 ref={quillRef}
-                value={content}
+                value={processedContent}
                 onChange={handleContentChange}
                 modules={modules}
                 formats={formats}
