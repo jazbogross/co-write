@@ -24,13 +24,18 @@ export const fetchAllLines = async (scriptId: string, isAdmin: boolean = false) 
     // Log the data for debugging
     console.log(`**** LineDataService **** Fetched ${data?.length || 0} lines from script_content`);
     if (data && data.length > 0) {
-      // Log first few lines for debugging - safely access content
-      data.slice(0, 3).forEach((line, i) => {
-        const contentPreview = typeof line?.content === 'string' 
-          ? line.content.substring(0, 30) + '...'
-          : 'Non-string content';
-        
-        console.log(`**** LineDataService **** Line ${i+1} content:`, contentPreview);
+      // Log first few lines for debugging - safely access content with type guard
+      data.slice(0, 3).forEach((line: any, i) => {
+        // Make sure 'line' is an object and has a content property before accessing it
+        if (line && typeof line === 'object') {
+          const contentPreview = typeof line.content === 'string' 
+            ? line.content.substring(0, 30) + '...'
+            : 'Non-string content';
+          
+          console.log(`**** LineDataService **** Line ${i+1} content:`, contentPreview);
+        } else {
+          console.log(`**** LineDataService **** Line ${i+1} is not a valid object`);
+        }
       });
     }
     
@@ -142,30 +147,43 @@ export const loadDrafts = async (
       }
       
       // Log the first few drafts for debugging
-      suggestionDrafts.slice(0, 3).forEach((draft, i) => {
-        // Safely access properties with optional chaining
-        const contentPreview = typeof draft?.content === 'string' 
-          ? draft.content.substring(0, 30) + '...' 
-          : 'Non-string content';
+      suggestionDrafts.slice(0, 3).forEach((draft: any, i) => {
+        // Make sure 'draft' is an object before accessing properties
+        if (draft && typeof draft === 'object') {
+          // Safely access properties with optional chaining and type checking
+          const contentPreview = typeof draft.content === 'string' 
+            ? draft.content.substring(0, 30) + '...' 
+            : 'Non-string content';
+            
+          const draftPreview = typeof draft.draft === 'string' 
+            ? draft.draft.substring(0, 30) + '...' 
+            : 'Non-string draft';
           
-        const draftPreview = typeof draft?.draft === 'string' 
-          ? draft.draft.substring(0, 30) + '...' 
-          : 'Non-string draft';
-        
-        console.log(`**** LineDataService **** Draft ${i+1}:`, {
-          id: draft?.id,
-          line_uuid: draft?.line_uuid,
-          content: contentPreview,
-          draft: draftPreview,
-          line_number: draft?.line_number,
-          line_number_draft: draft?.line_number_draft
-        });
+          console.log(`**** LineDataService **** Draft ${i+1}:`, {
+            id: draft.id,
+            line_uuid: draft.line_uuid,
+            content: contentPreview,
+            draft: draftPreview,
+            line_number: draft.line_number,
+            line_number_draft: draft.line_number_draft
+          });
+        } else {
+          console.log(`**** LineDataService **** Draft ${i+1} is not a valid object`);
+        }
       });
       
       // Create a merged dataset with both base content and suggestions
       const mergedLines = allLines.map((line: any) => {
+        // Make sure line is a valid object
+        if (!line || typeof line !== 'object') {
+          console.log('**** LineDataService **** Skipping invalid line object');
+          return line;
+        }
+        
         // Try to find a matching suggestion for this line
-        const suggestion = suggestionDrafts?.find(s => s.line_uuid === line.id);
+        const suggestion = suggestionDrafts?.find((s: any) => 
+          s && typeof s === 'object' && s.line_uuid === line.id
+        );
         
         if (suggestion) {
           // Convert line to include suggestion data
@@ -181,14 +199,28 @@ export const loadDrafts = async (
       });
       
       // Also add any new lines from suggestions that don't have matching line_uuid
-      const newLines = suggestionDrafts?.filter(s => 
-        // Include suggestions without line_uuid or with line_uuid that doesn't match any existing line
-        !s.line_uuid || !allLines.some((line: any) => line.id === s.line_uuid)
+      const newLines = suggestionDrafts?.filter((s: any) => 
+        // Make sure s is a valid object first
+        s && typeof s === 'object' && (
+          // Include suggestions without line_uuid or with line_uuid that doesn't match any existing line
+          !s.line_uuid || !allLines.some((line: any) => 
+            line && typeof line === 'object' && line.id === s.line_uuid
+          )
+        )
       ) || [];
       
       // Add new lines to the merged dataset
-      newLines.forEach(newLine => {
-        const highestLineNumber = Math.max(...mergedLines.map((l: any) => l.line_number || 0), 0);
+      newLines.forEach((newLine: any) => {
+        // Make sure newLine is a valid object
+        if (!newLine || typeof newLine !== 'object') {
+          console.log('**** LineDataService **** Skipping invalid new line object');
+          return;
+        }
+        
+        const highestLineNumber = Math.max(...mergedLines.map((l: any) => 
+          l && typeof l === 'object' ? (l.line_number || 0) : 0
+        ), 0);
+        
         mergedLines.push({
           id: newLine.id, // Use suggestion ID as line ID for new lines
           content: '', // No original content for new lines
@@ -206,6 +238,7 @@ export const loadDrafts = async (
       
       // Log the first few processed lines
       updatedLines.slice(0, 3).forEach((line, i) => {
+        // Type safety is guaranteed here since this is our own LineData type
         const contentPreview = typeof line.content === 'string' 
           ? line.content.substring(0, 30) + '...' 
           : 'Delta object';
