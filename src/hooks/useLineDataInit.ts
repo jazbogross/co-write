@@ -73,23 +73,26 @@ export const useLineDataInit = (
             
             // Safely log processed lines
             processedLines.slice(0, 3).forEach((line, i) => {
-              // Type-safe access to line content for logging
-              let contentPreview: string;
-              if (typeof line.content === 'string') {
-                contentPreview = line.content.substring(0, 30);
-              } else if (line.content && typeof line.content === 'object' && 'ops' in line.content) {
-                contentPreview = JSON.stringify(line.content).substring(0, 30);
-              } else {
-                contentPreview = '[invalid content format]';
+              if (line) {
+                // Type-safe access to line content for logging
+                let contentPreview: string;
+                if (typeof line.content === 'string') {
+                  contentPreview = line.content.substring(0, 30);
+                } else if (line.content && typeof line.content === 'object' && 'ops' in line.content) {
+                  contentPreview = JSON.stringify(line.content).substring(0, 30);
+                } else {
+                  contentPreview = '[invalid content format]';
+                }
+                
+                console.log(`📊 Processed Line ${i+1}:`, {
+                  uuid: line.uuid,
+                  lineNumber: line.lineNumber,
+                  contentType: typeof line.content,
+                  isDelta: isDeltaObject(line.content),
+                  hasDraft: !!line.hasDraft,
+                  preview: contentPreview
+                });
               }
-              
-              console.log(`📊 Processed Line ${i+1}:`, {
-                uuid: line.uuid,
-                lineNumber: line.lineNumber,
-                contentType: typeof line.content,
-                isDelta: isDeltaObject(line.content),
-                preview: contentPreview
-              });
             });
             
             setLineData(processedLines);
@@ -152,24 +155,26 @@ export const useLineDataInit = (
         
         // Type-safe logging of draft lines
         updatedLines.slice(0, 3).forEach((line, i) => {
-          // Safe content preview for logging
-          let contentPreview: string;
-          if (typeof line.content === 'string') {
-            contentPreview = line.content.substring(0, 30);
-          } else if (line.content && typeof line.content === 'object' && 'ops' in line.content) {
-            contentPreview = JSON.stringify(line.content).substring(0, 30);
-          } else {
-            contentPreview = '[invalid content format]';
+          if (line) {
+            // Safe content preview for logging
+            let contentPreview: string;
+            if (typeof line.content === 'string') {
+              contentPreview = line.content.substring(0, 30);
+            } else if (line.content && typeof line.content === 'object' && 'ops' in line.content) {
+              contentPreview = JSON.stringify(line.content).substring(0, 30);
+            } else {
+              contentPreview = '[invalid content format]';
+            }
+            
+            console.log(`📊 Draft Line ${i+1}:`, {
+              uuid: line.uuid,
+              lineNumber: line.lineNumber,
+              contentType: typeof line.content,
+              isDelta: isDeltaObject(line.content),
+              hasDraft: line.hasDraft || false,
+              preview: contentPreview
+            });
           }
-          
-          console.log(`📊 Draft Line ${i+1}:`, {
-            uuid: line.uuid,
-            lineNumber: line.lineNumber,
-            contentType: typeof line.content,
-            isDelta: isDeltaObject(line.content),
-            hasDraft: line.hasDraft || false,
-            preview: contentPreview
-          });
         });
         
         setLineData(updatedLines);

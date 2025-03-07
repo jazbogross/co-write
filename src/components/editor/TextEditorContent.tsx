@@ -30,46 +30,18 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   // Track editor mount state
   const isEditorMountedRef = useRef(false);
   const contentChangeRef = useRef(0);
+  const initialContentSetRef = useRef(false);
   
   // Process content to ensure it's properly parsed if it's a stringified Delta
-  const processedContent = isStringifiedDelta(content) 
-    ? parseStringifiedDeltaIfPossible(content) 
-    : content;
-  
-  // Log DOM structure periodically to check line number sync
-  useEffect(() => {
-    if (!isEditorMountedRef.current) return;
+  const processedContent = (() => {
+    if (!content) return '';
     
-    const logDomStructure = () => {
-      const editor = quillRef.current?.getEditor();
-      if (!editor) return;
-      
-      const quillLines = editor.getLines(0);
-      const editorElement = document.querySelector('.ql-editor');
-      
-      if (editorElement) {
-        const paragraphs = editorElement.querySelectorAll('p');
-        console.log(`📝 DOM check - Quill lines: ${quillLines.length}, DOM paragraphs: ${paragraphs.length}`);
-        
-        // Check if line numbers match DOM structure
-        if (lineCount !== paragraphs.length) {
-          console.log(`📝 ⚠️ LINE COUNT MISMATCH - lineCount: ${lineCount}, DOM paragraphs: ${paragraphs.length}`);
-        }
-        
-        // Log first few paragraph UUIDs
-        Array.from(paragraphs).slice(0, 3).forEach((p, i) => {
-          const uuid = p.getAttribute('data-line-uuid');
-          console.log(`📝 Paragraph ${i+1} UUID: ${uuid || 'missing'}`);
-        });
-      }
-    };
+    if (isStringifiedDelta(content)) {
+      return parseStringifiedDeltaIfPossible(content);
+    }
     
-    // Log immediately and then every 5 seconds (reduced frequency to prevent too many logs)
-    logDomStructure();
-    const interval = setInterval(logDomStructure, 5000);
-    
-    return () => clearInterval(interval);
-  }, [lineCount, quillRef, isEditorMountedRef.current]);
+    return content;
+  })();
   
   // Handle editor initialization
   const handleEditorInit = () => {
@@ -77,7 +49,9 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     isEditorMountedRef.current = true;
     
     const editor = quillRef.current?.getEditor();
-    if (editor && editor.lineTracking) {
+    if (!editor) return;
+    
+    if (editor.lineTracking) {
       console.log('📝 TextEditorContent: Initializing line tracking');
       // Call LineTracker's initialize method if it exists
       if (typeof editor.lineTracking.initialize === 'function') {
@@ -86,19 +60,15 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     }
     
     // If content is a Delta object or a stringified Delta, set it properly
-    if (editor) {
-      if (isDeltaObject(processedContent)) {
-        console.log('📝 TextEditorContent: Setting Delta content directly on editor after mount');
-        // Cast to any to bypass type checking - we've already verified the Delta structure
-        editor.setContents(processedContent as any);
-      } else if (isStringifiedDelta(processedContent)) {
-        const parsedDelta = parseStringifiedDeltaIfPossible(processedContent);
-        if (parsedDelta) {
-          console.log('📝 TextEditorContent: Setting parsed Delta content directly on editor after mount');
-          // Cast to any to bypass type checking
-          editor.setContents(parsedDelta as any);
-        }
-      }
+    if (isDeltaObject(processedContent)) {
+      console.log('📝 TextEditorContent: Setting Delta content directly on editor after mount');
+      initialContentSetRef.current = true;
+      // Cast to any to bypass type checking - we've already verified the Delta structure
+      editor.setContents(processedContent as any);
+    } else if (typeof processedContent === 'object' && 'ops' in processedContent) {
+      console.log('📝 TextEditorContent: Setting parsed object with ops directly on editor after mount');
+      initialContentSetRef.current = true;
+      editor.setContents(processedContent as any);
     }
   };
   
@@ -122,7 +92,31 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     if (quillRef.current && !isEditorMountedRef.current) {
       handleEditorInit();
     }
-  }, [quillRef]);
+  }, [quillRef.current]);
+  
+  // When processed content changes and editor is already mounted, update content
+  useEffect(() => {
+    if (isEditorMountedRef.current && !initialContentSetRef.current) {
+      const editor = quillRef.current?.getEditor();
+      if (editor && processedContent) {
+        console.log('📝 TextEditorContent: Content changed, updating editor');
+        
+        if (isDeltaObject(processedContent)) {
+          console.log('📝 TextEditorContent: Setting Delta content on update');
+          initialContentSetRef.current = true;
+          editor.setContents(processedContent as any);
+        } else if (typeof processedContent === 'object' && 'ops' in processedContent) {
+          console.log('📝 TextEditorContent: Setting object with ops on update');
+          initialContentSetRef.current = true;
+          editor.setContents(processedContent as any);
+        } else if (typeof processedContent === 'string') {
+          console.log('📝 TextEditorContent: Setting text content on update');
+          initialContentSetRef.current = true;
+          editor.setText(processedContent);
+        }
+      }
+    }
+  }, [processedContent, isEditorMountedRef.current, quillRef.current]);
   
   // Apply line UUIDs from lineData whenever lineCount changes
   useEffect(() => {
@@ -143,8 +137,7 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
 
   // Log if content changes
   useEffect(() => {
-    console.log(`📝 TextEditorContent: Content updated, length:`, 
-      typeof processedContent === 'string' ? processedContent.length : 'N/A (Delta object)');
+    console.log(`📝 TextEditorContent: Content updated, type:`, typeof processedContent);
     if (typeof processedContent === 'string' && processedContent.length > 0) {
       console.log(`📝 Content preview:`, processedContent.substring(0, 50) + '...');
     } else if (isDeltaObject(processedContent)) {

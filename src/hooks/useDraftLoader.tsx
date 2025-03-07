@@ -44,36 +44,33 @@ export const useDraftLoader = ({
         }
         
         // Process line data to ensure we have Delta objects where appropriate
-        const processedLineData = lineData.map(line => {
-          if (isStringifiedDelta(line.content)) {
-            try {
-              const parsedDelta = parseStringifiedDeltaIfPossible(line.content);
-              if (parsedDelta && Array.isArray(parsedDelta.ops)) {
-                console.log(`📙 useDraftLoader: Parsed stringified Delta for line ${line.lineNumber}`);
-                return { ...line, content: parsedDelta };
+        const processedLineData = lineData.filter(line => line !== null && line !== undefined)
+          .map(line => {
+            if (isStringifiedDelta(line.content)) {
+              try {
+                const parsedDelta = parseStringifiedDeltaIfPossible(line.content);
+                if (parsedDelta && typeof parsedDelta === 'object' && 'ops' in parsedDelta && Array.isArray(parsedDelta.ops)) {
+                  console.log(`📙 useDraftLoader: Parsed stringified Delta for line ${line.lineNumber}`);
+                  return { ...line, content: parsedDelta };
+                }
+              } catch (error) {
+                console.error(`📙 useDraftLoader: Error parsing stringified Delta for line ${line.lineNumber}:`, error);
               }
-            } catch (error) {
-              console.error(`📙 useDraftLoader: Error parsing stringified Delta for line ${line.lineNumber}:`, error);
             }
-          }
-          return line;
-        });
+            return line;
+          });
         
-        // For non-admin users, we should still update the editor content even if there are no draft lines
-        // This ensures the base content is loaded regardless
-        const hasDraftLines = processedLineData.some(line => line.hasDraft === true);
-        
-        console.log('📙 useDraftLoader: Has draft lines:', hasDraftLines);
-        
-        // Always process and apply content, regardless of whether there are drafts or not
-        const hasDeltaContent = processedLineData.some(line => isDeltaObject(line.content));
-        console.log('📙 useDraftLoader: Has Delta content:', hasDeltaContent, 'lines count:', processedLineData.length);
+        console.log('📙 useDraftLoader: Processed line data count:', processedLineData.length);
         
         if (processedLineData.length === 0) {
           console.log('📙 useDraftLoader: No content to apply, skipping');
           setDraftApplied(true);
           return;
         }
+        
+        // Check if any of the lines have Delta content
+        const hasDeltaContent = processedLineData.some(line => isDeltaObject(line.content));
+        console.log('📙 useDraftLoader: Has Delta content:', hasDeltaContent);
         
         if (hasDeltaContent) {
           console.log('📙 useDraftLoader: Creating combined Delta from line data');
@@ -107,9 +104,18 @@ export const useDraftLoader = ({
             // Use setContents directly on the editor for Delta objects
             if (editor) {
               console.log('📙 useDraftLoader: Setting Delta contents directly on editor');
-              // Cast the combined Delta to 'any' to bypass the TypeScript error
-              // This is safe because we've verified it has the correct structure with ops array
               editor.setContents(combinedDelta as any);
+              
+              // After setting contents, restore line tracking state
+              if (editor.lineTracking) {
+                // Give time for the editor to update
+                setTimeout(() => {
+                  if (editor.lineTracking && editor.lineTracking.refreshLineUuids) {
+                    console.log('📙 useDraftLoader: Refreshing line UUIDs after setting content');
+                    editor.lineTracking.refreshLineUuids(processedLineData);
+                  }
+                }, 50);
+              }
             } else {
               updateEditorContent(combinedDelta, true); // Force update
             }
