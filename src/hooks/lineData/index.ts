@@ -11,13 +11,15 @@ export const useLineData = (
   scriptId: string, 
   originalContent: string, 
   userId: string | null,
-  isAdmin: boolean = false
+  isAdmin: boolean = false,
+  originalLines: any[] = [] // Add this parameter with default empty array
 ) => {
   console.log('🔠 useLineData: Hook called with', { 
     scriptId, 
     originalContentLength: originalContent?.length || 0,
     userId, 
-    isAdmin 
+    isAdmin,
+    originalLinesCount: originalLines?.length || 0 
   });
   
   // Core line data state and functions
@@ -34,10 +36,10 @@ export const useLineData = (
     updateLineContents
   } = useLineDataCore(scriptId, userId, isAdmin);
 
-  // Initialization functionality
+  // Initialization functionality - pass originalLines as well
   const { 
     loadDrafts
-  } = useLineDataInitialization(scriptId, originalContent, userId, isAdmin);
+  } = useLineDataInitialization(scriptId, originalContent, userId, isAdmin, originalLines);
   
   // Draft management
   const { 

@@ -8,11 +8,17 @@ import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 export const useLineDataInit = (
   scriptId: string, 
-  originalContent: string, // Kept for compatibility but not used
+  originalContent: string, // Kept for compatibility but not primary source
   userId: string | null,
-  isAdmin: boolean = false // Added isAdmin parameter with default false
+  isAdmin: boolean = false,
+  originalLines: any[] = [] // Add this parameter with default empty array
 ) => {
-  console.log('📊 useLineDataInit: Hook called with', { scriptId, userId, isAdmin });
+  console.log('📊 useLineDataInit: Hook called with', { 
+    scriptId, 
+    userId, 
+    isAdmin, 
+    originalLinesCount: originalLines?.length || 0 
+  });
   
   const [lineData, setLineData] = useState<LineData[]>([]);
   const [initialized, setInitialized] = useState(false);
@@ -33,13 +39,21 @@ export const useLineDataInit = (
       setIsDataReady(false); // Reset ready state while loading
       
       try {
-        // Get all lines including drafts if admin
-        const allLines = await fetchAllLines(scriptId, isAdmin);
+        // If we have originalLines from props, use them directly instead of fetching
+        let allLines = originalLines;
+        
+        // If no originalLines provided, fetch them
+        if (!originalLines || originalLines.length === 0) {
+          console.log('📊 useLineDataInit: No originalLines provided, fetching from API');
+          allLines = await fetchAllLines(scriptId, isAdmin);
+        } else {
+          console.log('📊 useLineDataInit: Using provided originalLines:', originalLines.length);
+        }
         
         if (allLines && allLines.length > 0) {
-          console.log('📊 useLineDataInit: Data fetched successfully. Lines count:', allLines.length);
+          console.log('📊 useLineDataInit: Data available. Lines count:', allLines.length);
           
-          // Type safe iteration over fetched lines
+          // Type safe iteration over lines
           if (Array.isArray(allLines)) {
             // Log the first few lines for debugging - with safe type checking
             allLines.slice(0, 3).forEach((line, i) => {
@@ -49,20 +63,22 @@ export const useLineDataInit = (
                 const lineId = 'id' in line ? line.id : 'unknown';
                 const lineNumber = 'line_number' in line ? line.line_number : 'unknown';
                 const contentType = 'content' in line && line.content !== null ? typeof line.content : 'undefined';
+                const hasDraft = 'draft' in line && line.draft !== null;
                 
                 let contentPreview = 'non-string content';
                 if ('content' in line && typeof line.content === 'string') {
                   contentPreview = line.content.substring(0, 30) + '...';
                 }
 
-                console.log(`📊 useLineDataInit: Fetched line ${i+1}:`, {
+                console.log(`📊 useLineDataInit: Line ${i+1}:`, {
                   id: lineId,
                   line_number: lineNumber,
                   content_type: contentType,
+                  has_draft: hasDraft,
                   content_preview: contentPreview
                 });
               } else {
-                console.log(`📊 useLineDataInit: Fetched line ${i+1}: Invalid format`);
+                console.log(`📊 useLineDataInit: Line ${i+1}: Invalid format`);
               }
             });
             
@@ -98,7 +114,7 @@ export const useLineDataInit = (
             setLineData(processedLines);
             lastLineCountRef.current = processedLines.length;
           } else {
-            console.error('📊 useLineDataInit: Fetched lines is not an array', allLines);
+            console.error('📊 useLineDataInit: Lines are not an array', allLines);
             // Create a blank initial document if data format is incorrect
             const initialLineData = createInitialLineData("", userId);
             contentToUuidMapRef.current.set("", initialLineData[0].uuid);
@@ -119,7 +135,7 @@ export const useLineDataInit = (
         setIsDataReady(true); // Mark data as ready for TextEditor to use
         console.log('📊 useLineDataInit: Data is now ready for editor to use');
       } catch (error) {
-        console.error('📊 useLineDataInit: Error fetching line data:', error);
+        console.error('📊 useLineDataInit: Error processing line data:', error);
         setInitialized(true);
         
         if (lineData.length === 0) {
@@ -133,7 +149,7 @@ export const useLineDataInit = (
     };
 
     fetchLineData();
-  }, [scriptId, userId, initialized, lineData.length, isAdmin]);
+  }, [scriptId, userId, initialized, lineData.length, isAdmin, originalLines]);
 
   // Function to handle loading drafts
   const loadUserDrafts = async (userId: string | null) => {
