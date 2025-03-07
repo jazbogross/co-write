@@ -78,8 +78,9 @@ const saveChangesToDatabase = async (
 
     const { error } = await supabase
       .from('script_suggestions')
-      .insert(suggestionData);
+      .upsert(suggestionData, { onConflict: 'line_uuid' });
 
     if (error) throw error;
   }
 };
+
