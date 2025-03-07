@@ -84,6 +84,7 @@ const ScriptEdit = () => {
           const combinedContent = contentData
             .slice(0, 5)
             .map(item => {
+              // Fix: Add null check for item before accessing properties
               if (item && typeof item === 'object' && 'content' in item) {
                 return item.content || "";
               }
