@@ -36,7 +36,7 @@ export const useLineData = (
   
   // Draft management
   const { 
-    loadDraftsForCurrentUser 
+    loadDraftsForCurrentUser
   } = useDraftManagement(
     scriptId, 
     userId, 
