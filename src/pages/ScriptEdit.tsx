@@ -60,15 +60,19 @@ const ScriptEdit = () => {
           .from("script_content")
           .select("content")
           .eq("script_id", id)
+          .limit(1)
           .order("line_number", { ascending: true });
 
         if (!contentError && contentData && contentData.length > 0) {
-          // Just pass the first content line or empty string
-          // We won't combine lines here anymore - the line data system will handle this
-          setOriginalContent(contentData.length > 0 ? contentData[0].content : "");
-          console.log("🔄 Original content reference loaded, length:", contentData.length);
+          // Just set the first content item as a reference
+          // No need to combine lines here, as lineData system will handle the full content
+          const firstContentItem = contentData[0].content || "";
+          console.log("🔄 ScriptEdit: Original content reference loaded, length:", 
+            typeof firstContentItem === 'string' ? firstContentItem.length : 'not a string');
+          
+          setOriginalContent(firstContentItem);
         } else {
-          console.log("🔄 No content found or error fetching content:", contentError);
+          console.log("🔄 ScriptEdit: No content found or error fetching content:", contentError);
           setOriginalContent("");
         }
 

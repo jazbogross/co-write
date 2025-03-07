@@ -89,12 +89,14 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     if (editor) {
       if (isDeltaObject(processedContent)) {
         console.log('📝 TextEditorContent: Setting Delta content directly on editor after mount');
-        editor.setContents(processedContent);
+        // Cast to any to bypass type checking - we've already verified the Delta structure
+        editor.setContents(processedContent as any);
       } else if (isStringifiedDelta(processedContent)) {
         const parsedDelta = parseStringifiedDeltaIfPossible(processedContent);
         if (parsedDelta) {
           console.log('📝 TextEditorContent: Setting parsed Delta content directly on editor after mount');
-          editor.setContents(parsedDelta);
+          // Cast to any to bypass type checking
+          editor.setContents(parsedDelta as any);
         }
       }
     }
@@ -164,6 +166,7 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
                 modules={modules}
                 formats={formats}
                 theme="snow"
+                placeholder="Start typing or loading content..."
               />
             </div>
           </div>

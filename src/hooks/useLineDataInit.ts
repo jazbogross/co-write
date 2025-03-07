@@ -41,6 +41,18 @@ export const useLineDataInit = (
           
           // Type safe iteration over fetched lines
           if (Array.isArray(allLines)) {
+            // Log the first few lines for debugging
+            allLines.slice(0, 3).forEach((line, i) => {
+              console.log(`📊 useLineDataInit: Fetched line ${i+1}:`, {
+                id: line.id,
+                line_number: line.line_number,
+                content_type: typeof line.content,
+                content_preview: typeof line.content === 'string' ? 
+                  line.content.substring(0, 30) + '...' : 
+                  'non-string content'
+              });
+            });
+            
             // Process the line data, passing the isAdmin flag
             const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin);
             

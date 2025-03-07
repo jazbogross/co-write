@@ -65,13 +65,15 @@ export const useDraftLoader = ({
         
         console.log('📙 useDraftLoader: Has draft lines:', hasDraftLines);
         
-        if (!hasDraftLines) {
-          console.log('📙 useDraftLoader: No draft lines found, applying base content');
-        }
-        
         // Always process and apply content, regardless of whether there are drafts or not
         const hasDeltaContent = processedLineData.some(line => isDeltaObject(line.content));
-        console.log('📙 useDraftLoader: Has Delta content:', hasDeltaContent);
+        console.log('📙 useDraftLoader: Has Delta content:', hasDeltaContent, 'lines count:', processedLineData.length);
+        
+        if (processedLineData.length === 0) {
+          console.log('📙 useDraftLoader: No content to apply, skipping');
+          setDraftApplied(true);
+          return;
+        }
         
         if (hasDeltaContent) {
           console.log('📙 useDraftLoader: Creating combined Delta from line data');
@@ -81,12 +83,24 @@ export const useDraftLoader = ({
             if (isStringifiedDelta(line.content)) {
               return parseStringifiedDeltaIfPossible(line.content);
             }
+            
+            // Log the content type for debugging
+            console.log(`📙 useDraftLoader: Line ${line.lineNumber} content type:`, 
+              typeof line.content, isDeltaObject(line.content) ? 'isDelta' : 'notDelta');
+            
             return line.content;
+          });
+          
+          // Log the first few deltaContents for debugging
+          deltaContents.slice(0, 3).forEach((delta, i) => {
+            console.log(`📙 useDraftLoader: Delta content ${i+1} type:`, 
+              typeof delta, isDeltaObject(delta) ? 'isDelta' : 'notDelta',
+              typeof delta === 'object' ? `has ${delta.ops?.length || 0} ops` : '');
           });
           
           const combinedDelta = combineDeltaContents(deltaContents);
           
-          if (combinedDelta) {
+          if (combinedDelta && combinedDelta.ops && combinedDelta.ops.length > 0) {
             console.log('📙 useDraftLoader: Final Delta ops count:', combinedDelta.ops.length);
             console.log('📙 useDraftLoader: First few ops:', JSON.stringify(combinedDelta.ops.slice(0, 2)));
             
@@ -106,8 +120,14 @@ export const useDraftLoader = ({
               extractPlainTextFromDelta(line.content)
             ).join('\n');
             
-            console.log('📙 useDraftLoader: Updating editor with plain text fallback');
-            updateEditorContent(combinedContent, true); // Force update
+            console.log('📙 useDraftLoader: Updating editor with plain text fallback, content length:', combinedContent.length);
+            
+            if (combinedContent.length > 0) {
+              editor.setText(combinedContent);
+            } else {
+              console.log('📙 useDraftLoader: Empty content after processing, setting placeholder text');
+              editor.setText('');
+            }
           }
         } else {
           console.log('📙 useDraftLoader: Creating combined content from strings');
@@ -118,7 +138,13 @@ export const useDraftLoader = ({
           }).join('\n');
           
           console.log('📙 useDraftLoader: Updating editor content, content length:', combinedContent.length);
-          updateEditorContent(combinedContent, true); // Force update
+          
+          if (combinedContent.length > 0) {
+            editor.setText(combinedContent);
+          } else {
+            console.log('📙 useDraftLoader: Empty content after processing, setting placeholder text');
+            editor.setText('');
+          }
         }
         
         setDraftApplied(true);
