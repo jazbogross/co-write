@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { saveDraft } from '@/utils/saveDraftUtils';
 import { saveLinesToDatabase } from '@/utils/saveLineUtils';
-import { saveSuggestions, saveLineDrafts } from '@/utils/saveSuggestionUtils';
+import { saveSuggestions, saveLineDrafts } from '@/utils/suggestions';
 import { toast } from 'sonner';
 import { DeltaContent } from '@/utils/editor/types';
 
