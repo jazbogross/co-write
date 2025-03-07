@@ -1,6 +1,8 @@
+
 import { useCallback } from 'react';
 import { useLineDataInit as useLineDataInitCore } from '../useLineDataInit';
-import { isDeltaObject } from '@/utils/editor';
+import { isDeltaObject, safelyParseDelta } from '@/utils/editor';
+import { isStringifiedDelta, parseStringifiedDeltaIfPossible } from '@/utils/lineProcessing/mappingUtils';
 
 export const useLineDataInitialization = (
   scriptId: string, 
@@ -17,13 +19,13 @@ export const useLineDataInitialization = (
   
   // Check if originalContent might be a stringified Delta
   let processedContent = originalContent;
-  if (typeof originalContent === 'string' && originalContent.startsWith('{') && originalContent.includes('"ops"')) {
+  if (isStringifiedDelta(originalContent)) {
     try {
       console.log('📊 useLineDataInitialization: Original content appears to be a stringified Delta, attempting to parse');
-      const parsedContent = JSON.parse(originalContent);
+      const parsedContent = parseStringifiedDeltaIfPossible(originalContent);
       if (parsedContent && Array.isArray(parsedContent.ops)) {
         console.log('📊 useLineDataInitialization: Successfully parsed Delta from original content');
-        // We'll keep it as a string but log that we validated it
+        processedContent = parsedContent; // Use the parsed Delta object directly
       }
     } catch (error) {
       console.error('📊 useLineDataInitialization: Error parsing possible Delta content:', error);
