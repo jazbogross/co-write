@@ -44,15 +44,20 @@ export const useLineDataInit = (
             // Log the first few lines for debugging - with safe type checking
             allLines.slice(0, 3).forEach((line, i) => {
               // Type guard to ensure line is an object with the expected properties
-              if (line && typeof line === 'object' && 'id' in line) {
-                const contentType = line.content ? typeof line.content : 'undefined';
-                const contentPreview = typeof line.content === 'string' ? 
-                  line.content.substring(0, 30) + '...' : 
-                  'non-string content';
+              if (line && typeof line === 'object') {
+                // Safe access to all properties with optional chaining
+                const lineId = 'id' in line ? line.id : 'unknown';
+                const lineNumber = 'line_number' in line ? line.line_number : 'unknown';
+                const contentType = 'content' in line && line.content !== null ? typeof line.content : 'undefined';
+                
+                let contentPreview = 'non-string content';
+                if ('content' in line && typeof line.content === 'string') {
+                  contentPreview = line.content.substring(0, 30) + '...';
+                }
 
                 console.log(`📊 useLineDataInit: Fetched line ${i+1}:`, {
-                  id: line.id,
-                  line_number: line.line_number,
+                  id: lineId,
+                  line_number: lineNumber,
                   content_type: contentType,
                   content_preview: contentPreview
                 });
