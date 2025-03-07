@@ -80,9 +80,15 @@ const ScriptEdit = () => {
           setOriginalLines(contentData);
           
           // Also combine the first few lines of content as a string for backward compatibility
+          // Safely access the content property with type checking
           const combinedContent = contentData
             .slice(0, 5)
-            .map(item => item.content || "")
+            .map(item => {
+              if (item && typeof item === 'object' && 'content' in item) {
+                return item.content || "";
+              }
+              return "";
+            })
             .join("\n");
             
           console.log("🔄 ScriptEdit: Combined content sample:", 

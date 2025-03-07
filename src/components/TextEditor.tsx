@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { useTextEditor } from '@/hooks/useTextEditor';
-import { useLineData } from '@/hooks/useLineData';
+import { useLineData } from '@/hooks/lineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { useDraftLoader } from '@/hooks/useDraftLoader';
 import { useUserData } from '@/hooks/useUserData';
@@ -136,16 +136,20 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         console.log('📋 TextEditor: LineData has Delta objects:', hasDeltas);
         
         if (hasDeltas) {
-          // Update through editor reference for Delta objects
-          updateEditorContent(lineData.map(line => line.content));
+          // Fix: Don't pass array to updateEditorContent, instead combine contents or use first line
+          // Use first line content or first Delta as a starting point
+          const deltaContent = lineData.find(line => isDeltaObject(line.content))?.content;
+          if (deltaContent) {
+            updateEditorContent(deltaContent);
+          } else {
+            // Fallback to plain text approach with first line
+            const firstLineContent = lineData[0]?.content || '';
+            updateEditorContent(typeof firstLineContent === 'string' ? firstLineContent : JSON.stringify(firstLineContent));
+          }
         } else {
-          // Use plain text approach
-          const plainText = lineData.map(line => 
-            typeof line.content === 'string' ? line.content : 
-            JSON.stringify(line.content)
-          ).join('\n');
-          
-          updateEditorContent(plainText);
+          // Use plain text approach with first line or concatenated text
+          const plainText = lineData[0]?.content || '';
+          updateEditorContent(typeof plainText === 'string' ? plainText : JSON.stringify(plainText));
         }
         
         fullContentReadyRef.current = true;
