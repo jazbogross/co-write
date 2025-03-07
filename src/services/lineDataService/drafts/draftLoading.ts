@@ -32,12 +32,12 @@ export const loadDrafts = async (
     }
     
     if (isAdmin) {
-      return loadAdminDrafts(allLines, contentToUuidMapRef, isAdmin);
+      return await loadAdminDrafts(allLines, contentToUuidMapRef, isAdmin);
     } else {
-      return loadNonAdminDrafts(scriptId, userId, allLines, contentToUuidMapRef, isAdmin);
+      return await loadNonAdminDrafts(scriptId, userId, allLines, contentToUuidMapRef, isAdmin);
     }
   } catch (error) {
     console.error('**** LineDataService **** Error loading drafts:', error);
-    throw error;
+    return []; // Ensure we always return an array, even on error
   }
 };
