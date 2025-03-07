@@ -110,7 +110,7 @@ const ScriptEdit = () => {
   }
 
   return (
-    <div className="container min-w-sreen">
+    <div className="container min-w-screen">
       <Card>
         <CardHeader>
           <CardTitle>{script.title}</CardTitle>

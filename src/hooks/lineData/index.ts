@@ -13,7 +13,12 @@ export const useLineData = (
   userId: string | null,
   isAdmin: boolean = false
 ) => {
-  console.log('🔠 useLineData: Hook called with', { scriptId, userId, isAdmin });
+  console.log('🔠 useLineData: Hook called with', { 
+    scriptId, 
+    originalContentLength: originalContent?.length || 0,
+    userId, 
+    isAdmin 
+  });
   
   // Core line data state and functions
   const {

@@ -8,6 +8,13 @@ export const useLineDataInitialization = (
   userId: string | null,
   isAdmin: boolean = false
 ) => {
+  console.log('📊 useLineDataInitialization: Hook called with', { 
+    scriptId, 
+    originalContentLength: originalContent?.length || 0,
+    userId, 
+    isAdmin 
+  });
+  
   // Use the core initialization hook
   const { 
     lineData, 

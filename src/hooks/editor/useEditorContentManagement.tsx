@@ -24,6 +24,9 @@ export const useEditorContentManagement = (
     console.log('📝 useEditorContentManagement: updateEditorContent called with', {
       contentType: typeof newContent,
       isDelta: isDeltaObject(newContent),
+      contentPreview: typeof newContent === 'string' 
+        ? newContent.substring(0, 30) + '...' 
+        : JSON.stringify(newContent).substring(0, 30) + '...',
       forceUpdate
     });
     
@@ -102,16 +105,16 @@ export const useEditorContentManagement = (
           // Fallback to plain text if Delta parsing fails
           console.log('📝 useEditorContentManagement: Delta parsing failed, falling back to plain text');
           const textContent = extractPlainTextFromDelta(newContent);
-          insertContentWithLineBreaks(editor, textContent);
+          insertContentWithLineBreaks(editor, textContent || '');
           
           // Update content state with text
-          setContent(textContent);
+          setContent(textContent || '');
           console.log('📝 useEditorContentManagement: Content state updated with text');
         }
       } else {
         // For string content, split by newlines and insert properly
         console.log('📝 useEditorContentManagement: Handling string content');
-        const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
+        const contentStr = typeof newContent === 'string' ? newContent : String(newContent || '');
         insertContentWithLineBreaks(editor, contentStr);
         
         // Update content state with text
@@ -157,7 +160,7 @@ export const useEditorContentManagement = (
       
       const textContent = typeof newContent === 'string' 
         ? newContent 
-        : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
+        : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent || '');
       console.log('📝 useEditorContentManagement: Falling back to plain text insertion after error');
       insertContentWithLineBreaks(editor, textContent);
     } finally {
