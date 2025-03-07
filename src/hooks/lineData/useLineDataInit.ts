@@ -8,13 +8,15 @@ export const useLineDataInitialization = (
   scriptId: string, 
   originalContent: string, 
   userId: string | null,
-  isAdmin: boolean = false
+  isAdmin: boolean = false,
+  originalLines: any[] = [] // Add this parameter with default empty array
 ) => {
   console.log('📊 useLineDataInitialization: Hook called with', { 
     scriptId, 
     originalContentLength: originalContent?.length || 0,
     userId, 
-    isAdmin 
+    isAdmin,
+    originalLinesCount: originalLines?.length || 0
   });
   
   // Check if originalContent might be a stringified Delta
@@ -43,7 +45,7 @@ export const useLineDataInitialization = (
       JSON.stringify(processedContent).substring(0, 50) + '...');
   }
   
-  // Use the core initialization hook
+  // Use the core initialization hook - pass originalLines
   const { 
     lineData, 
     setLineData, 
@@ -51,7 +53,7 @@ export const useLineDataInitialization = (
     contentToUuidMapRef,
     lastLineCountRef,
     loadDrafts 
-  } = useLineDataInitCore(scriptId, processedContent, userId, isAdmin);
+  } = useLineDataInitCore(scriptId, processedContent, userId, isAdmin, originalLines);
   
   // Return the initialization functionality with additional logging
   return {

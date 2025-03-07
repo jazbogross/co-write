@@ -23,6 +23,7 @@ const ScriptEdit = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [originalContent, setOriginalContent] = useState("");
+  const [originalLines, setOriginalLines] = useState([]);
 
   useEffect(() => {
     const loadScript = async () => {
@@ -55,25 +56,43 @@ const ScriptEdit = () => {
         const isUserAdmin = user.id === scriptData.admin_id;
         console.log(`🔄 ScriptEdit: Loaded script, user ${user.id} is ${isUserAdmin ? 'admin' : 'non-admin'}`);
 
-        // Fetch script content from script_content table
+        // Fetch all script content from script_content table with proper columns
+        // Important: Don't limit to just one line, and get all needed columns
+        const columns = isUserAdmin 
+          ? "content, draft, line_number, line_number_draft" 
+          : "content, line_number";
+          
         const { data: contentData, error: contentError } = await supabase
           .from("script_content")
-          .select("content")
+          .select(columns)
           .eq("script_id", id)
-          .limit(1)
           .order("line_number", { ascending: true });
 
-        if (!contentError && contentData && contentData.length > 0) {
-          // Just set the first content item as a reference
-          // No need to combine lines here, as lineData system will handle the full content
-          const firstContentItem = contentData[0].content || "";
-          console.log("🔄 ScriptEdit: Original content reference loaded, length:", 
-            typeof firstContentItem === 'string' ? firstContentItem.length : 'not a string');
+        if (contentError) {
+          console.error("🔄 ScriptEdit: Error fetching content:", contentError);
+          throw contentError;
+        }
+
+        if (contentData && contentData.length > 0) {
+          console.log("🔄 ScriptEdit: Loaded content lines:", contentData.length);
           
-          setOriginalContent(firstContentItem);
+          // Store original lines to pass to TextEditor
+          setOriginalLines(contentData);
+          
+          // Also combine the first few lines of content as a string for backward compatibility
+          const combinedContent = contentData
+            .slice(0, 5)
+            .map(item => item.content || "")
+            .join("\n");
+            
+          console.log("🔄 ScriptEdit: Combined content sample:", 
+            combinedContent.substring(0, 100) + (combinedContent.length > 100 ? "..." : ""));
+          
+          setOriginalContent(combinedContent);
         } else {
-          console.log("🔄 ScriptEdit: No content found or error fetching content:", contentError);
+          console.log("🔄 ScriptEdit: No content found");
           setOriginalContent("");
+          setOriginalLines([]);
         }
 
         setScript(scriptData);
@@ -124,6 +143,7 @@ const ScriptEdit = () => {
           <TextEditor
             isAdmin={isAdmin}
             originalContent={originalContent}
+            originalLines={originalLines}
             scriptId={id}
             onSuggestChange={handleSuggestChange}
           />

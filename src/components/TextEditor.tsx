@@ -1,6 +1,4 @@
 
-// File: src/components/editor/TextEditor.tsx
-
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { useTextEditor } from '@/hooks/useTextEditor';
@@ -36,6 +34,7 @@ try {
 interface TextEditorProps {
   isAdmin: boolean;
   originalContent: string;
+  originalLines: any[]; // Add this new prop
   scriptId: string;
   onSuggestChange: (suggestion: string | DeltaContent) => void;
 }
@@ -43,19 +42,23 @@ interface TextEditorProps {
 export const TextEditor: React.FC<TextEditorProps> = ({
   isAdmin,
   originalContent,
+  originalLines,
   scriptId,
   onSuggestChange,
 }) => {
-  console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin, 'originalContent length:', originalContent?.length || 0);
+  console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin, 
+    'originalContent length:', originalContent?.length || 0,
+    'originalLines count:', originalLines?.length || 0);
 
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
   const initializedRef = useRef(false);
+  const fullContentReadyRef = useRef(false);
 
   // Get user data
   const { userId } = useUserData();
 
-  // Initialize line data
+  // Initialize line data - pass originalLines instead of using originalContent
   const {
     lineData,
     setLineData,
@@ -63,7 +66,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     loadDraftsForCurrentUser,
     isDataReady,
     initializeEditor,
-  } = useLineData(scriptId, originalContent, userId, isAdmin);
+  } = useLineData(scriptId, originalContent, userId, isAdmin, originalLines);
 
   // Initialize text editor
   const {
@@ -119,6 +122,37 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [editorInitialized, isDataReady, userId, draftLoadAttempted, loadDraftsForCurrentUser, isAdmin]);
 
+  // Add a check for content being empty but lineData having content
+  useEffect(() => {
+    if (editorInitialized && lineData.length > 0 && !fullContentReadyRef.current && 
+        (!content || (typeof content === 'string' && content.trim() === ''))) {
+      console.log('📋 TextEditor: Content is empty but lineData exists, updating editor content');
+      
+      // Force content update from lineData
+      const editor = quillRef.current?.getEditor();
+      if (editor) {
+        // Attempt to get Delta content from lineData
+        const hasDeltas = lineData.some(line => isDeltaObject(line.content));
+        console.log('📋 TextEditor: LineData has Delta objects:', hasDeltas);
+        
+        if (hasDeltas) {
+          // Update through editor reference for Delta objects
+          updateEditorContent(lineData.map(line => line.content));
+        } else {
+          // Use plain text approach
+          const plainText = lineData.map(line => 
+            typeof line.content === 'string' ? line.content : 
+            JSON.stringify(line.content)
+          ).join('\n');
+          
+          updateEditorContent(plainText);
+        }
+        
+        fullContentReadyRef.current = true;
+      }
+    }
+  }, [editorInitialized, lineData, content, updateEditorContent, quillRef]);
+
   // Submissions
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
@@ -154,6 +188,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   console.log('📋 TextEditor: Rendering editor with ready data');
   console.log('📋 TextEditor: Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
+  console.log('📋 TextEditor: Line count:', lineCount, 'lineData length:', lineData.length);
   
   return (
     <>
