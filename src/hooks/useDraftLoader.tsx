@@ -48,7 +48,11 @@ export const useDraftLoader = ({
         
         console.log('📙 useDraftLoader: Has draft lines:', hasDraftLines);
         
-        // Process and apply content, regardless of whether there are drafts or not
+        if (!hasDraftLines) {
+          console.log('📙 useDraftLoader: No draft lines found, applying base content');
+        }
+        
+        // Always process and apply content, regardless of whether there are drafts or not
         const hasDeltaContent = lineData.some(line => isDeltaObject(line.content));
         console.log('📙 useDraftLoader: Has Delta content:', hasDeltaContent);
         

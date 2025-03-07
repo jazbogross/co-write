@@ -24,13 +24,13 @@ export const fetchAllLines = async (scriptId: string, isAdmin: boolean = false) 
     // Log the data for debugging
     console.log(`**** LineDataService **** Fetched ${data?.length || 0} lines from script_content`);
     if (data && data.length > 0) {
-      // Log first few lines for debugging
+      // Log first few lines for debugging - safely access content
       data.slice(0, 3).forEach((line, i) => {
-        console.log(`**** LineDataService **** Line ${i+1} content:`, 
-          typeof line.content === 'string' 
-            ? line.content.substring(0, 30) + '...' 
-            : 'Non-string content'
-        );
+        const contentPreview = typeof line?.content === 'string' 
+          ? line.content.substring(0, 30) + '...'
+          : 'Non-string content';
+        
+        console.log(`**** LineDataService **** Line ${i+1} content:`, contentPreview);
       });
     }
     
@@ -143,13 +143,22 @@ export const loadDrafts = async (
       
       // Log the first few drafts for debugging
       suggestionDrafts.slice(0, 3).forEach((draft, i) => {
+        // Safely access properties with optional chaining
+        const contentPreview = typeof draft?.content === 'string' 
+          ? draft.content.substring(0, 30) + '...' 
+          : 'Non-string content';
+          
+        const draftPreview = typeof draft?.draft === 'string' 
+          ? draft.draft.substring(0, 30) + '...' 
+          : 'Non-string draft';
+        
         console.log(`**** LineDataService **** Draft ${i+1}:`, {
-          id: draft.id,
-          line_uuid: draft.line_uuid,
-          content: draft.content?.substring(0, 30) + '...',
-          draft: draft.draft?.substring(0, 30) + '...',
-          line_number: draft.line_number,
-          line_number_draft: draft.line_number_draft
+          id: draft?.id,
+          line_uuid: draft?.line_uuid,
+          content: contentPreview,
+          draft: draftPreview,
+          line_number: draft?.line_number,
+          line_number_draft: draft?.line_number_draft
         });
       });
       
@@ -197,12 +206,14 @@ export const loadDrafts = async (
       
       // Log the first few processed lines
       updatedLines.slice(0, 3).forEach((line, i) => {
+        const contentPreview = typeof line.content === 'string' 
+          ? line.content.substring(0, 30) + '...' 
+          : 'Delta object';
+          
         console.log(`**** LineDataService **** Processed line ${i+1}:`, {
           uuid: line.uuid,
           lineNumber: line.lineNumber,
-          contentPreview: typeof line.content === 'string' 
-            ? line.content.substring(0, 30) + '...' 
-            : 'Delta object',
+          contentPreview: contentPreview,
           hasDraft: line.hasDraft
         });
       });
