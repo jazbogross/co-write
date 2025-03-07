@@ -14,7 +14,7 @@ export const useLineData = (
   scriptId: string, 
   originalContent: string, 
   userId: string | null,
-  isAdmin: boolean = false // Added isAdmin parameter with default false
+  isAdmin: boolean = false
 ) => {
   console.log('🔠 useLineData: Hook called with', { scriptId, userId, isAdmin });
   
@@ -178,15 +178,15 @@ export const useLineData = (
 
   // Updated to use the new consolidated loadDrafts function
   const loadUserDrafts = useCallback(() => {
-    console.log('🔠 useLineData: loadUserDrafts called');
+    console.log('🔠 useLineData: loadUserDrafts called, isAdmin:', isAdmin);
     return loadDraftsForCurrentUser(
       scriptId, 
       userId, 
       setLineData, 
       contentToUuidMapRef,
-      loadDrafts // Pass the implementation from useLineDataInit
+      loadDrafts
     );
-  }, [scriptId, userId, loadDraftsForCurrentUser, contentToUuidMapRef, loadDrafts, setLineData]);
+  }, [scriptId, userId, loadDraftsForCurrentUser, contentToUuidMapRef, loadDrafts, setLineData, isAdmin]);
 
   return { 
     lineData, 

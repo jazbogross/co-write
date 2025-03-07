@@ -109,17 +109,17 @@ export const useLineDataInit = (
 
   // Function to handle loading drafts - now with protection against duplicate calls
   const loadDrafts = async (userId: string | null) => {
-    console.log('📊 useLineDataInit: loadDrafts called for user:', userId);
+    console.log('📊 useLineDataInit: loadDrafts called for user:', userId, 'isAdmin:', isAdmin);
     
-    if (!scriptId || !userId || isDraftLoaded || !isAdmin) {
-      console.log('📊 useLineDataInit: loadDrafts aborted: missing scriptId or userId, drafts already loaded, or not admin');
+    if (!scriptId || !userId || isDraftLoaded) {
+      console.log('📊 useLineDataInit: loadDrafts aborted: missing scriptId or userId, or drafts already loaded');
       return;
     }
     
     try {
       setIsDraftLoaded(true); // Set flag to prevent duplicate calls
       
-      const updatedLines = await loadDraftsService(scriptId, userId, contentToUuidMapRef);
+      const updatedLines = await loadDraftsService(scriptId, userId, contentToUuidMapRef, isAdmin);
       
       if (updatedLines.length > 0) {
         console.log('📊 useLineDataInit: Draft lines loaded:', updatedLines.length);
