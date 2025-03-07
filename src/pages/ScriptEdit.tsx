@@ -52,6 +52,9 @@ const ScriptEdit = () => {
           return;
         }
 
+        const isUserAdmin = user.id === scriptData.admin_id;
+        console.log(`🔄 ScriptEdit: Loaded script, user ${user.id} is ${isUserAdmin ? 'admin' : 'non-admin'}`);
+
         // Fetch script content from script_content table
         const { data: contentData, error: contentError } = await supabase
           .from("script_content")
@@ -63,17 +66,19 @@ const ScriptEdit = () => {
           // Combine the content from all lines
           const combinedContent = contentData.map(line => line.content).join("\n");
           setOriginalContent(combinedContent);
-          console.log("Original content loaded:", combinedContent.substring(0, 100) + "...");
+          console.log("🔄 Original content loaded:", 
+            combinedContent.substring(0, 100) + "...", 
+            "Length:", combinedContent.length);
         } else {
-          console.log("No content found or error fetching content:", contentError);
+          console.log("🔄 No content found or error fetching content:", contentError);
           setOriginalContent("");
         }
 
         setScript(scriptData);
-        setIsAdmin(user.id === scriptData.admin_id);
+        setIsAdmin(isUserAdmin);
         setLoading(false);
       } catch (error) {
-        console.error("Error loading script:", error);
+        console.error("🔄 Error loading script:", error);
         toast({
           title: "Error",
           description: "Failed to load script",

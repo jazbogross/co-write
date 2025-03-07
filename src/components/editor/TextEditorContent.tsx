@@ -27,6 +27,7 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   console.log('📝 TextEditorContent rendering');
   console.log('📝 Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
   console.log('📝 Line count:', lineCount);
+  console.log('📝 Content length:', typeof content === 'string' ? content.length : 'N/A (Delta)');
   
   // Track editor mount state
   const isEditorMountedRef = useRef(false);
@@ -120,6 +121,15 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
       }
     }
   }, [lineCount]);
+
+  // Log if content changes
+  useEffect(() => {
+    console.log(`📝 TextEditorContent: Content updated, length:`, 
+      typeof content === 'string' ? content.length : 'N/A (Delta object)');
+    if (typeof content === 'string' && content.length > 0) {
+      console.log(`📝 Content preview:`, content.substring(0, 50) + '...');
+    }
+  }, [content]);
   
   return (
     <div className="flex min-h-screen text-black">

@@ -20,6 +20,20 @@ export const fetchAllLines = async (scriptId: string, isAdmin: boolean = false) 
       .order('line_number', { ascending: true });
       
     if (error) throw error;
+    
+    // Log the data for debugging
+    console.log(`**** LineDataService **** Fetched ${data?.length || 0} lines from script_content`);
+    if (data && data.length > 0) {
+      // Log first few lines for debugging
+      data.slice(0, 3).forEach((line, i) => {
+        console.log(`**** LineDataService **** Line ${i+1} content:`, 
+          typeof line.content === 'string' 
+            ? line.content.substring(0, 30) + '...' 
+            : 'Non-string content'
+        );
+      });
+    }
+    
     return data || [];
   } catch (error) {
     console.error('Error fetching line data:', error);
@@ -40,6 +54,7 @@ export const checkForUserDrafts = async (scriptId: string, userId: string) => {
       .eq('status', 'pending');
       
     if (error) throw error;
+    console.log(`**** LineDataService **** Found ${count || 0} pending suggestions for user ${userId}`);
     return count && count > 0;
   } catch (error) {
     console.error('Error checking for user drafts:', error);
@@ -64,16 +79,16 @@ export const loadDrafts = async (
   console.log('**** LineDataService **** Loading drafts for user:', userId, 'isAdmin:', isAdmin);
   
   try {
+    // Get the base content first - needed for both admin and non-admin users
+    const allLines = await fetchAllLines(scriptId, isAdmin);
+    
+    if (!allLines || allLines.length === 0) {
+      console.log('**** LineDataService **** No base lines found for script:', scriptId);
+      return [];
+    }
+    
     if (isAdmin) {
       // Admin users - load drafts from script_content
-      // Fetch all lines including drafts
-      const allLines = await fetchAllLines(scriptId, true);
-      
-      if (!allLines || allLines.length === 0) {
-        console.log('**** LineDataService **** No lines found for script:', scriptId);
-        return [];
-      }
-      
       // Type-safe check if any lines have draft content
       const hasDrafts = Array.isArray(allLines) && allLines.some((line: any) => {
         // Safely check for draft property
@@ -85,28 +100,20 @@ export const loadDrafts = async (
       });
       
       if (!hasDrafts) {
-        console.log('**** LineDataService **** No drafts found for this script');
-        return [];
+        console.log('**** LineDataService **** No drafts found for this script (admin)');
+        // Process the base content anyway
+        const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin);
+        return processedLines;
       }
       
       // Process the lines with draft content - type safety assured by processLineData function
       const updatedLines = processDraftLines(allLines, contentToUuidMapRef);
-      console.log(`**** LineDataService **** Applied draft updates to ${updatedLines.length} lines`);
+      console.log(`**** LineDataService **** Applied draft updates to ${updatedLines.length} lines (admin)`);
       
-      if (updatedLines.length > 0) {
-        return updatedLines;
-      }
+      return updatedLines;
     } else {
       // Non-admin users - load drafts from script_suggestions
       console.log('**** LineDataService **** Loading non-admin drafts from script_suggestions');
-      
-      // First get the base content
-      const allLines = await fetchAllLines(scriptId, false);
-      
-      if (!allLines || allLines.length === 0) {
-        console.log('**** LineDataService **** No base lines found for script:', scriptId);
-        return [];
-      }
       
       // Now fetch from script_suggestions for this user
       const { data: suggestionDrafts, error: draftError } = await supabase
@@ -118,27 +125,33 @@ export const loadDrafts = async (
       
       if (draftError) {
         console.error('**** LineDataService **** Error loading suggestion drafts:', draftError);
-        return [];
+        // Return the base content processed
+        const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin);
+        return processedLines;
       }
       
       // Important debugging: log what was actually found in script_suggestions
       console.log(`**** LineDataService **** Found ${suggestionDrafts?.length || 0} suggestion drafts for user ${userId}`);
-      if (suggestionDrafts && suggestionDrafts.length > 0) {
-        // Log the first few drafts for debugging
-        suggestionDrafts.slice(0, 3).forEach((draft, i) => {
-          console.log(`**** LineDataService **** Draft ${i+1}:`, {
-            id: draft.id,
-            line_uuid: draft.line_uuid,
-            content: draft.content?.substring(0, 30) + '...',
-            draft: draft.draft?.substring(0, 30) + '...',
-            line_number: draft.line_number,
-            line_number_draft: draft.line_number_draft
-          });
-        });
-      } else {
-        console.log('**** LineDataService **** No suggestion drafts found for this user');
-        return [];
+      
+      if (!suggestionDrafts || suggestionDrafts.length === 0) {
+        console.log('**** LineDataService **** No suggestion drafts found for this user, using base content');
+        // Process and return the base content
+        const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin);
+        console.log(`**** LineDataService **** Processed ${processedLines.length} base content lines for non-admin`);
+        return processedLines;
       }
+      
+      // Log the first few drafts for debugging
+      suggestionDrafts.slice(0, 3).forEach((draft, i) => {
+        console.log(`**** LineDataService **** Draft ${i+1}:`, {
+          id: draft.id,
+          line_uuid: draft.line_uuid,
+          content: draft.content?.substring(0, 30) + '...',
+          draft: draft.draft?.substring(0, 30) + '...',
+          line_number: draft.line_number,
+          line_number_draft: draft.line_number_draft
+        });
+      });
       
       // Create a merged dataset with both base content and suggestions
       const mergedLines = allLines.map((line: any) => {
@@ -182,24 +195,20 @@ export const loadDrafts = async (
       const updatedLines = processDraftLines(mergedLines, contentToUuidMapRef);
       console.log(`**** LineDataService **** Applied suggestion drafts to ${updatedLines.length} lines`);
       
-      if (updatedLines.length > 0) {
-        // Log the first few processed lines
-        updatedLines.slice(0, 3).forEach((line, i) => {
-          console.log(`**** LineDataService **** Processed line ${i+1}:`, {
-            uuid: line.uuid,
-            lineNumber: line.lineNumber,
-            contentPreview: typeof line.content === 'string' 
-              ? line.content.substring(0, 30) + '...' 
-              : 'Delta object',
-            hasDraft: line.hasDraft
-          });
+      // Log the first few processed lines
+      updatedLines.slice(0, 3).forEach((line, i) => {
+        console.log(`**** LineDataService **** Processed line ${i+1}:`, {
+          uuid: line.uuid,
+          lineNumber: line.lineNumber,
+          contentPreview: typeof line.content === 'string' 
+            ? line.content.substring(0, 30) + '...' 
+            : 'Delta object',
+          hasDraft: line.hasDraft
         });
-        return updatedLines;
-      }
+      });
+      
+      return updatedLines;
     }
-    
-    console.log('**** LineDataService **** No valid lines with drafts found');
-    return [];
   } catch (error) {
     console.error('**** LineDataService **** Error loading drafts:', error);
     throw error;
