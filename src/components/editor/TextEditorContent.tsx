@@ -1,18 +1,19 @@
 
+// Update the TextEditorContent.tsx to handle UUID refresh
+// File: src/components/editor/TextEditorContent.tsx
+
 import React, { useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { LineNumbers } from './LineNumbers';
-import { isDeltaObject, parseDeltaIfPossible } from '@/utils/editor';
-import { combineDeltaContents } from '@/utils/editor/operations/deltaCombination';
-import { DeltaContent, QuillCompatibleDelta } from '@/utils/editor/types';
+import { isDeltaObject } from '@/utils/editor';
 
 interface TextEditorContentProps {
-  content: any; // Can be string or Delta object
+  content: any; // Changed from string to any to support Delta objects
   lineCount: number;
   quillRef: React.RefObject<ReactQuill>;
   modules: any;
   formats: string[];
-  onChange: (value: any) => void;
+  onChange: (value: any) => void; // Changed from string to any
 }
 
 export const TextEditorContent: React.FC<TextEditorContentProps> = ({
@@ -26,30 +27,45 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   console.log('📝 TextEditorContent rendering');
   console.log('📝 Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
   console.log('📝 Line count:', lineCount);
-  console.log('📝 Content length:', typeof content === 'string' ? content.length : 'N/A (Delta)');
   
   // Track editor mount state
   const isEditorMountedRef = useRef(false);
   const contentChangeRef = useRef(0);
-  const initialContentSetRef = useRef(false);
   
-  // Process content to ensure it's properly parsed if it's a Delta
-  const processedContent = (() => {
-    if (!content) return '';
+  // Log DOM structure periodically to check line number sync
+  useEffect(() => {
+    if (!isEditorMountedRef.current) return;
     
-    // If content is a stringified Delta, parse it
-    if (typeof content === 'string' && content.startsWith('{') && content.includes('"ops"')) {
-      try {
-        return parseDeltaIfPossible(content);
-      } catch (e) {
-        console.error('Failed to parse Delta content:', e);
-        return content;
+    const logDomStructure = () => {
+      const editor = quillRef.current?.getEditor();
+      if (!editor) return;
+      
+      const quillLines = editor.getLines(0);
+      const editorElement = document.querySelector('.ql-editor');
+      
+      if (editorElement) {
+        const paragraphs = editorElement.querySelectorAll('p');
+        console.log(`📝 DOM check - Quill lines: ${quillLines.length}, DOM paragraphs: ${paragraphs.length}`);
+        
+        // Check if line numbers match DOM structure
+        if (lineCount !== paragraphs.length) {
+          console.log(`📝 ⚠️ LINE COUNT MISMATCH - lineCount: ${lineCount}, DOM paragraphs: ${paragraphs.length}`);
+        }
+        
+        // Log first few paragraph UUIDs
+        Array.from(paragraphs).slice(0, 3).forEach((p, i) => {
+          const uuid = p.getAttribute('data-line-uuid');
+          console.log(`📝 Paragraph ${i+1} UUID: ${uuid || 'missing'}`);
+        });
       }
-    }
+    };
     
-    // Otherwise return as is
-    return content;
-  })();
+    // Log immediately and then every 5 seconds (reduced frequency to prevent too many logs)
+    logDomStructure();
+    const interval = setInterval(logDomStructure, 5000);
+    
+    return () => clearInterval(interval);
+  }, [lineCount, quillRef, isEditorMountedRef.current]);
   
   // Handle editor initialization
   const handleEditorInit = () => {
@@ -57,47 +73,11 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     isEditorMountedRef.current = true;
     
     const editor = quillRef.current?.getEditor();
-    if (!editor) return;
-    
-    if (editor.lineTracking) {
+    if (editor && editor.lineTracking) {
       console.log('📝 TextEditorContent: Initializing line tracking');
+      // Call LineTracker's initialize method if it exists
       if (typeof editor.lineTracking.initialize === 'function') {
         editor.lineTracking.initialize();
-      }
-    }
-    
-    // If content is a Delta object, set it properly
-    if (isDeltaObject(processedContent)) {
-      console.log('📝 TextEditorContent: Setting Delta content directly on editor after mount');
-      initialContentSetRef.current = true;
-      
-      // Turn on programmatic update mode
-      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
-        editor.lineTracking.setProgrammaticUpdate(true);
-      }
-      
-      // Set the Delta content - cast to any to work around type incompatibility
-      editor.setContents(processedContent as any);
-      
-      // Turn off programmatic update mode
-      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
-        editor.lineTracking.setProgrammaticUpdate(false);
-      }
-    } else if (typeof processedContent === 'object' && 'ops' in processedContent) {
-      console.log('📝 TextEditorContent: Setting parsed object with ops directly on editor after mount');
-      initialContentSetRef.current = true;
-      
-      // Turn on programmatic update mode
-      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
-        editor.lineTracking.setProgrammaticUpdate(true);
-      }
-      
-      // Set the Delta content - cast to any to work around type incompatibility
-      editor.setContents(processedContent as any);
-      
-      // Turn off programmatic update mode
-      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
-        editor.lineTracking.setProgrammaticUpdate(false);
       }
     }
   };
@@ -122,77 +102,7 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     if (quillRef.current && !isEditorMountedRef.current) {
       handleEditorInit();
     }
-  }, [quillRef.current]);
-  
-  // When processed content changes and editor is already mounted, update content
-  useEffect(() => {
-    if (isEditorMountedRef.current && !initialContentSetRef.current) {
-      const editor = quillRef.current?.getEditor();
-      if (!editor || !processedContent) return;
-      
-      console.log('📝 TextEditorContent: Content changed, updating editor');
-      
-      // Turn on programmatic update mode if available
-      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
-        editor.lineTracking.setProgrammaticUpdate(true);
-      }
-      
-      // Set content based on type
-      if (isDeltaObject(processedContent)) {
-        console.log('📝 TextEditorContent: Setting Delta content on update');
-        initialContentSetRef.current = true;
-        // Cast to any to avoid type incompatibility
-        editor.setContents(processedContent as any);
-      } else if (typeof processedContent === 'object' && 'ops' in processedContent) {
-        console.log('📝 TextEditorContent: Setting object with ops on update');
-        initialContentSetRef.current = true;
-        // Cast to any to avoid type incompatibility
-        editor.setContents(processedContent as any);
-      } else if (typeof processedContent === 'string') {
-        console.log('📝 TextEditorContent: Setting text content on update');
-        initialContentSetRef.current = true;
-        
-        // Check if the string might be multiple Delta objects stringified together
-        if (processedContent.includes('{"ops":[') && processedContent.includes('],[')) {
-          try {
-            // Try to parse as multiple Delta objects
-            const deltaStrings = processedContent.split(/(?<=})\s*(?=\{)/);
-            const deltas = deltaStrings.map(str => {
-              try {
-                return JSON.parse(str);
-              } catch (e) {
-                return null;
-              }
-            }).filter(delta => delta && delta.ops);
-            
-            if (deltas.length > 0) {
-              // Combine the Delta objects
-              const combinedDelta = combineDeltaContents(deltas);
-              if (combinedDelta) {
-                console.log('📝 TextEditorContent: Parsed multiple Delta objects from string');
-                // Cast to any to avoid type incompatibility
-                editor.setContents(combinedDelta as any);
-              } else {
-                editor.setText(processedContent);
-              }
-            } else {
-              editor.setText(processedContent);
-            }
-          } catch (e) {
-            console.error('Error parsing multiple Deltas:', e);
-            editor.setText(processedContent);
-          }
-        } else {
-          editor.setText(processedContent);
-        }
-      }
-      
-      // Turn off programmatic update mode
-      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
-        editor.lineTracking.setProgrammaticUpdate(false);
-      }
-    }
-  }, [processedContent, isEditorMountedRef.current, quillRef.current]);
+  }, [quillRef]);
   
   // Apply line UUIDs from lineData whenever lineCount changes
   useEffect(() => {
@@ -210,16 +120,6 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
       }
     }
   }, [lineCount]);
-
-  // Log if content changes
-  useEffect(() => {
-    console.log(`📝 TextEditorContent: Content updated, type:`, typeof processedContent);
-    if (typeof processedContent === 'string' && processedContent.length > 0) {
-      console.log(`📝 Content preview:`, processedContent.substring(0, 50) + '...');
-    } else if (isDeltaObject(processedContent)) {
-      console.log(`📝 Content preview (Delta):`, JSON.stringify(processedContent).substring(0, 50) + '...');
-    }
-  }, [processedContent]);
   
   return (
     <div className="flex min-h-screen text-black">
@@ -230,12 +130,11 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
             <div className="flex-1">
               <ReactQuill
                 ref={quillRef}
-                value={processedContent}
+                value={content}
                 onChange={handleContentChange}
                 modules={modules}
                 formats={formats}
                 theme="snow"
-                placeholder="Start typing or loading content..."
               />
             </div>
           </div>

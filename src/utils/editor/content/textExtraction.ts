@@ -1,69 +1,72 @@
 
 /**
- * Utilities for extracting text content from Delta objects
+ * Utilities for extracting text content from various formats
  */
-import { DeltaContent } from '../types';
-import { isDeltaObject } from '../validation/deltaValidation';
+import { DeltaContent, DeltaOp } from '../types';
+import { validateDelta } from '../validation/deltaValidation';
 
 /**
- * Extracts plain text from a Delta object
+ * Extracts plain text from a Delta object or returns the string directly
  */
-export const extractPlainTextFromDelta = (delta: DeltaContent | string | null | undefined): string => {
-  if (!delta) return '';
+export const extractPlainTextFromDelta = (content: any | null): string => {
+  console.log('🔷 extractPlainTextFromDelta: Processing content of type', typeof content);
   
-  // Return string content directly
-  if (typeof delta === 'string') {
-    return delta;
-  }
-  
-  // Ensure we have a valid Delta object
-  if (!isDeltaObject(delta)) {
+  if (!content) {
+    console.log('🔷 extractPlainTextFromDelta: Content is null or undefined, returning empty string');
     return '';
   }
   
   try {
-    // Extract text from each operation
-    let text = '';
-    
-    if (delta.ops) {
-      delta.ops.forEach(op => {
-        if (op.insert) {
-          text += typeof op.insert === 'string' ? op.insert : '';
-        }
-      });
+    // For plain strings that don't look like Delta JSON, return directly
+    if (typeof content === 'string' && 
+        (!content.startsWith('{') || !content.includes('ops'))) {
+      console.log('🔷 extractPlainTextFromDelta: Content is plain text, returning directly');
+      return content;
     }
     
-    return text;
+    // Try to parse as Delta
+    const result = validateDelta(content);
+    
+    if (result.valid && result.parsed) {
+      console.log('🔷 extractPlainTextFromDelta: Content is valid Delta, extracting text');
+      return extractTextFromDeltaOps(result.parsed.ops);
+    }
+    
+    // Fallback: If not Delta, return as string
+    console.log('🔷 extractPlainTextFromDelta: Not a valid Delta, returning as string');
+    return typeof content === 'string' ? content : JSON.stringify(content);
   } catch (e) {
-    console.error('Error extracting text from Delta:', e);
-    return '';
+    console.error('🔷 extractPlainTextFromDelta: Error extracting text:', e);
+    return typeof content === 'string' ? content : String(content);
   }
 };
 
 /**
- * Gets text from Delta with preserved newlines
+ * Extracts text content from Delta operations
  */
-export const getTextWithNewlines = (delta: DeltaContent | string | null | undefined): string => {
-  const text = extractPlainTextFromDelta(delta);
-  // Ensure we don't lose trailing newlines by processing them properly
-  return text;
-};
-
-/**
- * Gets a short preview of Delta content
- */
-export const getContentPreview = (delta: DeltaContent | string | null | undefined, maxLength: number = 30): string => {
-  const text = extractPlainTextFromDelta(delta);
-  
-  if (!text) {
+export function extractTextFromDeltaOps(ops: DeltaOp[]): string {
+  if (!Array.isArray(ops)) {
+    console.log('🔷 extractTextFromDeltaOps: Ops is not an array, returning empty string');
     return '';
   }
   
-  // Replace newlines with spaces for preview and truncate
-  const preview = text.replace(/\n/g, ' ');
-  if (preview.length <= maxLength) {
-    return preview;
+  console.log('🔷 extractTextFromDeltaOps: Processing', ops.length, 'ops');
+  
+  let result = '';
+  ops.forEach((op: DeltaOp) => {
+    if (typeof op.insert === 'string') {
+      result += op.insert;
+    } else if (op.insert && typeof op.insert === 'object') {
+      // Handle embeds or other non-string inserts
+      result += ' ';
+    }
+  });
+  
+  // Ensure the result has a proper newline if needed
+  if (result.length > 0 && !result.endsWith('\n')) {
+    result += '\n';
   }
   
-  return preview.substring(0, maxLength) + '...';
-};
+  console.log('🔷 extractTextFromDeltaOps: Extracted', result.length, 'characters');
+  return result;
+}

@@ -329,6 +329,7 @@ export type Database = {
       scripts: {
         Row: {
           admin_id: string
+          content: string
           created_at: string
           github_owner: string | null
           github_repo: string | null
@@ -339,6 +340,7 @@ export type Database = {
         }
         Insert: {
           admin_id: string
+          content?: string
           created_at?: string
           github_owner?: string | null
           github_repo?: string | null
@@ -349,6 +351,7 @@ export type Database = {
         }
         Update: {
           admin_id?: string
+          content?: string
           created_at?: string
           github_owner?: string | null
           github_repo?: string | null

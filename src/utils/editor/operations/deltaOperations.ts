@@ -1,52 +1,148 @@
-
 /**
- * Delta operations utilities
+ * Basic operations for working with Delta objects
  */
 import { DeltaContent, DeltaOp } from '../types';
+import { validateDelta } from '../validation/deltaValidation';
 
 /**
- * Creates an empty Delta object
+ * Checks if content is a valid Delta object
+ */
+export const isDeltaObject = (content: any | null): boolean => {
+  console.log('🔶 isDeltaObject: Checking content of type', typeof content);
+  return validateDelta(content).valid;
+};
+
+/**
+ * Safely parses a Delta from string or returns the Delta object directly
+ * Returns null if the content is not a valid Delta
+ */
+export const safelyParseDelta = (content: any | null): DeltaContent | null => {
+  console.log('🔶 safelyParseDelta: Parsing content of type', typeof content);
+  const result = validateDelta(content);
+  
+  if (result.valid && result.parsed) {
+    console.log('🔶 safelyParseDelta: Successfully parsed Delta');
+    return result.parsed;
+  }
+  
+  console.log('🔶 safelyParseDelta: Failed to parse Delta:', result.reason);
+  return null;
+};
+
+/**
+ * Creates an empty Delta content object
  */
 export const createEmptyDelta = (): DeltaContent => {
+  console.log('🔶 createEmptyDelta: Creating empty Delta');
   return { ops: [{ insert: '\n' }] };
 };
 
 /**
- * Creates a Delta with a single insert operation
+ * Ensures delta operations have valid structure
  */
-export const createTextDelta = (text: string): DeltaContent => {
-  return { ops: [{ insert: text }] };
-};
-
-/**
- * Creates a Delta with formatting attributes
- */
-export const createFormattedDelta = (text: string, attributes: Record<string, any>): DeltaContent => {
-  return { ops: [{ insert: text, attributes }] };
-};
-
-/**
- * Safely converts a string to a Delta if it appears to be a stringified Delta
- */
-export const parseDeltaIfPossible = (content: string | any): DeltaContent => {
-  // If already a Delta object with ops, return it
-  if (content && typeof content === 'object' && content.ops && Array.isArray(content.ops)) {
-    return content;
+export const sanitizeDeltaOps = (ops: any[]): DeltaOp[] => {
+  if (!Array.isArray(ops)) {
+    console.log('🔶 sanitizeDeltaOps: ops is not an array, returning empty ops array');
+    return [{ insert: '\n' }];
   }
   
-  // If a string that looks like a stringified Delta, try to parse it
-  if (typeof content === 'string' && content.startsWith('{') && content.includes('"ops"')) {
-    try {
-      const parsed = JSON.parse(content);
-      if (parsed && Array.isArray(parsed.ops)) {
-        return parsed;
-      }
-    } catch (e) {
-      console.error('Failed to parse Delta JSON:', e);
+  return ops.map(op => {
+    // Ensure insert property exists
+    if (!op.insert) {
+      return { insert: '' };
+    }
+    
+    // Ensure insert is string or object
+    if (typeof op.insert !== 'string' && typeof op.insert !== 'object') {
+      return { ...op, insert: String(op.insert) };
+    }
+    
+    return op;
+  });
+};
+
+/**
+ * Compares two Delta objects for equality
+ */
+export const areDeltasEqual = (delta1: DeltaContent | null, delta2: DeltaContent | null): boolean => {
+  if (!delta1 && !delta2) return true;
+  if (!delta1 || !delta2) return false;
+  
+  if (!delta1.ops || !delta2.ops) return false;
+  if (delta1.ops.length !== delta2.ops.length) return false;
+  
+  for (let i = 0; i < delta1.ops.length; i++) {
+    const op1 = delta1.ops[i];
+    const op2 = delta2.ops[i];
+    
+    if (typeof op1.insert !== typeof op2.insert) return false;
+    
+    if (typeof op1.insert === 'string' && op1.insert !== op2.insert) return false;
+    
+    if (typeof op1.insert === 'object' && JSON.stringify(op1.insert) !== JSON.stringify(op2.insert)) {
+      return false;
+    }
+    
+    // Compare attributes
+    if (JSON.stringify(op1.attributes) !== JSON.stringify(op2.attributes)) {
+      return false;
     }
   }
   
-  // If not a Delta, create a simple text Delta
-  const text = typeof content === 'string' ? content : String(content);
-  return createTextDelta(text);
+  return true;
+};
+
+/**
+ * Normalizes a Delta object to ensure it has valid structure
+ */
+export const normalizeDelta = (content: any): DeltaContent => {
+  // If already a valid Delta, return it
+  const validationResult = validateDelta(content);
+  if (validationResult.valid && validationResult.parsed) {
+    return validationResult.parsed;
+  }
+  
+  // Create a valid Delta
+  if (typeof content === 'string') {
+    return { ops: [{ insert: content + (content.endsWith('\n') ? '' : '\n') }] };
+  }
+  
+  return createEmptyDelta();
+};
+
+/**
+ * Converts a string or partial delta object into a proper DeltaContent object
+ */
+export const convertToDelta = (content: any): DeltaContent => {
+  // Check if it's already a properly structured Delta
+  if (isDeltaObject(content)) {
+    return content;
+  }
+  
+  // Handle string content
+  if (typeof content === 'string') {
+    return {
+      ops: [
+        { insert: content }
+      ]
+    };
+  }
+  
+  // Handle null or undefined
+  if (!content) {
+    return createEmptyDelta();
+  }
+  
+  // Try to parse as JSON if it's a string representation of a Delta
+  const parsed = safelyParseDelta(content);
+  if (parsed) {
+    return parsed;
+  }
+  
+  // Fallback to empty delta with toString() content
+  return {
+    ops: [
+      { insert: String(content) }
+    ]
+  };
 };

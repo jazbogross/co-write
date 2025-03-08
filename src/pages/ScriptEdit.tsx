@@ -11,8 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { isDeltaObject } from "@/utils/editor";
-import { DeltaContent } from "@/utils/editor/types";
 
 const ScriptEdit = () => {
   const { id } = useParams();
@@ -25,7 +23,6 @@ const ScriptEdit = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [originalContent, setOriginalContent] = useState("");
-  const [originalLines, setOriginalLines] = useState<any[]>([]);
 
   useEffect(() => {
     const loadScript = async () => {
@@ -55,77 +52,28 @@ const ScriptEdit = () => {
           return;
         }
 
-        const isUserAdmin = user.id === scriptData.admin_id;
-        console.log(`🔄 ScriptEdit: Loaded script, user ${user.id} is ${isUserAdmin ? 'admin' : 'non-admin'}`);
-
-        // Fetch all script content from script_content table with proper columns
-        // Important: Don't limit to just one line, and get all needed columns
-        const columns = isUserAdmin 
-          ? "content, draft, line_number, line_number_draft, id" 
-          : "content, line_number, id";
-          
+        // Fetch script content from script_content table
         const { data: contentData, error: contentError } = await supabase
           .from("script_content")
-          .select(columns)
+          .select("content")
           .eq("script_id", id)
           .order("line_number", { ascending: true });
 
-        if (contentError) {
-          console.error("🔄 ScriptEdit: Error fetching content:", contentError);
-          throw contentError;
-        }
-
-        if (contentData && contentData.length > 0) {
-          console.log("🔄 ScriptEdit: Loaded content lines:", contentData.length);
-          
-          // Store original lines to pass to TextEditor - include all necessary data
-          // Filter out any potentially invalid records
-          const validLines = contentData.filter(line => line && typeof line === 'object' && 'id' in line);
-          setOriginalLines(validLines);
-          
-          // Store a simple string representation for backward compatibility
-          // We now only need this for debugging/display purposes
-          const firstFewLines = validLines.slice(0, 2).map(line => {
-            // Check if line has content property
-            if (!line || !('content' in line)) {
-              return "Missing content";
-            }
-            
-            // Try to extract text from Delta if possible for logging
-            let contentPreview;
-            if (typeof line.content === 'string' && line.content.startsWith('{') && line.content.includes('ops')) {
-              try {
-                contentPreview = "Delta JSON";
-              } catch (e) {
-                contentPreview = typeof line.content === 'string' 
-                  ? line.content.substring(0, 30) + "..." 
-                  : "Non-string content";
-              }
-            } else {
-              contentPreview = typeof line.content === 'string' 
-                ? line.content.substring(0, 30) + "..." 
-                : "Non-string content";
-            }
-            
-            return contentPreview;
-          }).join("\n");
-            
-          console.log("🔄 ScriptEdit: Content sample:", firstFewLines);
-          
-          // IMPORTANT CHANGE: Use a more descriptive flag instead of a placeholder string
-          // This indicates to the TextEditor component that it should extract content from originalLines
-          setOriginalContent("");  // Empty string will trigger reconstructing from originalLines
+        if (!contentError && contentData && contentData.length > 0) {
+          // Combine the content from all lines
+          const combinedContent = contentData.map(line => line.content).join("\n");
+          setOriginalContent(combinedContent);
+          console.log("Original content loaded:", combinedContent.substring(0, 100) + "...");
         } else {
-          console.log("🔄 ScriptEdit: No content found");
+          console.log("No content found or error fetching content:", contentError);
           setOriginalContent("");
-          setOriginalLines([]);
         }
 
         setScript(scriptData);
-        setIsAdmin(isUserAdmin);
+        setIsAdmin(user.id === scriptData.admin_id);
         setLoading(false);
       } catch (error) {
-        console.error("🔄 Error loading script:", error);
+        console.error("Error loading script:", error);
         toast({
           title: "Error",
           description: "Failed to load script",
@@ -157,7 +105,7 @@ const ScriptEdit = () => {
   }
 
   return (
-    <div className="container min-w-screen">
+    <div className="container min-w-sreen">
       <Card>
         <CardHeader>
           <CardTitle>{script.title}</CardTitle>
@@ -169,7 +117,6 @@ const ScriptEdit = () => {
           <TextEditor
             isAdmin={isAdmin}
             originalContent={originalContent}
-            originalLines={originalLines}
             scriptId={id}
             onSuggestChange={handleSuggestChange}
           />

@@ -1,8 +1,10 @@
 
+// File: src/components/editor/TextEditor.tsx
+
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { useTextEditor } from '@/hooks/useTextEditor';
-import { useLineData } from '@/hooks/lineData';
+import { useLineData } from '@/hooks/useLineData';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { useDraftLoader } from '@/hooks/useDraftLoader';
 import { useUserData } from '@/hooks/useUserData';
@@ -14,8 +16,7 @@ import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule } from './editor/LineTrackingModule';
 import { SuggestionFormatModule } from './editor/SuggestionFormatModule';
 import { DeltaContent } from '@/utils/editor/types';
-import { isDeltaObject, logDelta } from '@/utils/editor';
-import { combineDeltaContents } from '@/utils/editor/operations/deltaCombination';
+import { isDeltaObject } from '@/utils/editor';
 
 // Quill's default Snow theme CSS
 import 'react-quill/dist/quill.snow.css';
@@ -35,7 +36,6 @@ try {
 interface TextEditorProps {
   isAdmin: boolean;
   originalContent: string;
-  originalLines: any[]; // Array of line data from database
   scriptId: string;
   onSuggestChange: (suggestion: string | DeltaContent) => void;
 }
@@ -43,23 +43,19 @@ interface TextEditorProps {
 export const TextEditor: React.FC<TextEditorProps> = ({
   isAdmin,
   originalContent,
-  originalLines,
   scriptId,
   onSuggestChange,
 }) => {
-  console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin, 
-    'originalContent length:', originalContent?.length || 0,
-    'originalLines count:', originalLines?.length || 0);
+  console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin);
 
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
   const initializedRef = useRef(false);
-  const fullContentReadyRef = useRef(false);
 
   // Get user data
   const { userId } = useUserData();
 
-  // Initialize line data - pass originalLines
+  // Initialize line data
   const {
     lineData,
     setLineData,
@@ -67,24 +63,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     loadDraftsForCurrentUser,
     isDataReady,
     initializeEditor,
-  } = useLineData(scriptId, originalContent, userId, isAdmin, originalLines);
-
-  // For debugging: log first few lines to see what we're working with
-  useEffect(() => {
-    if (originalLines && originalLines.length > 0) {
-      console.log(`📋 TextEditor: Original lines sample (${originalLines.length} total):`);
-      originalLines.slice(0, 2).forEach((line, idx) => {
-        if (line) { // Add null check for line
-          const contentType = typeof line.content;
-          const contentPreview = contentType === 'string' 
-            ? line.content.substring(0, 30) + '...' 
-            : JSON.stringify(line.content).substring(0, 30) + '...';
-            
-          console.log(`  Line ${idx + 1}: content type=${contentType}, line_number=${line.line_number}, preview=${contentPreview}`);
-        }
-      });
-    }
-  }, [originalLines]);
+  } = useLineData(scriptId, '', userId, isAdmin);
 
   // Initialize text editor
   const {
@@ -99,7 +78,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     formats,
     modules,
   } = useTextEditor(
-    originalContent,
+    '',
     scriptId,
     lineData,
     setLineData,
@@ -119,7 +98,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     flushContentToLineData,
   });
 
-  // Draft loader - with isAdmin parameter
+  // Draft loader
   const { draftApplied } = useDraftLoader({
     editorInitialized,
     draftLoadAttempted,
@@ -127,102 +106,28 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     quillRef,
     content,
     updateEditorContent,
-    isAdmin,
   });
 
-  // Attempt draft load once editor is initialized and data is ready
-  useEffect(() => {
-    if (editorInitialized && isDataReady && userId && !draftLoadAttempted && !initializedRef.current) {
-      console.log('📋 TextEditor: Editor initialized and data ready, loading drafts for user:', userId, 'isAdmin:', isAdmin);
+  // Attempt draft load
+  const attemptDraftLoad = useCallback(() => {
+    if (userId && isDataReady && !draftLoadAttempted && !initializedRef.current) {
+      console.log('📋 TextEditor: User ID available, loading drafts:', userId);
       initializedRef.current = true;
-      setDraftLoadAttempted(true);
       loadDraftsForCurrentUser();
+      setDraftLoadAttempted(true);
     }
-  }, [editorInitialized, isDataReady, userId, draftLoadAttempted, loadDraftsForCurrentUser, isAdmin]);
+  }, [userId, isDataReady, draftLoadAttempted, loadDraftsForCurrentUser]);
 
-  // Process the original content from originalLines if needed
   useEffect(() => {
-    if (editorInitialized && originalLines.length > 0 && !fullContentReadyRef.current && 
-        (!content || (typeof content === 'string' && content.trim() === ''))) {
-      console.log('📋 TextEditor: Content is empty but originalLines exists, updating editor content');
-      
-      try {
-        // Extract Delta content from each line and combine them
-        const deltaContents = originalLines.map(line => {
-          if (!line) return null; // Add null check for line
-          
-          if (typeof line.content === 'string' && line.content.includes('"ops"')) {
-            try {
-              // Attempt to parse JSON string to Delta object
-              return JSON.parse(line.content);
-            } catch (e) {
-              console.error('📋 Error parsing Delta JSON:', e);
-              return null;
-            }
-          } else if (typeof line.content === 'object' && line.content && line.content.ops) {
-            // Already a Delta object
-            return line.content;
-          } else if (typeof line.content === 'string') {
-            // Convert plain text to Delta
-            return { ops: [{ insert: line.content }] };
-          }
-          return null;
-        }).filter(Boolean); // Remove null entries
-        
-        if (deltaContents.length > 0) {
-          console.log(`📋 TextEditor: Combining ${deltaContents.length} Delta objects`);
-          
-          // Use our utility to combine all Deltas into one
-          const combinedDelta = combineDeltaContents(deltaContents);
-          
-          if (combinedDelta) {
-            // Log the combined Delta for debugging
-            logDelta(combinedDelta, '📋 Combined Delta');
-            
-            // Update the editor with the combined Delta
-            updateEditorContent(combinedDelta);
-            fullContentReadyRef.current = true;
-            console.log('📋 TextEditor: Applied combined Delta to editor');
-          } else {
-            console.error('📋 TextEditor: Failed to combine Deltas');
-            
-            // Fallback to plain text if Delta combination fails
-            const plainText = originalLines
-              .filter(line => line && line.content) // Add null check
-              .map(line => {
-                if (typeof line.content === 'string') {
-                  return line.content;
-                } else if (typeof line.content === 'object' && line.content && line.content.ops) {
-                  // Extract text from Delta
-                  return line.content.ops
-                    .map((op: any) => op.insert || '')
-                    .join('');
-                }
-                return '';
-              })
-              .join('\n');
-              
-            if (plainText.trim()) {
-              console.log('📋 TextEditor: Using plain text fallback');
-              updateEditorContent(plainText);
-              fullContentReadyRef.current = true;
-            }
-          }
-        } else {
-          console.log('📋 TextEditor: No valid Delta objects found in originalLines');
-        }
-      } catch (error) {
-        console.error('📋 TextEditor: Error processing originalLines:', error);
-      }
-    }
-  }, [editorInitialized, originalLines, content, updateEditorContent]);
+    attemptDraftLoad();
+  }, [userId, isDataReady, attemptDraftLoad]);
 
   // Submissions
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
     scriptId,
-    originalContent,
-    content,
+    '',
+    content, // can be string or DeltaContent
     lineData,
     userId,
     onSuggestChange,
@@ -252,7 +157,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   console.log('📋 TextEditor: Rendering editor with ready data');
   console.log('📋 TextEditor: Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
-  console.log('📋 TextEditor: Line count:', lineCount, 'lineData length:', lineData.length);
   
   return (
     <>
@@ -265,7 +169,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       />
 
       <TextEditorContent
-        content={content}
+        content={content} // Direct pass of content, which can be string or Delta
         lineCount={lineCount}
         quillRef={quillRef}
         modules={modules}

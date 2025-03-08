@@ -11,11 +11,11 @@ export const useContentInitialization = (
   quillRef: React.RefObject<ReactQuill>
 ) => {
   console.log('🔄 useContentInitialization: Hook called with', {
-    originalContentLength: originalContent?.length || 0,
+    originalContentLength: originalContent.length,
     lineDataLength: lineData.length
   });
   
-  const [content, setContent] = useState<string | DeltaContent>(originalContent || '');
+  const [content, setContent] = useState<string | DeltaContent>(originalContent);
   const [isContentInitialized, setIsContentInitialized] = useState(false);
   const [lineCount, setLineCount] = useState(1);
   const isProcessingLinesRef = useRef(false);
@@ -118,7 +118,7 @@ export const useContentInitialization = (
         console.log('🔄 Processing complete');
       }
     }
-  }, [lineData, isContentInitialized, quillRef, updateContent, originalContent]);
+  }, [lineData, isContentInitialized, quillRef, updateContent]);
 
   return {
     content,

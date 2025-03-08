@@ -1,6 +1,6 @@
 
 import { useRef, useCallback, useMemo } from 'react';
-import { LineData } from '@/hooks/lineData';
+import { LineData } from '@/hooks/useLineData';
 import { useEditorState } from './editor/useEditorState';
 import { useEditorIntegration } from './editor/useEditorIntegration';
 import { useContentFlushing } from './editor/useContentFlushing';
