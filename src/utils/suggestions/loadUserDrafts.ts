@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
 import { logDeltaStructure, isDeltaObject, safelyParseDelta } from '@/utils/editor';
@@ -53,13 +54,6 @@ export const loadUserDrafts = async (
       return [];
     }
     
-    if (!suggestions || suggestions.length === 0) {
-      logDraftLoading('No draft suggestions found for this script/user combination');
-      return [];
-    }
-    
-    logDraftLoading(`Found ${suggestions.length} draft suggestions`);
-    
     // Process original lines to create initial LineData array
     const lineDataMap = new Map<string, LineData>();
     const uuidToLineNumberMap = new Map<string, number>();
@@ -87,8 +81,14 @@ export const loadUserDrafts = async (
       return lineData;
     });
     
-    // Log initial line data
     logDraftLoading(`Created ${initialLineData.length} initial line data objects`);
+    
+    if (!suggestions || suggestions.length === 0) {
+      logDraftLoading('No draft suggestions found for this script/user combination');
+      return initialLineData;
+    }
+    
+    logDraftLoading(`Found ${suggestions.length} draft suggestions`);
     
     // Process suggestions and apply them to line data
     let appliedSuggestionCount = 0;
@@ -104,8 +104,29 @@ export const loadUserDrafts = async (
       if (suggestion.line_uuid && lineDataMap.has(suggestion.line_uuid)) {
         const lineData = lineDataMap.get(suggestion.line_uuid)!;
         
-        // Update the line content with the draft
-        lineData.content = suggestion.draft;
+        // Try to parse draft as Delta if it's a JSON object
+        let draftContent: string | DeltaContent = suggestion.draft;
+        let parseSuccess = false;
+        
+        try {
+          if (typeof suggestion.draft === 'string' && (
+              suggestion.draft.startsWith('{') || 
+              suggestion.draft.startsWith('[')
+          )) {
+            const parsedDraft = safelyParseDelta(suggestion.draft);
+            if (parsedDraft) {
+              draftContent = parsedDraft;
+              parseSuccess = true;
+              logDraftLoading(`Parsed draft as Delta object for line UUID ${suggestion.line_uuid}`);
+              logDeltaStructure(parsedDraft);
+            }
+          }
+        } catch (e) {
+          logDraftLoading(`Draft is not a valid JSON/Delta:`, e);
+        }
+        
+        // Update the line with draft content
+        lineData.content = draftContent;
         lineData.hasDraft = true;
         
         // Update line number if provided
@@ -114,24 +135,7 @@ export const loadUserDrafts = async (
         }
         
         appliedSuggestionCount++;
-        logDraftLoading(`Applied draft to line UUID ${suggestion.line_uuid}, new line number: ${lineData.lineNumber}`);
-        
-        // Parse draft as Delta if it's a JSON object
-        try {
-          if (typeof suggestion.draft === 'string' && (
-              suggestion.draft.startsWith('{') || 
-              suggestion.draft.startsWith('[')
-          )) {
-            const parsedDraft = JSON.parse(suggestion.draft);
-            if (isDeltaObject(parsedDraft)) {
-              lineData.content = parsedDraft;
-              logDraftLoading(`Parsed draft as Delta object for line UUID ${suggestion.line_uuid}`);
-              logDeltaStructure(parsedDraft);
-            }
-          }
-        } catch (e) {
-          logDraftLoading(`Draft is not a valid JSON/Delta:`, e);
-        }
+        logDraftLoading(`Applied draft to line UUID ${suggestion.line_uuid}, new line number: ${lineData.lineNumber}, parsed as Delta: ${parseSuccess}`);
       } 
       // If line_uuid lookup fails, try line_number
       else if (suggestion.line_number) {
@@ -140,8 +144,29 @@ export const loadUserDrafts = async (
         if (lineIndex >= 0) {
           const lineData = initialLineData[lineIndex];
           
-          // Update the line content with the draft
-          lineData.content = suggestion.draft;
+          // Try to parse draft as Delta if it's a JSON object
+          let draftContent: string | DeltaContent = suggestion.draft;
+          let parseSuccess = false;
+          
+          try {
+            if (typeof suggestion.draft === 'string' && (
+                suggestion.draft.startsWith('{') || 
+                suggestion.draft.startsWith('[')
+            )) {
+              const parsedDraft = safelyParseDelta(suggestion.draft);
+              if (parsedDraft) {
+                draftContent = parsedDraft;
+                parseSuccess = true;
+                logDraftLoading(`Parsed draft as Delta object for line number ${suggestion.line_number}`);
+                logDeltaStructure(parsedDraft);
+              }
+            }
+          } catch (e) {
+            logDraftLoading(`Draft is not a valid JSON/Delta:`, e);
+          }
+          
+          // Update the line with draft content
+          lineData.content = draftContent;
           lineData.hasDraft = true;
           
           // Update line number if provided
@@ -150,24 +175,7 @@ export const loadUserDrafts = async (
           }
           
           appliedSuggestionCount++;
-          logDraftLoading(`Applied draft to line number ${suggestion.line_number}, new line number: ${lineData.lineNumber}`);
-          
-          // Parse draft as Delta if it's a JSON object
-          try {
-            if (typeof suggestion.draft === 'string' && (
-                suggestion.draft.startsWith('{') || 
-                suggestion.draft.startsWith('[')
-            )) {
-              const parsedDraft = JSON.parse(suggestion.draft);
-              if (isDeltaObject(parsedDraft)) {
-                lineData.content = parsedDraft;
-                logDraftLoading(`Parsed draft as Delta object for line number ${suggestion.line_number}`);
-                logDeltaStructure(parsedDraft);
-              }
-            }
-          } catch (e) {
-            logDraftLoading(`Draft is not a valid JSON/Delta:`, e);
-          }
+          logDraftLoading(`Applied draft to line number ${suggestion.line_number}, new line number: ${lineData.lineNumber}, parsed as Delta: ${parseSuccess}`);
         } else {
           logDraftLoading(`Could not find line with number ${suggestion.line_number}`);
         }
@@ -177,17 +185,19 @@ export const loadUserDrafts = async (
         // Create a new line with the draft content
         const newUuid = suggestion.line_uuid || suggestion.id; // Use line_uuid if available, otherwise use suggestion id
         
+        // Try to parse draft as Delta if it's a JSON object
         let draftContent: string | DeltaContent = suggestion.draft;
+        let parseSuccess = false;
         
-        // Parse draft as Delta if it's a JSON object
         try {
           if (typeof suggestion.draft === 'string' && (
               suggestion.draft.startsWith('{') || 
               suggestion.draft.startsWith('[')
           )) {
-            const parsedDraft = JSON.parse(suggestion.draft);
-            if (isDeltaObject(parsedDraft)) {
+            const parsedDraft = safelyParseDelta(suggestion.draft);
+            if (parsedDraft) {
               draftContent = parsedDraft;
+              parseSuccess = true;
               logDraftLoading(`Parsed draft as Delta object for new line`);
               logDeltaStructure(parsedDraft);
             }
@@ -207,7 +217,7 @@ export const loadUserDrafts = async (
         
         processedDraftLines.push(newLine);
         appliedSuggestionCount++;
-        logDraftLoading(`Added new line with UUID ${newUuid} at line number ${suggestion.line_number_draft}`);
+        logDraftLoading(`Added new line with UUID ${newUuid} at line number ${suggestion.line_number_draft}, parsed as Delta: ${parseSuccess}`);
       }
     }
     
