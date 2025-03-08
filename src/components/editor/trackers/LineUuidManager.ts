@@ -8,12 +8,67 @@ import { LineUuidMap } from './LinePositionTypes';
 export class LineUuidManager {
   private lineUuids: Map<number, string> = new Map();
   private quill: any = null;
+  private readyState: 'not-ready' | 'initializing' | 'ready' = 'not-ready';
+  private retryCount: number = 0;
+  private maxRetries: number = 3;
   
   /**
    * Set the Quill editor instance
    */
   setQuill(quill: any): void {
     this.quill = quill;
+    
+    // Add editor-change event listener to check when editor is truly ready
+    if (quill) {
+      quill.on('editor-change', (eventName: string) => {
+        if (eventName === 'text-change' && this.readyState === 'not-ready') {
+          console.log('**** LineUuidManager **** Editor seems ready via text-change event');
+          this.readyState = 'initializing';
+        }
+      });
+    }
+  }
+  
+  /**
+   * Check if editor DOM is fully ready for UUID assignment
+   */
+  isEditorReady(): boolean {
+    if (!this.quill) return false;
+    
+    try {
+      const lines = this.quill.getLines(0);
+      const editor = this.quill.root;
+      
+      if (!editor) return false;
+      
+      // Check if DOM elements exist for each line
+      const paragraphs = editor.querySelectorAll('p');
+      
+      // Check if the line count matches the DOM paragraph count
+      if (lines.length !== paragraphs.length) {
+        console.log(`**** LineUuidManager **** Editor not fully ready: line count mismatch - lines=${lines.length}, paragraphs=${paragraphs.length}`);
+        return false;
+      }
+      
+      // Check if each line has a corresponding DOM node
+      const allLinesHaveDomNodes = lines.every((line: any) => line.domNode !== undefined);
+      
+      if (!allLinesHaveDomNodes) {
+        console.log('**** LineUuidManager **** Editor not fully ready: some lines missing DOM nodes');
+        return false;
+      }
+      
+      // Editor appears ready
+      if (this.readyState !== 'ready') {
+        console.log('**** LineUuidManager **** Editor is fully ready for UUID assignments');
+        this.readyState = 'ready';
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('**** LineUuidManager **** Error checking editor readiness:', error);
+      return false;
+    }
   }
   
   /**
@@ -58,8 +113,29 @@ export class LineUuidManager {
       return 0;
     }
     
+    // Check if editor is ready
+    if (!this.isEditorReady()) {
+      // If we've tried too many times, log a warning but continue anyway
+      if (this.retryCount >= this.maxRetries) {
+        console.warn(`**** LineUuidManager **** Editor not fully ready after ${this.maxRetries} retries, attempting to apply UUIDs anyway`);
+      } else {
+        this.retryCount++;
+        console.log(`**** LineUuidManager **** Editor not ready, scheduling retry #${this.retryCount} in 200ms`);
+        
+        // Schedule a retry after a delay
+        setTimeout(() => {
+          this.applyUuidsToDOM(lineData, editor);
+        }, 200);
+        
+        return 0;
+      }
+    }
+    
     const lines = editor.getLines(0);
     let appliedCount = 0;
+    
+    // Log the line counts for debugging
+    console.log(`**** LineUuidManager **** Applying UUIDs - lineData length: ${lineData.length}, editor lines: ${lines.length}`);
     
     // Safety check for array bounds
     const minLength = Math.min(lines.length, lineData.length);
@@ -80,8 +156,12 @@ export class LineUuidManager {
       }
     }
     
+    // Reset retry count after successful application
     if (appliedCount > 0) {
+      this.retryCount = 0;
       console.log(`**** LineUuidManager **** Applied ${appliedCount} UUIDs from lineData`);
+    } else {
+      console.warn(`**** LineUuidManager **** No UUIDs applied, possible DOM or data issue`);
     }
     
     return appliedCount;
