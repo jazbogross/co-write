@@ -32,11 +32,11 @@ export const useContentUpdates = (
     isUpdatingEditorRef
   );
 
-  // Create the wrapped updateEditorContent function that includes the editor reference
+  // Create the wrapped updateEditorContent function that updates line count
   const updateEditor = (newContent: string | DeltaContent, forceUpdate: boolean = false) => {
     const editor = quillRef.current?.getEditor();
     if (editor) {
-      // Fix: Remove the editor argument as updateEditorContent only expects content and forceUpdate
+      // Just call updateEditorContent with the content and forceUpdate flag
       updateEditorContent(newContent, forceUpdate);
       
       // Update line count after content update

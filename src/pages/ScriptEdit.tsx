@@ -11,6 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { isDeltaObject } from "@/utils/editor";
+import { DeltaContent } from "@/utils/editor/types";
 
 const ScriptEdit = () => {
   const { id } = useParams();
@@ -59,8 +61,8 @@ const ScriptEdit = () => {
         // Fetch all script content from script_content table with proper columns
         // Important: Don't limit to just one line, and get all needed columns
         const columns = isUserAdmin 
-          ? "content, draft, line_number, line_number_draft" 
-          : "content, line_number";
+          ? "content, draft, line_number, line_number_draft, id" 
+          : "content, line_number, id";
           
         const { data: contentData, error: contentError } = await supabase
           .from("script_content")
@@ -76,26 +78,33 @@ const ScriptEdit = () => {
         if (contentData && contentData.length > 0) {
           console.log("🔄 ScriptEdit: Loaded content lines:", contentData.length);
           
-          // Store original lines to pass to TextEditor
+          // Store original lines to pass to TextEditor - include all necessary data
           setOriginalLines(contentData);
           
-          // Also combine the first few lines of content as a string for backward compatibility
-          // Safely access the content property with type checking
-          const combinedContent = contentData
-            .slice(0, 5)
-            .map((item: NonNullable<typeof contentData[0]>) => {
-              // Fix: Add null check for item before accessing properties
-              if (item != null && typeof item === 'object' && 'content' in item!) {
-                return item!.content;
+          // Store a simple string representation for backward compatibility
+          // We now only need this for debugging/display purposes
+          const firstFewLines = contentData.slice(0, 2).map(line => {
+            // Try to extract text from Delta if possible for logging
+            let contentPreview;
+            if (typeof line.content === 'string' && line.content.startsWith('{') && line.content.includes('ops')) {
+              try {
+                contentPreview = "Delta JSON";
+              } catch (e) {
+                contentPreview = line.content.substring(0, 30) + "...";
               }
-              return "";
-            })
-            .join("\n");
+            } else {
+              contentPreview = typeof line.content === 'string' 
+                ? line.content.substring(0, 30) + "..." 
+                : "Non-string content";
+            }
             
-          console.log("🔄 ScriptEdit: Combined content sample:", 
-            combinedContent.substring(0, 100) + (combinedContent.length > 100 ? "..." : ""));
+            return contentPreview;
+          }).join("\n");
+            
+          console.log("🔄 ScriptEdit: Content sample:", firstFewLines);
           
-          setOriginalContent(combinedContent);
+          // Set a simple placeholder string - the actual Delta objects are in originalLines
+          setOriginalContent("Content loaded");
         } else {
           console.log("🔄 ScriptEdit: No content found");
           setOriginalContent("");

@@ -1,17 +1,17 @@
-
 import React, { useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { LineNumbers } from './LineNumbers';
-import { isDeltaObject, safelyParseDelta } from '@/utils/editor';
-import { isStringifiedDelta, parseStringifiedDeltaIfPossible } from '@/utils/lineProcessing/mappingUtils';
+import { isDeltaObject, parseDeltaIfPossible } from '@/utils/editor';
+import { combineDeltaContents } from '@/utils/editor/operations/deltaCombination';
+import { DeltaContent } from '@/utils/editor/types';
 
 interface TextEditorContentProps {
-  content: any; // Changed from string to any to support Delta objects
+  content: any; // Can be string or Delta object
   lineCount: number;
   quillRef: React.RefObject<ReactQuill>;
   modules: any;
   formats: string[];
-  onChange: (value: any) => void; // Changed from string to any
+  onChange: (value: any) => void;
 }
 
 export const TextEditorContent: React.FC<TextEditorContentProps> = ({
@@ -32,14 +32,21 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   const contentChangeRef = useRef(0);
   const initialContentSetRef = useRef(false);
   
-  // Process content to ensure it's properly parsed if it's a stringified Delta
+  // Process content to ensure it's properly parsed if it's a Delta
   const processedContent = (() => {
     if (!content) return '';
     
-    if (isStringifiedDelta(content)) {
-      return parseStringifiedDeltaIfPossible(content);
+    // If content is a stringified Delta, parse it
+    if (typeof content === 'string' && content.startsWith('{') && content.includes('"ops"')) {
+      try {
+        return parseDeltaIfPossible(content);
+      } catch (e) {
+        console.error('Failed to parse Delta content:', e);
+        return content;
+      }
     }
     
+    // Otherwise return as is
     return content;
   })();
   
@@ -53,22 +60,44 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     
     if (editor.lineTracking) {
       console.log('📝 TextEditorContent: Initializing line tracking');
-      // Call LineTracker's initialize method if it exists
       if (typeof editor.lineTracking.initialize === 'function') {
         editor.lineTracking.initialize();
       }
     }
     
-    // If content is a Delta object or a stringified Delta, set it properly
+    // If content is a Delta object, set it properly
     if (isDeltaObject(processedContent)) {
       console.log('📝 TextEditorContent: Setting Delta content directly on editor after mount');
       initialContentSetRef.current = true;
-      // Cast to any to bypass type checking - we've already verified the Delta structure
-      editor.setContents(processedContent as any);
+      
+      // Turn on programmatic update mode
+      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
+        editor.lineTracking.setProgrammaticUpdate(true);
+      }
+      
+      // Set the Delta content
+      editor.setContents(processedContent);
+      
+      // Turn off programmatic update mode
+      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
+        editor.lineTracking.setProgrammaticUpdate(false);
+      }
     } else if (typeof processedContent === 'object' && 'ops' in processedContent) {
       console.log('📝 TextEditorContent: Setting parsed object with ops directly on editor after mount');
       initialContentSetRef.current = true;
-      editor.setContents(processedContent as any);
+      
+      // Turn on programmatic update mode
+      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
+        editor.lineTracking.setProgrammaticUpdate(true);
+      }
+      
+      // Set the Delta content
+      editor.setContents(processedContent);
+      
+      // Turn off programmatic update mode
+      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
+        editor.lineTracking.setProgrammaticUpdate(false);
+      }
     }
   };
   
@@ -98,22 +127,65 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   useEffect(() => {
     if (isEditorMountedRef.current && !initialContentSetRef.current) {
       const editor = quillRef.current?.getEditor();
-      if (editor && processedContent) {
-        console.log('📝 TextEditorContent: Content changed, updating editor');
+      if (!editor || !processedContent) return;
+      
+      console.log('📝 TextEditorContent: Content changed, updating editor');
+      
+      // Turn on programmatic update mode if available
+      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
+        editor.lineTracking.setProgrammaticUpdate(true);
+      }
+      
+      // Set content based on type
+      if (isDeltaObject(processedContent)) {
+        console.log('📝 TextEditorContent: Setting Delta content on update');
+        initialContentSetRef.current = true;
+        editor.setContents(processedContent);
+      } else if (typeof processedContent === 'object' && 'ops' in processedContent) {
+        console.log('📝 TextEditorContent: Setting object with ops on update');
+        initialContentSetRef.current = true;
+        editor.setContents(processedContent);
+      } else if (typeof processedContent === 'string') {
+        console.log('📝 TextEditorContent: Setting text content on update');
+        initialContentSetRef.current = true;
         
-        if (isDeltaObject(processedContent)) {
-          console.log('📝 TextEditorContent: Setting Delta content on update');
-          initialContentSetRef.current = true;
-          editor.setContents(processedContent as any);
-        } else if (typeof processedContent === 'object' && 'ops' in processedContent) {
-          console.log('📝 TextEditorContent: Setting object with ops on update');
-          initialContentSetRef.current = true;
-          editor.setContents(processedContent as any);
-        } else if (typeof processedContent === 'string') {
-          console.log('📝 TextEditorContent: Setting text content on update');
-          initialContentSetRef.current = true;
+        // Check if the string might be multiple Delta objects stringified together
+        if (processedContent.includes('{"ops":[') && processedContent.includes('],[')) {
+          try {
+            // Try to parse as multiple Delta objects
+            const deltaStrings = processedContent.split(/(?<=})\s*(?=\{)/);
+            const deltas = deltaStrings.map(str => {
+              try {
+                return JSON.parse(str);
+              } catch (e) {
+                return null;
+              }
+            }).filter(delta => delta && delta.ops);
+            
+            if (deltas.length > 0) {
+              // Combine the Delta objects
+              const combinedDelta = combineDeltaContents(deltas);
+              if (combinedDelta) {
+                console.log('📝 TextEditorContent: Parsed multiple Delta objects from string');
+                editor.setContents(combinedDelta);
+              } else {
+                editor.setText(processedContent);
+              }
+            } else {
+              editor.setText(processedContent);
+            }
+          } catch (e) {
+            console.error('Error parsing multiple Deltas:', e);
+            editor.setText(processedContent);
+          }
+        } else {
           editor.setText(processedContent);
         }
+      }
+      
+      // Turn off programmatic update mode
+      if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
+        editor.lineTracking.setProgrammaticUpdate(false);
       }
     }
   }, [processedContent, isEditorMountedRef.current, quillRef.current]);

@@ -2,6 +2,7 @@
 /**
  * UuidPreservationService.ts - Handles preserving and restoring line UUIDs during text changes
  */
+import { v4 as uuidv4 } from 'uuid';
 
 export class UuidPreservationService {
   private preservedUuids: Map<number, string> = new Map();
@@ -55,10 +56,17 @@ export class UuidPreservationService {
   }
   
   /**
-   * Ensure all lines have UUIDs
-   * @param getLineUuid Function to retrieve a UUID for a specific line index
+   * Check if we have preserved UUIDs
    */
-  ensureAllLinesHaveUuids(getLineUuid: (index: number) => string | undefined): void {
+  hasPreservedUuids(): boolean {
+    return this.preservedUuids.size > 0;
+  }
+  
+  /**
+   * Ensure all lines have UUIDs, generating new ones as needed
+   * @param getLineUuid Function to get an existing UUID for a line
+   */
+  ensureAllLinesHaveUuids(getLineUuid: (oneBasedIndex: number) => string | undefined): void {
     console.log('🔍 UuidPreservationService ensuring all lines have UUIDs');
     
     const lines = this.quill.getLines();
@@ -68,29 +76,29 @@ export class UuidPreservationService {
     lines.forEach((line: any, index: number) => {
       if (!line.domNode) return;
       
-      if (!line.domNode.getAttribute('data-line-uuid')) {
+      const currentUuid = line.domNode.getAttribute('data-line-uuid');
+      if (!currentUuid) {
         missingCount++;
         
         // Try to get UUID from the provided function
-        const uuid = getLineUuid(index + 1);
+        const existingUuid = getLineUuid(index + 1);
         
-        if (uuid) {
-          line.domNode.setAttribute('data-line-uuid', uuid);
+        if (existingUuid) {
+          // Use existing UUID
+          line.domNode.setAttribute('data-line-uuid', existingUuid);
           assignedCount++;
-          console.log(`🔍 UuidPreservationService assigned UUID ${uuid} to line ${index + 1}`);
+        } else {
+          // Generate a new UUID if no existing one is found
+          const newUuid = uuidv4();
+          line.domNode.setAttribute('data-line-uuid', newUuid);
+          assignedCount++;
         }
+        
+        // Set the line index
+        line.domNode.setAttribute('data-line-index', (index + 1).toString());
       }
     });
     
-    if (missingCount > 0) {
-      console.log(`🔍 UuidPreservationService found ${missingCount} lines without UUIDs, assigned ${assignedCount}`);
-    }
-  }
-
-  /**
-   * Check if there are any preserved UUIDs
-   */
-  hasPreservedUuids(): boolean {
-    return this.preservedUuids.size > 0;
+    console.log(`🔍 UuidPreservationService found ${missingCount} lines without UUIDs, assigned ${assignedCount}`);
   }
 }

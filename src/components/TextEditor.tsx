@@ -14,7 +14,8 @@ import { SuggestionsPanel } from './editor/SuggestionsPanel';
 import { LineTrackingModule } from './editor/LineTrackingModule';
 import { SuggestionFormatModule } from './editor/SuggestionFormatModule';
 import { DeltaContent } from '@/utils/editor/types';
-import { isDeltaObject } from '@/utils/editor';
+import { isDeltaObject, logDelta } from '@/utils/editor';
+import { combineDeltaContents } from '@/utils/editor/operations/deltaCombination';
 
 // Quill's default Snow theme CSS
 import 'react-quill/dist/quill.snow.css';
@@ -34,7 +35,7 @@ try {
 interface TextEditorProps {
   isAdmin: boolean;
   originalContent: string;
-  originalLines: any[]; // Add this new prop
+  originalLines: any[]; // Array of line data from database
   scriptId: string;
   onSuggestChange: (suggestion: string | DeltaContent) => void;
 }
@@ -58,7 +59,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   // Get user data
   const { userId } = useUserData();
 
-  // Initialize line data - pass originalLines instead of using originalContent
+  // Initialize line data - pass originalLines
   const {
     lineData,
     setLineData,
@@ -67,6 +68,21 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     isDataReady,
     initializeEditor,
   } = useLineData(scriptId, originalContent, userId, isAdmin, originalLines);
+
+  // For debugging: log first few lines to see what we're working with
+  useEffect(() => {
+    if (originalLines && originalLines.length > 0) {
+      console.log(`📋 TextEditor: Original lines sample (${originalLines.length} total):`);
+      originalLines.slice(0, 2).forEach((line, idx) => {
+        const contentType = typeof line.content;
+        const contentPreview = contentType === 'string' 
+          ? line.content.substring(0, 30) + '...' 
+          : JSON.stringify(line.content).substring(0, 30) + '...';
+          
+        console.log(`  Line ${idx + 1}: content type=${contentType}, line_number=${line.line_number}, preview=${contentPreview}`);
+      });
+    }
+  }, [originalLines]);
 
   // Initialize text editor
   const {
@@ -122,40 +138,55 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [editorInitialized, isDataReady, userId, draftLoadAttempted, loadDraftsForCurrentUser, isAdmin]);
 
-  // Add a check for content being empty but lineData having content
+  // Process the original content from originalLines if needed
   useEffect(() => {
-    if (editorInitialized && lineData.length > 0 && !fullContentReadyRef.current && 
+    if (editorInitialized && originalLines.length > 0 && !fullContentReadyRef.current && 
         (!content || (typeof content === 'string' && content.trim() === ''))) {
-      console.log('📋 TextEditor: Content is empty but lineData exists, updating editor content');
+      console.log('📋 TextEditor: Content is empty but originalLines exists, updating editor content');
       
-      // Force content update from lineData
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        // Attempt to get Delta content from lineData
-        const hasDeltas = lineData.some(line => isDeltaObject(line.content));
-        console.log('📋 TextEditor: LineData has Delta objects:', hasDeltas);
+      try {
+        // Extract Delta content from each line and combine them
+        const deltaContents = originalLines.map(line => {
+          if (typeof line.content === 'string' && line.content.includes('"ops"')) {
+            try {
+              // Attempt to parse JSON string to Delta object
+              return JSON.parse(line.content);
+            } catch (e) {
+              console.error('📋 Error parsing Delta JSON:', e);
+              return null;
+            }
+          } else if (typeof line.content === 'object' && line.content.ops) {
+            // Already a Delta object
+            return line.content;
+          }
+          return null;
+        }).filter(Boolean); // Remove null entries
         
-        if (hasDeltas) {
-          // Fix: Don't pass array to updateEditorContent, instead combine contents or use first line
-          // Use first line content or first Delta as a starting point
-          const deltaContent = lineData.find(line => isDeltaObject(line.content))?.content;
-          if (deltaContent) {
-            updateEditorContent(deltaContent);
+        if (deltaContents.length > 0) {
+          console.log(`📋 TextEditor: Combining ${deltaContents.length} Delta objects`);
+          
+          // Use our utility to combine all Deltas into one
+          const combinedDelta = combineDeltaContents(deltaContents);
+          
+          if (combinedDelta) {
+            // Log the combined Delta for debugging
+            logDelta(combinedDelta, '📋 Combined Delta');
+            
+            // Update the editor with the combined Delta
+            updateEditorContent(combinedDelta);
+            fullContentReadyRef.current = true;
+            console.log('📋 TextEditor: Applied combined Delta to editor');
           } else {
-            // Fallback to plain text approach with first line
-            const firstLineContent = lineData[0]?.content || '';
-            updateEditorContent(typeof firstLineContent === 'string' ? firstLineContent : JSON.stringify(firstLineContent));
+            console.error('📋 TextEditor: Failed to combine Deltas');
           }
         } else {
-          // Use plain text approach with first line or concatenated text
-          const plainText = lineData[0]?.content || '';
-          updateEditorContent(typeof plainText === 'string' ? plainText : JSON.stringify(plainText));
+          console.log('📋 TextEditor: No valid Delta objects found in originalLines');
         }
-        
-        fullContentReadyRef.current = true;
+      } catch (error) {
+        console.error('📋 TextEditor: Error processing originalLines:', error);
       }
     }
-  }, [editorInitialized, lineData, content, updateEditorContent, quillRef]);
+  }, [editorInitialized, originalLines, content, updateEditorContent]);
 
   // Submissions
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
