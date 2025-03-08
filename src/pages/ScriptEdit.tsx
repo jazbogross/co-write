@@ -25,7 +25,7 @@ const ScriptEdit = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [originalContent, setOriginalContent] = useState("");
-  const [originalLines, setOriginalLines] = useState([]);
+  const [originalLines, setOriginalLines] = useState<any[]>([]);
 
   useEffect(() => {
     const loadScript = async () => {
@@ -79,18 +79,27 @@ const ScriptEdit = () => {
           console.log("🔄 ScriptEdit: Loaded content lines:", contentData.length);
           
           // Store original lines to pass to TextEditor - include all necessary data
-          setOriginalLines(contentData);
+          // Filter out any potentially invalid records
+          const validLines = contentData.filter(line => line && typeof line === 'object' && 'id' in line);
+          setOriginalLines(validLines);
           
           // Store a simple string representation for backward compatibility
           // We now only need this for debugging/display purposes
-          const firstFewLines = contentData.slice(0, 2).map(line => {
+          const firstFewLines = validLines.slice(0, 2).map(line => {
+            // Check if line has content property
+            if (!('content' in line)) {
+              return "Missing content";
+            }
+            
             // Try to extract text from Delta if possible for logging
             let contentPreview;
             if (typeof line.content === 'string' && line.content.startsWith('{') && line.content.includes('ops')) {
               try {
                 contentPreview = "Delta JSON";
               } catch (e) {
-                contentPreview = line.content.substring(0, 30) + "...";
+                contentPreview = typeof line.content === 'string' 
+                  ? line.content.substring(0, 30) + "..." 
+                  : "Non-string content";
               }
             } else {
               contentPreview = typeof line.content === 'string' 

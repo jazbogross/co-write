@@ -1,9 +1,10 @@
+
 import React, { useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { LineNumbers } from './LineNumbers';
 import { isDeltaObject, parseDeltaIfPossible } from '@/utils/editor';
 import { combineDeltaContents } from '@/utils/editor/operations/deltaCombination';
-import { DeltaContent } from '@/utils/editor/types';
+import { DeltaContent, QuillCompatibleDelta } from '@/utils/editor/types';
 
 interface TextEditorContentProps {
   content: any; // Can be string or Delta object
@@ -75,8 +76,8 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
         editor.lineTracking.setProgrammaticUpdate(true);
       }
       
-      // Set the Delta content
-      editor.setContents(processedContent);
+      // Set the Delta content - cast to any to work around type incompatibility
+      editor.setContents(processedContent as any);
       
       // Turn off programmatic update mode
       if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
@@ -91,8 +92,8 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
         editor.lineTracking.setProgrammaticUpdate(true);
       }
       
-      // Set the Delta content
-      editor.setContents(processedContent);
+      // Set the Delta content - cast to any to work around type incompatibility
+      editor.setContents(processedContent as any);
       
       // Turn off programmatic update mode
       if (editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
@@ -140,11 +141,13 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
       if (isDeltaObject(processedContent)) {
         console.log('📝 TextEditorContent: Setting Delta content on update');
         initialContentSetRef.current = true;
-        editor.setContents(processedContent);
+        // Cast to any to avoid type incompatibility
+        editor.setContents(processedContent as any);
       } else if (typeof processedContent === 'object' && 'ops' in processedContent) {
         console.log('📝 TextEditorContent: Setting object with ops on update');
         initialContentSetRef.current = true;
-        editor.setContents(processedContent);
+        // Cast to any to avoid type incompatibility
+        editor.setContents(processedContent as any);
       } else if (typeof processedContent === 'string') {
         console.log('📝 TextEditorContent: Setting text content on update');
         initialContentSetRef.current = true;
@@ -167,7 +170,8 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
               const combinedDelta = combineDeltaContents(deltas);
               if (combinedDelta) {
                 console.log('📝 TextEditorContent: Parsed multiple Delta objects from string');
-                editor.setContents(combinedDelta);
+                // Cast to any to avoid type incompatibility
+                editor.setContents(combinedDelta as any);
               } else {
                 editor.setText(processedContent);
               }

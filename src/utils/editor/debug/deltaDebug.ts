@@ -42,6 +42,41 @@ export const logDelta = (delta: any, label: string = 'Delta Debug'): void => {
 };
 
 /**
+ * Logs the structure of a Delta object (ops, attributes, etc.)
+ * Useful for debugging Delta objects
+ */
+export const logDeltaStructure = (delta: any, label: string = 'Delta Structure'): void => {
+  if (!delta) {
+    console.log(`${label}: NULL or undefined`);
+    return;
+  }
+  
+  try {
+    if (typeof delta === 'object' && 'ops' in delta && Array.isArray(delta.ops)) {
+      console.log(`${label}: Delta with ${delta.ops.length} ops`);
+      
+      // Log structure info for each op
+      delta.ops.slice(0, 3).forEach((op: any, i: number) => {
+        const hasInsert = 'insert' in op;
+        const insertType = hasInsert ? typeof op.insert : 'missing';
+        const hasAttributes = 'attributes' in op && op.attributes;
+        
+        console.log(`${label} Op ${i + 1}: insert (${insertType}), attributes: ${hasAttributes ? 'yes' : 'no'}`);
+        
+        if (hasAttributes) {
+          const attrNames = Object.keys(op.attributes);
+          console.log(`${label} Op ${i + 1} attributes: ${attrNames.join(', ')}`);
+        }
+      });
+    } else {
+      console.log(`${label}: Not a valid Delta:`, delta);
+    }
+  } catch (e) {
+    console.error(`${label}: Error logging Delta structure:`, e);
+  }
+};
+
+/**
  * Compares two Delta objects and logs the differences
  */
 export const compareDelta = (delta1: any, delta2: any, label: string = 'Delta Comparison'): void => {
