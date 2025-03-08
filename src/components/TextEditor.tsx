@@ -74,12 +74,14 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     if (originalLines && originalLines.length > 0) {
       console.log(`📋 TextEditor: Original lines sample (${originalLines.length} total):`);
       originalLines.slice(0, 2).forEach((line, idx) => {
-        const contentType = typeof line.content;
-        const contentPreview = contentType === 'string' 
-          ? line.content.substring(0, 30) + '...' 
-          : JSON.stringify(line.content).substring(0, 30) + '...';
-          
-        console.log(`  Line ${idx + 1}: content type=${contentType}, line_number=${line.line_number}, preview=${contentPreview}`);
+        if (line) { // Add null check for line
+          const contentType = typeof line.content;
+          const contentPreview = contentType === 'string' 
+            ? line.content.substring(0, 30) + '...' 
+            : JSON.stringify(line.content).substring(0, 30) + '...';
+            
+          console.log(`  Line ${idx + 1}: content type=${contentType}, line_number=${line.line_number}, preview=${contentPreview}`);
+        }
       });
     }
   }, [originalLines]);
@@ -147,6 +149,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       try {
         // Extract Delta content from each line and combine them
         const deltaContents = originalLines.map(line => {
+          if (!line) return null; // Add null check for line
+          
           if (typeof line.content === 'string' && line.content.includes('"ops"')) {
             try {
               // Attempt to parse JSON string to Delta object
@@ -155,9 +159,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
               console.error('📋 Error parsing Delta JSON:', e);
               return null;
             }
-          } else if (typeof line.content === 'object' && line.content.ops) {
+          } else if (typeof line.content === 'object' && line.content && line.content.ops) {
             // Already a Delta object
             return line.content;
+          } else if (typeof line.content === 'string') {
+            // Convert plain text to Delta
+            return { ops: [{ insert: line.content }] };
           }
           return null;
         }).filter(Boolean); // Remove null entries
@@ -178,6 +185,28 @@ export const TextEditor: React.FC<TextEditorProps> = ({
             console.log('📋 TextEditor: Applied combined Delta to editor');
           } else {
             console.error('📋 TextEditor: Failed to combine Deltas');
+            
+            // Fallback to plain text if Delta combination fails
+            const plainText = originalLines
+              .filter(line => line && line.content) // Add null check
+              .map(line => {
+                if (typeof line.content === 'string') {
+                  return line.content;
+                } else if (typeof line.content === 'object' && line.content && line.content.ops) {
+                  // Extract text from Delta
+                  return line.content.ops
+                    .map((op: any) => op.insert || '')
+                    .join('');
+                }
+                return '';
+              })
+              .join('\n');
+              
+            if (plainText.trim()) {
+              console.log('📋 TextEditor: Using plain text fallback');
+              updateEditorContent(plainText);
+              fullContentReadyRef.current = true;
+            }
           }
         } else {
           console.log('📋 TextEditor: No valid Delta objects found in originalLines');

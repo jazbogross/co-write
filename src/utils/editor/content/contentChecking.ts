@@ -1,54 +1,82 @@
 
 /**
- * Utilities for checking content format and type
+ * Utilities for checking Delta content validity and characteristics
  */
 import { DeltaContent } from '../types';
 import { isDeltaObject } from '../validation/deltaValidation';
-import { parseDeltaIfPossible } from '../operations/deltaOperations';
+import { extractPlainTextFromDelta } from './textExtraction';
 
 /**
- * Checks if a string might be a stringified Delta
+ * Checks if Delta content is empty
  */
-export const isStringifiedDelta = (content: string): boolean => {
-  if (!content || typeof content !== 'string') {
-    return false;
-  }
+export const isDeltaEmpty = (content: DeltaContent | string | null): boolean => {
+  if (!content) return true;
   
-  return content.trim().startsWith('{') && 
-         content.includes('"ops"') && 
-         content.includes('"insert"');
-};
-
-/**
- * Checks if content is either a Delta object or stringified Delta
- */
-export const isAnyDelta = (content: any): boolean => {
   if (isDeltaObject(content)) {
-    return true;
+    // Check if Delta has no ops or only contains empty inserts/newlines
+    if (!content.ops || content.ops.length === 0) {
+      return true;
+    }
+    
+    // Extract text and check if it's only whitespace
+    const text = extractPlainTextFromDelta(content);
+    return !text || text.trim() === '';
   }
   
   if (typeof content === 'string') {
-    return isStringifiedDelta(content);
+    return content.trim() === '';
+  }
+  
+  return true;
+};
+
+/**
+ * Checks if Delta contains only a single empty line
+ */
+export const isEmptySingleLine = (content: DeltaContent | string | null): boolean => {
+  if (!content) return true;
+  
+  if (isDeltaObject(content)) {
+    if (!content.ops || content.ops.length === 0) {
+      return true;
+    }
+    
+    // Check if it contains only a newline or empty string
+    if (content.ops.length === 1) {
+      const op = content.ops[0];
+      return !op.insert || op.insert === '' || op.insert === '\n';
+    }
+    
+    if (content.ops.length === 2) {
+      const firstOp = content.ops[0];
+      const secondOp = content.ops[1];
+      // Check if it's an empty string followed by a newline
+      return (!firstOp.insert || firstOp.insert === '') && 
+             (secondOp.insert === '\n');
+    }
+  }
+  
+  if (typeof content === 'string') {
+    return content === '' || content === '\n';
   }
   
   return false;
 };
 
 /**
- * Parses stringified Delta if possible, returns as-is otherwise
+ * Estimates the number of lines in Delta content
  */
-export const parseAnyDelta = (content: any): DeltaContent | any => {
+export const estimateLineCount = (content: DeltaContent | string | null): number => {
+  if (!content) return 0;
+  
   if (isDeltaObject(content)) {
-    return content;
+    const text = extractPlainTextFromDelta(content);
+    return text.split('\n').length;
   }
   
-  if (typeof content === 'string' && isStringifiedDelta(content)) {
-    try {
-      return parseDeltaIfPossible(content);
-    } catch (e) {
-      console.error('Error parsing potential Delta:', e);
-    }
+  if (typeof content === 'string') {
+    return content.split('\n').length;
   }
   
-  return content;
+  return 0;
 };

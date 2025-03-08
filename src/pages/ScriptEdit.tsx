@@ -112,8 +112,9 @@ const ScriptEdit = () => {
             
           console.log("🔄 ScriptEdit: Content sample:", firstFewLines);
           
-          // Set a simple placeholder string - the actual Delta objects are in originalLines
-          setOriginalContent("Content loaded");
+          // IMPORTANT CHANGE: Use a more descriptive flag instead of a placeholder string
+          // This indicates to the TextEditor component that it should extract content from originalLines
+          setOriginalContent("");  // Empty string will trigger reconstructing from originalLines
         } else {
           console.log("🔄 ScriptEdit: No content found");
           setOriginalContent("");
