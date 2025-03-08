@@ -1,4 +1,3 @@
-
 import { isDeltaObject, logDeltaStructure } from '@/utils/editor';
 import { LineData } from '@/types/lineTypes';
 
@@ -16,35 +15,45 @@ export const logDraftLineData = (
     return;
   }
   
-  // Log first few lines for debugging
-  lineData.slice(0, 3).forEach((line, i) => {
-    // Type-safe content preview for logging
-    let contentPreview: string;
-    if (typeof line.content === 'string') {
-      contentPreview = line.content.substring(0, 30);
-    } else if (line.content && typeof line.content === 'object' && 'ops' in line.content) {
-      contentPreview = 'Delta object';
-    } else {
-      contentPreview = '[invalid content format]';
-    }
-    
-    console.log(`**** LineDataService **** Processed line ${i+1}:`, {
-      uuid: line.uuid,
-      lineNumber: line.lineNumber,
-      contentPreview,
-      hasDraft: line.hasDraft || false
+  // Log first few lines for debugging - keep this for draft debugging
+  const draftLines = lineData.filter(line => line.hasDraft);
+  if (draftLines.length > 0) {
+    console.log(`**** LineDataService **** Found ${draftLines.length} draft lines`);
+    draftLines.slice(0, 2).forEach((line, i) => {
+      let contentPreview: string;
+      if (typeof line.content === 'string') {
+        contentPreview = line.content.substring(0, 30);
+      } else if (line.content && typeof line.content === 'object' && 'ops' in line.content) {
+        contentPreview = 'Delta object';
+      } else {
+        contentPreview = '[invalid content format]';
+      }
+      
+      console.log(`**** LineDataService **** Draft line ${i+1}:`, {
+        uuid: line.uuid,
+        lineNumber: line.lineNumber,
+        contentPreview,
+        hasDraft: line.hasDraft || false
+      });
     });
-  });
+  }
 };
 
 /**
- * Utility for logging draft loading status
+ * Utility for logging draft loading status - keep only important messages
  */
 export const logDraftLoading = (
   message: string,
   data?: any
 ) => {
-  console.log(`**** LineDataService **** ${message}`, data || '');
+  // Only log messages containing keywords related to script_suggestions or drafts
+  if (message.includes('script_suggestions') || 
+      message.includes('draft') || 
+      message.includes('suggestion') ||
+      message.includes('Found') ||
+      message.includes('Error')) {
+    console.log(`**** LineDataService **** ${message}`, data || '');
+  }
 };
 
 // Re-export logDeltaStructure for convenience
