@@ -36,18 +36,18 @@ export const loadDrafts = async (
   contentToUuidMapRef: React.MutableRefObject<Map<string, string>>
 ): Promise<LineData[]> => {
   if (!scriptId || !userId) {
-    console.log('**** LineDataService **** loadDrafts aborted: missing scriptId or userId');
+    console.log('loadDrafts aborted: missing scriptId or userId');
     return [];
   }
   
-  console.log('**** LineDataService **** Loading drafts for user:', userId);
+  console.log('Loading drafts for user:', userId);
   
   try {
     // Fetch all lines including drafts
     const allLines = await fetchAllLines(scriptId, true); // Pass isAdmin=true to get draft data
     
     if (!allLines || allLines.length === 0) {
-      console.log('**** LineDataService **** No lines found for script:', scriptId);
+      console.log('No lines found for script:', scriptId);
       return [];
     }
     
@@ -62,23 +62,23 @@ export const loadDrafts = async (
     });
     
     if (!hasDrafts) {
-      console.log('**** LineDataService **** No drafts found for this script');
+      console.log('No drafts found for this script');
       return [];
     }
     
     // Process the lines with draft content - type safety assured by processLineData function
     const updatedLines = processDraftLines(allLines, contentToUuidMapRef);
-    console.log(`**** LineDataService **** Applied draft updates to ${updatedLines.length} lines`);
+    console.log(`Applied draft updates to ${updatedLines.length} lines`);
     
     if (updatedLines.length > 0) {
       return updatedLines;
     } else {
-      console.log('**** LineDataService **** No valid lines with drafts found');
+      console.log('No valid lines with drafts found');
     }
     
     return [];
   } catch (error) {
-    console.error('**** LineDataService **** Error loading drafts:', error);
+    console.error('Error loading drafts:', error);
     throw error;
   }
 };

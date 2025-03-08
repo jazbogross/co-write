@@ -22,7 +22,7 @@ export const loadUserDrafts = async (
     return [];
   }
   
-  logDraftLoading(`🔍 DEBUG: Loading drafts for user: ${userId}, script: ${scriptId}`);
+  logDraftLoading(`🔍 DEBUG: Loading drafts from script_suggestions for user: ${userId}, script: ${scriptId}`);
   
   try {
     // 1. Fetch original content lines
@@ -35,35 +35,10 @@ export const loadUserDrafts = async (
     
     logDraftLoading(`🔍 DEBUG: Fetched ${originalLines.length} original content lines`);
     
-    // Log sample of original content
-    if (originalLines.length > 0) {
-      const sample = originalLines[0];
-      logDraftLoading(`🔍 DEBUG: Original content sample - line_number: ${sample.line_number}, content type: ${typeof sample.content}`);
-      logDraftLoading(`🔍 DEBUG: Original content preview: ${
-        typeof sample.content === 'string' 
-          ? sample.content.substring(0, 50) 
-          : JSON.stringify(sample.content).substring(0, 50)
-      }...`);
-    }
-    
-    // 2. Fetch user suggestions
-    logDraftLoading('🔍 DEBUG: Step 2 - Fetching user suggestions');
+    // 2. Fetch user suggestions from script_suggestions table
+    logDraftLoading('🔍 DEBUG: Step 2 - Fetching user suggestions from script_suggestions table');
     const suggestions = await fetchUserSuggestions(scriptId, userId);
-    logDraftLoading(`🔍 DEBUG: Fetched ${suggestions.length} user suggestions`);
-    
-    // Log a sample of the suggestion data for debugging
-    if (suggestions.length > 0) {
-      const sample = suggestions[0];
-      logDraftLoading(`🔍 DEBUG: Sample suggestion - line_uuid: ${sample.line_uuid}, draft type: ${typeof sample.draft}`);
-      
-      if (typeof sample.draft === 'string') {
-        logDraftLoading(`🔍 DEBUG: Sample draft content: ${sample.draft.substring(0, 100)}`);
-      } else if (sample.draft && typeof sample.draft === 'object') {
-        logDraftLoading(`🔍 DEBUG: Sample draft content (object): ${JSON.stringify(sample.draft).substring(0, 100)}`);
-      }
-    } else {
-      logDraftLoading('🔍 DEBUG: No suggestions found, will return original content');
-    }
+    logDraftLoading(`🔍 DEBUG: Fetched ${suggestions.length} user suggestions from script_suggestions table`);
     
     // 3. Build initial line data
     logDraftLoading('🔍 DEBUG: Step 3 - Building initial line data');
@@ -72,20 +47,14 @@ export const loadUserDrafts = async (
       contentToUuidMapRef
     );
     
-    // Log a sample of initial line data
-    if (initialLineData.length > 0) {
-      const sample = initialLineData[0];
-      logDraftLoading(`🔍 DEBUG: Initial line data sample - uuid: ${sample.uuid}, content type: ${typeof sample.content}`);
-    }
-    
     // 4. If no suggestions, return initial line data
     if (suggestions.length === 0) {
-      logDraftLoading('🔍 DEBUG: No suggestions found, returning original content');
+      logDraftLoading('🔍 DEBUG: No suggestions found in script_suggestions table, returning original content');
       return initialLineData;
     }
     
-    // 5. Apply draft suggestions
-    logDraftLoading('🔍 DEBUG: Step 5 - Applying draft suggestions');
+    // 5. Apply draft suggestions from script_suggestions table
+    logDraftLoading('🔍 DEBUG: Step 5 - Applying draft suggestions from script_suggestions table');
     const { processedDraftLines, appliedSuggestionCount } = applyDraftSuggestions(
       suggestions,
       lineDataMap,
@@ -93,28 +62,17 @@ export const loadUserDrafts = async (
       userId
     );
     
-    logDraftLoading(`🔍 DEBUG: Applied ${appliedSuggestionCount} draft suggestions`);
+    logDraftLoading(`🔍 DEBUG: Applied ${appliedSuggestionCount} draft suggestions from script_suggestions table`);
     
     // 6. Finalize line data
-    logDraftLoading('🔍 DEBUG: Step 6 - Finalizing line data');
+    logDraftLoading('🔍 DEBUG: Step 6 - Finalizing line data with drafts from script_suggestions');
     const finalizedData = finalizeLineData(processedDraftLines, appliedSuggestionCount);
-    logDraftLoading(`🔍 DEBUG: Finalized ${finalizedData.length} lines with drafts`);
-    
-    // Log a sample of finalized data
-    if (finalizedData.length > 0) {
-      const sample = finalizedData[0];
-      logDraftLoading(`🔍 DEBUG: Finalized data sample - uuid: ${sample.uuid}, content type: ${typeof sample.content}, hasDraft: ${sample.hasDraft}`);
-      logDraftLoading(`🔍 DEBUG: Finalized content preview: ${
-        typeof sample.content === 'string' 
-          ? sample.content.substring(0, 50) 
-          : JSON.stringify(sample.content).substring(0, 50)
-      }...`);
-    }
+    logDraftLoading(`🔍 DEBUG: Finalized ${finalizedData.length} lines with drafts from script_suggestions`);
     
     return finalizedData;
     
   } catch (error) {
-    logDraftLoading('🔍 DEBUG: Error loading user drafts:', error);
+    logDraftLoading('🔍 DEBUG: Error loading user drafts from script_suggestions:', error);
     return [];
   }
 };

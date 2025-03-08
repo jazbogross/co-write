@@ -24,15 +24,11 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   formats,
   onChange,
 }) => {
-  console.log('📝 TextEditorContent rendering');
-  console.log('📝 Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
-  console.log('📝 Line count:', lineCount);
-  
   // Track editor mount state
   const isEditorMountedRef = useRef(false);
   const contentChangeRef = useRef(0);
   
-  // Log DOM structure periodically to check line number sync
+  // Log DOM structure only when line count changes
   useEffect(() => {
     if (!isEditorMountedRef.current) return;
     
@@ -45,36 +41,24 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
       
       if (editorElement) {
         const paragraphs = editorElement.querySelectorAll('p');
-        console.log(`📝 DOM check - Quill lines: ${quillLines.length}, DOM paragraphs: ${paragraphs.length}`);
         
         // Check if line numbers match DOM structure
         if (lineCount !== paragraphs.length) {
-          console.log(`📝 ⚠️ LINE COUNT MISMATCH - lineCount: ${lineCount}, DOM paragraphs: ${paragraphs.length}`);
+          console.log(`⚠️ LINE COUNT MISMATCH - lineCount: ${lineCount}, DOM paragraphs: ${paragraphs.length}`);
         }
-        
-        // Log first few paragraph UUIDs
-        Array.from(paragraphs).slice(0, 3).forEach((p, i) => {
-          const uuid = p.getAttribute('data-line-uuid');
-          console.log(`📝 Paragraph ${i+1} UUID: ${uuid || 'missing'}`);
-        });
       }
     };
     
-    // Log immediately and then every 5 seconds (reduced frequency to prevent too many logs)
+    // Log only when line count changes
     logDomStructure();
-    const interval = setInterval(logDomStructure, 5000);
-    
-    return () => clearInterval(interval);
   }, [lineCount, quillRef, isEditorMountedRef.current]);
   
   // Handle editor initialization
   const handleEditorInit = () => {
-    console.log('📝 TextEditorContent: Editor mounted');
     isEditorMountedRef.current = true;
     
     const editor = quillRef.current?.getEditor();
     if (editor && editor.lineTracking) {
-      console.log('📝 TextEditorContent: Initializing line tracking');
       // Call LineTracker's initialize method if it exists
       if (typeof editor.lineTracking.initialize === 'function') {
         editor.lineTracking.initialize();
@@ -87,13 +71,9 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     contentChangeRef.current++;
     const changeId = contentChangeRef.current;
     
-    console.log(`📝 ReactQuill onChange - source: ${source}, delta ops: ${delta.ops.length}, changeId: ${changeId}`);
-    
     // Skip programmatic changes to prevent feedback loops
     if (source === 'user') {
       onChange(newContent);
-    } else {
-      console.log(`📝 Skipping non-user content change, source: ${source}`);
     }
   };
   
@@ -103,23 +83,6 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
       handleEditorInit();
     }
   }, [quillRef]);
-  
-  // Apply line UUIDs from lineData whenever lineCount changes
-  useEffect(() => {
-    if (!isEditorMountedRef.current) return;
-    
-    const editor = quillRef.current?.getEditor();
-    if (editor && editor.lineTracking) {
-      if (typeof editor.lineTracking.refreshLineUuids === 'function') {
-        // Give the editor a moment to update its DOM before refreshing UUIDs
-        setTimeout(() => {
-          // Fetch the lineData array from the editor or state
-          const domUuids = editor.lineTracking.getDomUuidMap();
-          console.log(`📝 TextEditorContent: After content update, found ${domUuids.size} UUIDs in DOM`);
-        }, 100);
-      }
-    }
-  }, [lineCount]);
   
   return (
     <div className="flex min-h-screen text-black">
