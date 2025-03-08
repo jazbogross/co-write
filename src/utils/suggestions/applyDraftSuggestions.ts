@@ -5,6 +5,7 @@ import { logDraftLoading } from './draftLoggingUtils';
 
 /**
  * Applies draft suggestions to the line data
+ * Updated to handle Delta objects more reliably
  */
 export const applyDraftSuggestions = (
   suggestions: any[],
@@ -18,10 +19,20 @@ export const applyDraftSuggestions = (
   let appliedSuggestionCount = 0;
   let processedDraftLines: LineData[] = [...initialLineData];
   
+  logDraftLoading(`Processing ${suggestions.length} suggestions`);
+  
   for (const suggestion of suggestions) {
     // Skip suggestions with null drafts or deleted drafts
     if (!suggestion.draft || suggestion.draft === '{deleted-uuid}') {
       continue;
+    }
+    
+    // Log the raw draft content type and structure
+    logDraftLoading(`Processing suggestion with draft of type: ${typeof suggestion.draft}`);
+    if (typeof suggestion.draft === 'object') {
+      logDraftLoading(`Draft object structure: ${JSON.stringify(suggestion.draft).substring(0, 100)}...`);
+    } else if (typeof suggestion.draft === 'string') {
+      logDraftLoading(`Draft string preview: ${suggestion.draft.substring(0, 100)}...`);
     }
     
     // Try to find the line by UUID first (most accurate)
@@ -30,6 +41,8 @@ export const applyDraftSuggestions = (
       
       // Parse and update the line with draft content
       const draftContent = parseDraftContent(suggestion.draft);
+      logDraftLoading(`Parsed draft content type: ${typeof draftContent}`);
+      
       lineData.content = draftContent;
       lineData.hasDraft = true;
       
@@ -50,6 +63,8 @@ export const applyDraftSuggestions = (
         
         // Parse and update the line with draft content
         const draftContent = parseDraftContent(suggestion.draft);
+        logDraftLoading(`Parsed draft content type: ${typeof draftContent}`);
+        
         lineData.content = draftContent;
         lineData.hasDraft = true;
         
@@ -71,6 +86,7 @@ export const applyDraftSuggestions = (
       
       // Parse draft content
       const draftContent = parseDraftContent(suggestion.draft);
+      logDraftLoading(`New line draft content type: ${typeof draftContent}`);
       
       const newLine: LineData = {
         uuid: newUuid,
@@ -86,6 +102,8 @@ export const applyDraftSuggestions = (
       logDraftLoading(`Added new line with UUID ${newUuid} at line number ${suggestion.line_number_draft}`);
     }
   }
+  
+  logDraftLoading(`Applied a total of ${appliedSuggestionCount} suggestions`);
   
   return { processedDraftLines, appliedSuggestionCount };
 };
