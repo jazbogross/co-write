@@ -11,9 +11,6 @@ export {
   convertToDelta 
 } from './deltaUtils';
 
-// Export validation utilities
-export { validateDelta } from './validation/deltaValidation';
-
 // Export Delta combination utilities
 export { combineDeltaContents } from './operations/deltaCombination';
 
