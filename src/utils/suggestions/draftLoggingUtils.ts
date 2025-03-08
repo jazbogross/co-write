@@ -1,5 +1,5 @@
 
-import { isDeltaObject } from '@/utils/editor';
+import { isDeltaObject, logDeltaStructure } from '@/utils/editor';
 import { LineData } from '@/types/lineTypes';
 
 /**
@@ -46,3 +46,6 @@ export const logDraftLoading = (
 ) => {
   console.log(`**** LineDataService **** ${message}`, data || '');
 };
+
+// Re-export logDeltaStructure for convenience
+export { logDeltaStructure };
