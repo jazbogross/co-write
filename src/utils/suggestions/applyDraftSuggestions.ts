@@ -1,3 +1,4 @@
+
 import { LineData } from '@/types/lineTypes';
 import { parseDraftContent } from './draftContentParser';
 import { logDraftLoading } from './draftLoggingUtils';
@@ -48,7 +49,7 @@ export const applyDraftSuggestions = (
     logDraftLoading(`🔍 DEBUG: Draft content type: ${typeof suggestion.draft}`);
     if (typeof suggestion.draft === 'object') {
       logDraftLoading(`🔍 DEBUG: Draft object structure: ${JSON.stringify(suggestion.draft).substring(0, 100)}...`);
-      logDraftLogging(`🔍 DEBUG: Is already a Delta object: ${isDeltaObject(suggestion.draft)}`);
+      logDraftLoading(`🔍 DEBUG: Is already a Delta object: ${isDeltaObject(suggestion.draft)}`);
     } else if (typeof suggestion.draft === 'string') {
       logDraftLoading(`🔍 DEBUG: Draft string preview: ${suggestion.draft.substring(0, 100)}...`);
       if (suggestion.draft.startsWith('{') || suggestion.draft.startsWith('[')) {
