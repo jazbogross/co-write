@@ -14,18 +14,14 @@ const Quill = ReactQuill.Quill;
 export const LineTrackingModule = {
   name: 'lineTracking',
   register: function (Quill: any) {
-    console.log('🔍 [LineTrackingModule] registering with Quill');
-
     // If we've already registered, skip
     if ((ReactQuill.Quill as any)._lineTrackingModuleRegistered) {
-      console.log('🔍 [LineTrackingModule] already registered, skipping');
       return;
     }
 
     try {
       // Register the suggestion format module FIRST if it hasn't been registered
       if (!(ReactQuill.Quill as any)._suggestionFormatModuleRegistered) {
-        console.log('🔍 [LineTrackingModule] registering SuggestionFormatModule');
         SuggestionFormatModule.register(Quill);
         (ReactQuill.Quill as any)._suggestionFormatModuleRegistered = true;
       }
@@ -35,13 +31,12 @@ export const LineTrackingModule = {
 
       // Register as a Quill module named 'lineTracking'
       ReactQuill.Quill.register('modules/lineTracking', function (quill: any) {
-        console.log('🔍 [LineTrackingModule] initializing new LineTracker for Quill instance');
         const tracker = new LineTracker(quill);
         quill.lineTracking = tracker;
         return tracker;
       });
     } catch (error) {
-      console.error('🔍 [LineTrackingModule] error during registration:', error);
+      console.error('Error during LineTrackingModule registration:', error);
     }
   },
 };
