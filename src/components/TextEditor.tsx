@@ -1,4 +1,3 @@
-
 // File: src/components/editor/TextEditor.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -55,7 +54,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   // Get user data
   const { userId } = useUserData();
 
-  // Initialize line data
+  // Initialize line data - pass isAdmin to the hook
   const {
     lineData,
     setLineData,
