@@ -1,37 +1,41 @@
 
 /**
- * Editor utility exports
+ * Re-exports all editor utilities
  */
 
-// Export from delta utilities - explicitly choose which exports to use
-export { 
-  isDeltaObject,
-  safelyParseDelta,
-  normalizeDelta,
-  convertToDelta 
-} from './deltaUtils';
-
-// Export validation utilities
-export { validateDelta } from './validation/deltaValidation';
-
-// Export Delta combination utilities
-export { combineDeltaContents } from './operations/deltaCombination';
-
-// Export Delta debug utilities
-export { logDeltaStructure } from './debug/deltaDebug';
-
-// Export text extraction utilities
-export * from './content/textExtraction';
+export * from './deltaUtils';
+export * from './types';
+export * from './validation/deltaValidation';
+export * from './textFormatting/textExtraction';
 export * from './content/insertionUtils';
 
-// Export editor utilities
-export * from './editorUtils';
+// Export individual utility functions
+import { DeltaContent } from './types';
+import { 
+  isDeltaObject,
+  safelyParseDelta,
+  createEmptyDelta,
+  convertToDelta
+} from './operations/deltaOperations';
 
-// Export reconstruction utilities
-export * from './reconstructUtils';
+import {
+  combineDeltaContents,
+  createDeltaFromLineData
+} from './operations/deltaCombination';
 
-// Export formats
-export * from './formats';
+import {
+  extractPlainTextFromDelta,
+  extractTextFromDeltaOps
+} from './textFormatting/textExtraction';
 
-// Re-export types
-export * from './types';
+// Re-export functions
+export {
+  isDeltaObject,
+  safelyParseDelta,
+  createEmptyDelta,
+  convertToDelta,
+  combineDeltaContents,
+  createDeltaFromLineData,
+  extractPlainTextFromDelta,
+  extractTextFromDeltaOps
+};

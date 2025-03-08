@@ -18,7 +18,7 @@ export const applyDraftSuggestions = (
   appliedSuggestionCount: number
 } => {
   let appliedSuggestionCount = 0;
-  let processedDraftLines: LineData[] = [...initialLineData];
+  const processedDraftLines: LineData[] = [...initialLineData];
   
   logDraftLoading(`🔍 DEBUG: Processing ${suggestions.length} suggestions`);
   
@@ -27,6 +27,9 @@ export const applyDraftSuggestions = (
   initialLineData.forEach(line => {
     lineNumberMap.set(line.lineNumber, line);
   });
+  
+  // Track all existing uuids to prevent duplicates
+  const existingUuids = new Set(initialLineData.map(line => line.uuid));
   
   for (const suggestion of suggestions) {
     // Skip suggestions with null drafts or deleted drafts
@@ -46,7 +49,7 @@ export const applyDraftSuggestions = (
     logDraftLoading(`🔍 DEBUG: Draft content type: ${typeof suggestion.draft}`);
     if (typeof suggestion.draft === 'object') {
       logDraftLoading(`🔍 DEBUG: Draft object structure: ${JSON.stringify(suggestion.draft).substring(0, 100)}...`);
-      logDraftLoading(`🔍 DEBUG: Is already a Delta object: ${isDeltaObject(suggestion.draft)}`);
+      logDraftLogging(`🔍 DEBUG: Is already a Delta object: ${isDeltaObject(suggestion.draft)}`);
     } else if (typeof suggestion.draft === 'string') {
       logDraftLoading(`🔍 DEBUG: Draft string preview: ${suggestion.draft.substring(0, 100)}...`);
       if (suggestion.draft.startsWith('{') || suggestion.draft.startsWith('[')) {
@@ -57,6 +60,18 @@ export const applyDraftSuggestions = (
           logDraftLoading(`🔍 DEBUG: Draft looks like JSON but can't be parsed: ${e.message}`);
         }
       }
+    }
+    
+    // Parse draft content first to avoid duplicating the parsing
+    const draftContent = parseDraftContent(suggestion.draft);
+    logDraftLoading(`🔍 DEBUG: Parsed draft content type: ${typeof draftContent}`);
+    logDraftLoading(`🔍 DEBUG: Is parsed content a Delta: ${isDeltaObject(draftContent)}`);
+    
+    // Preview the content after parsing
+    if (typeof draftContent === 'string') {
+      logDraftLoading(`🔍 DEBUG: Parsed content (string): ${draftContent.substring(0, 50)}...`);
+    } else {
+      logDraftLoading(`🔍 DEBUG: Parsed content (object): ${JSON.stringify(draftContent).substring(0, 50)}...`);
     }
     
     // Try to find the line by UUID first (most accurate)
@@ -71,18 +86,6 @@ export const applyDraftSuggestions = (
         lineNumber: lineData.lineNumber,
         hasDraft: lineData.hasDraft
       });
-      
-      // Parse and update the line with draft content
-      const draftContent = parseDraftContent(suggestion.draft);
-      logDraftLoading(`🔍 DEBUG: Parsed draft content type: ${typeof draftContent}`);
-      logDraftLoading(`🔍 DEBUG: Is parsed content a Delta: ${isDeltaObject(draftContent)}`);
-      
-      // Preview the content after parsing
-      if (typeof draftContent === 'string') {
-        logDraftLoading(`🔍 DEBUG: Parsed content (string): ${draftContent.substring(0, 50)}...`);
-      } else {
-        logDraftLoading(`🔍 DEBUG: Parsed content (object): ${JSON.stringify(draftContent).substring(0, 50)}...`);
-      }
       
       // Update the line with the draft content
       lineData.content = draftContent;
@@ -113,11 +116,6 @@ export const applyDraftSuggestions = (
           hasDraft: lineData.hasDraft
         });
         
-        // Parse and update the line with draft content
-        const draftContent = parseDraftContent(suggestion.draft);
-        logDraftLoading(`🔍 DEBUG: Parsed draft content type: ${typeof draftContent}`);
-        logDraftLoading(`🔍 DEBUG: Is parsed content a Delta: ${isDeltaObject(draftContent)}`);
-        
         // Update the line with the draft content
         lineData.content = draftContent;
         lineData.hasDraft = true;
@@ -133,22 +131,27 @@ export const applyDraftSuggestions = (
       } else {
         logDraftLoading(`🔍 DEBUG: Could not find line with number ${suggestion.line_number}`);
       }
-    }
-    // If this is a new line (no line_uuid or line_number)
-    else if (suggestion.line_number_draft) {
-      logDraftLoading(`🔍 DEBUG: Creating new line at position ${suggestion.line_number_draft}`);
+    } 
+    // If this is a new line (no line_uuid or line_number matching existing lines)
+    else if (suggestion.line_number_draft || suggestion.line_uuid) {
+      // For new lines, we need either a line_uuid or line_number_draft
+      const lineNumber = suggestion.line_number_draft || processedDraftLines.length + 1;
+      logDraftLoading(`🔍 DEBUG: Creating new line at position ${lineNumber}`);
       
-      // Create a new line with the draft content
-      const newUuid = suggestion.line_uuid || suggestion.id; // Use line_uuid if available, otherwise use suggestion id
+      // Use line_uuid if available, otherwise use suggestion id or generate a new UUID
+      let uuid = suggestion.line_uuid || suggestion.id;
       
-      // Parse draft content
-      const draftContent = parseDraftContent(suggestion.draft);
-      logDraftLoading(`🔍 DEBUG: New line draft content type: ${typeof draftContent}`);
-      logDraftLoading(`🔍 DEBUG: Is parsed content a Delta: ${isDeltaObject(draftContent)}`);
+      // Ensure the UUID isn't already in use
+      if (existingUuids.has(uuid)) {
+        logDraftLoading(`🔍 DEBUG: Warning - UUID ${uuid} is already used, using suggestion ID instead`);
+        uuid = suggestion.id;
+      }
+      
+      existingUuids.add(uuid);
       
       const newLine: LineData = {
-        uuid: newUuid,
-        lineNumber: suggestion.line_number_draft,
+        uuid: uuid,
+        lineNumber: lineNumber,
         content: draftContent,
         originalAuthor: userId,
         editedBy: [],
@@ -157,7 +160,7 @@ export const applyDraftSuggestions = (
       
       processedDraftLines.push(newLine);
       appliedSuggestionCount++;
-      logDraftLoading(`🔍 DEBUG: Added new line with UUID ${newUuid} at line number ${suggestion.line_number_draft}`);
+      logDraftLoading(`🔍 DEBUG: Added new line with UUID ${uuid} at line number ${lineNumber}`);
     } else {
       logDraftLoading(`🔍 DEBUG: Could not apply suggestion - missing line_uuid, line_number, and line_number_draft`);
     }
@@ -165,5 +168,8 @@ export const applyDraftSuggestions = (
   
   logDraftLoading(`🔍 DEBUG: Applied a total of ${appliedSuggestionCount} suggestions`);
   
-  return { processedDraftLines, appliedSuggestionCount };
+  return { 
+    processedDraftLines, 
+    appliedSuggestionCount 
+  };
 };

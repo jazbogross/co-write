@@ -35,19 +35,44 @@ export const useDraftLoader = ({
             editor.lineTracking.setProgrammaticUpdate(true);
           }
           
+          // Log the UUIDs present in lineData
+          console.log('📙 useDraftLoader: LineData UUIDs:', lineData.map(line => line.uuid));
+          
           const hasDeltaContent = lineData.some(line => isDeltaObject(line.content));
           console.log('📙 useDraftLoader: Has Delta content:', hasDeltaContent);
           
           if (hasDeltaContent) {
             console.log('📙 useDraftLoader: Creating combined Delta from line data');
             
-            const deltaContents = lineData.map(line => line.content);
+            // Filter out only active lines that have content
+            const deltaContents = lineData
+              .filter(line => line.content !== null && line.content !== undefined)
+              .map(line => line.content);
+              
+            console.log('📙 useDraftLoader: Processing', deltaContents.length, 'content items');
+            
+            // Log content for debugging
+            deltaContents.forEach((content, i) => {
+              console.log(`📙 useDraftLoader: Content ${i+1} type:`, 
+                typeof content, 
+                isDeltaObject(content) ? 'isDelta' : 'notDelta'
+              );
+            });
+            
             const combinedDelta = combineDeltaContents(deltaContents);
             
             if (combinedDelta) {
               console.log('📙 useDraftLoader: Final Delta ops count:', combinedDelta.ops.length);
-              console.log('📙 useDraftLoader: First few ops:', JSON.stringify(combinedDelta.ops.slice(0, 2)));
+              console.log('📙 useDraftLoader: First few ops:', JSON.stringify(combinedDelta.ops.slice(0, 3)));
               updateEditorContent(combinedDelta);
+              
+              // After updating content, ensure UUIDs are refreshed in the DOM
+              setTimeout(() => {
+                if (editor.lineTracking && typeof editor.lineTracking.refreshLineUuids === 'function') {
+                  console.log('📙 useDraftLoader: Refreshing line UUIDs from lineData');
+                  editor.lineTracking.refreshLineUuids(lineData);
+                }
+              }, 50);
             } else {
               console.log('📙 useDraftLoader: Failed to create combined Delta, using plain text fallback');
               const combinedContent = lineData.map(line => 

@@ -140,6 +140,39 @@ export class LineTracker {
   // Refresh UUIDs from lineData
   public refreshLineUuids(lineData: any[]) {
     console.log('🔍 LineTracker refreshing UUIDs from lineData');
+    console.log('🔍 LineTracker received', lineData.length, 'lines to refresh');
+    
+    // Make sure all lines in the editor match the UUIDs from lineData
+    const lines = this.quill.getLines();
+    console.log('🔍 LineTracker found', lines.length, 'lines in editor');
+    
+    // Log first few lines from editor and lineData
+    lineData.slice(0, 3).forEach((line, i) => {
+      console.log(`🔍 LineTracker lineData line ${i+1}: uuid=${line.uuid}, lineNumber=${line.lineNumber}`);
+    });
+    
+    // Map each line in the editor to the corresponding lineData by position
+    let appliedCount = 0;
+    for (let i = 0; i < Math.min(lines.length, lineData.length); i++) {
+      const line = lines[i];
+      const lineDataItem = lineData[i];
+      
+      if (line.domNode && lineDataItem && lineDataItem.uuid) {
+        const currentUuid = line.domNode.getAttribute('data-line-uuid');
+        const newUuid = lineDataItem.uuid;
+        
+        // Apply the UUID if it's different or missing
+        if (currentUuid !== newUuid) {
+          line.domNode.setAttribute('data-line-uuid', newUuid);
+          line.domNode.setAttribute('data-line-index', String(i + 1));
+          console.log(`🔍 LineTracker applied UUID ${newUuid} to line ${i+1} in editor`);
+          appliedCount++;
+        }
+      }
+    }
+    
+    console.log(`🔍 LineTracker applied ${appliedCount} UUIDs to editor lines`);
+    
     if (this.linePosition && typeof this.linePosition.refreshLineUuids === 'function') {
       this.linePosition.refreshLineUuids(lineData);
     } else {

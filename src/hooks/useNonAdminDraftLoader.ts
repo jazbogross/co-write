@@ -41,14 +41,23 @@ export const useNonAdminDraftLoader = () => {
         return prevLineData;
       });
       
-      // Load user drafts
+      // Load user drafts - enhanced error handling
+      console.log('🔍 DEBUG: Calling loadUserDrafts to fetch draft data');
       const draftLines = await loadUserDrafts(scriptId, userId, contentToUuidMapRef);
+      
+      if (!draftLines || !Array.isArray(draftLines)) {
+        console.log('🔍 DEBUG: No valid draft lines returned from loadUserDrafts');
+        return false;
+      }
       
       if (draftLines.length > 0) {
         console.log(`🔍 DEBUG: Loaded ${draftLines.length} draft lines for non-admin user`);
         
-        // Log first few lines for debugging
-        draftLines.slice(0, 3).forEach((line, i) => {
+        // Sort drafts by line number to ensure correct order
+        const sortedDraftLines = [...draftLines].sort((a, b) => a.lineNumber - b.lineNumber);
+        
+        // Log each line for debugging
+        sortedDraftLines.slice(0, 3).forEach((line, i) => {
           console.log(`🔍 DEBUG: Draft line ${i+1}:`, {
             uuid: line.uuid,
             lineNumber: line.lineNumber,
@@ -61,9 +70,11 @@ export const useNonAdminDraftLoader = () => {
         });
         
         // Compare lineData before and after setting
-        const beforeSetLineData = JSON.stringify(draftLines).length;
-        setLineData(draftLines);
-        console.log(`🔍 DEBUG: Set lineData with ${draftLines.length} lines (${beforeSetLineData} bytes)`);
+        const beforeSetLineData = JSON.stringify(sortedDraftLines).length;
+        
+        // Set the line data with the sorted draft lines
+        setLineData(sortedDraftLines);
+        console.log(`🔍 DEBUG: Set lineData with ${sortedDraftLines.length} lines (${beforeSetLineData} bytes)`);
         return true;
       } else {
         console.log('🔍 DEBUG: No draft lines found for non-admin user');
