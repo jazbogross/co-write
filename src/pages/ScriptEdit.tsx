@@ -87,7 +87,7 @@ const ScriptEdit = () => {
           // We now only need this for debugging/display purposes
           const firstFewLines = validLines.slice(0, 2).map(line => {
             // Check if line has content property
-            if (!('content' in line)) {
+            if (!line || !('content' in line)) {
               return "Missing content";
             }
             

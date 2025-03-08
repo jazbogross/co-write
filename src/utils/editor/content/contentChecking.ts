@@ -1,48 +1,54 @@
 
 /**
- * Utilities for checking content states and properties
+ * Utilities for checking content format and type
  */
-import { isDeltaObject } from '../operations/deltaOperations';
-import { extractPlainTextFromDelta } from './textExtraction';
+import { DeltaContent } from '../types';
+import { isDeltaObject } from '../validation/deltaValidation';
+import { parseDeltaIfPossible } from '../operations/deltaOperations';
 
 /**
- * Safely check if content is empty (handles both strings and Delta objects)
+ * Checks if a string might be a stringified Delta
  */
-export const isContentEmpty = (content: any): boolean => {
-  console.log('🔷 isContentEmpty: Checking content of type', typeof content);
-  
-  if (isDeltaObject(content)) {
-    const plainText = extractPlainTextFromDelta(content);
-    const isEmpty = !plainText || !plainText.trim();
-    console.log('🔷 isContentEmpty: Valid Delta, is empty:', isEmpty);
-    return isEmpty;
+export const isStringifiedDelta = (content: string): boolean => {
+  if (!content || typeof content !== 'string') {
+    return false;
   }
   
-  // Handle strings
-  if (typeof content === 'string') {
-    const isEmpty = !content || !content.trim();
-    console.log('🔷 isContentEmpty: String content, is empty:', isEmpty);
-    return isEmpty;
-  }
-  
-  // For other types (undefined, null, etc.)
-  console.log('🔷 isContentEmpty: Other content type, treating as empty');
-  return true;
+  return content.trim().startsWith('{') && 
+         content.includes('"ops"') && 
+         content.includes('"insert"');
 };
 
 /**
- * Get trimmed content regardless of content type (string or Delta)
+ * Checks if content is either a Delta object or stringified Delta
  */
-export const getTrimmedContent = (content: any): string => {
-  console.log('🔷 getTrimmedContent: Processing content of type', typeof content);
-  
+export const isAnyDelta = (content: any): boolean => {
   if (isDeltaObject(content)) {
-    const text = extractPlainTextFromDelta(content).trim();
-    console.log('🔷 getTrimmedContent: Valid Delta, trimmed text length:', text.length);
-    return text;
+    return true;
   }
   
-  const trimmed = typeof content === 'string' ? content.trim() : '';
-  console.log('🔷 getTrimmedContent: String content, trimmed length:', trimmed.length);
-  return trimmed;
+  if (typeof content === 'string') {
+    return isStringifiedDelta(content);
+  }
+  
+  return false;
+};
+
+/**
+ * Parses stringified Delta if possible, returns as-is otherwise
+ */
+export const parseAnyDelta = (content: any): DeltaContent | any => {
+  if (isDeltaObject(content)) {
+    return content;
+  }
+  
+  if (typeof content === 'string' && isStringifiedDelta(content)) {
+    try {
+      return parseDeltaIfPossible(content);
+    } catch (e) {
+      console.error('Error parsing potential Delta:', e);
+    }
+  }
+  
+  return content;
 };

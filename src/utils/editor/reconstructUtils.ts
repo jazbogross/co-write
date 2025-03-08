@@ -1,70 +1,62 @@
 
 /**
- * Utilities for reconstructing content from various data formats
+ * Utils for reconstructing content from line data
  */
-import { LineData } from '@/types/lineTypes';
-import { DeltaContent } from './types';
-import { 
-  isDeltaObject, 
-  safelyParseDelta,
-  logDeltaStructure,
-  combineDeltaContents 
-} from './deltaUtils';
+import { LineData } from "@/hooks/useLineData";
+import { DeltaContent } from "./types";
+import { combineDeltaContents } from "./operations/deltaCombination";
+import { parseDeltaIfPossible } from "./operations/deltaOperations";
+import { isDeltaObject } from "./validation/deltaValidation";
+import { safelyParseDelta } from "./validation/deltaValidation";
+import { logDelta } from "./debug/deltaDebug";
+import { logDeltaStructure } from "./debug/deltaDebug";
 
 /**
- * Reconstructs full content from an array of line data
- * Can produce either a string or a Delta object depending on the content type
+ * Reconstructs Delta content from lineData
  */
-export const reconstructContent = (lineData: LineData[]): string | DeltaContent => {
-  console.log(`🔄 reconstructContent: Reconstructing content from ${lineData.length} lines`);
+export const reconstructContent = (lineData: any[]): DeltaContent | string => {
+  console.log('🔄 reconstructContent: Processing', lineData.length, 'lines');
   
-  // Check if we have Delta objects in lineData
-  const hasDeltaContent = lineData.some(line => isDeltaObject(line.content));
-  
-  if (hasDeltaContent) {
-    console.log('🔄 reconstructContent: Found Delta content, combining as Delta objects');
-    
-    // Map each line to a Delta object if possible
-    const deltaContents = lineData.map(line => {
-      // If already a Delta object, use it directly
-      if (isDeltaObject(line.content)) {
-        return line.content;
-      }
-      
-      // If it's a string that looks like a Delta, try to parse it
-      if (typeof line.content === 'string' && 
-          line.content.startsWith('{') && 
-          line.content.includes('"ops"')) {
-        try {
-          const parsed = safelyParseDelta(line.content);
-          if (parsed) {
-            return parsed;
-          }
-        } catch (e) {
-          console.error('Error parsing Delta string:', e);
-        }
-      }
-      
-      // If not a Delta, create a simple text Delta
-      return {
-        ops: [
-          { insert: typeof line.content === 'string' ? line.content : String(line.content) }
-        ]
-      };
-    });
-    
-    // Combine all Deltas into one
-    const combinedDelta = combineDeltaContents(deltaContents);
-    if (combinedDelta) {
-      // Log the combined Delta for debugging
-      logDeltaStructure(combinedDelta, '🔄 Combined Delta');
-      return combinedDelta;
-    }
+  if (!lineData || lineData.length === 0) {
+    console.log('🔄 reconstructContent: No line data provided');
+    return '';
   }
   
-  // Fallback to plain text if Delta approach fails
-  console.log('🔄 reconstructContent: Using plain text reconstruction');
-  return lineData
-    .map(line => typeof line.content === 'string' ? line.content : String(line.content))
-    .join('\n');
+  try {
+    // Extract Delta content from each line
+    const deltaContents = lineData.map(line => {
+      if (!line) return null;
+      
+      // Process if content is a string that looks like a Delta
+      if (typeof line.content === 'string' && line.content.includes('"ops"')) {
+        try {
+          return parseDeltaIfPossible(line.content);
+        } catch (e) {
+          console.error('🔄 Error parsing Delta content:', e);
+          return null;
+        }
+      }
+      // Already a Delta object
+      else if (isDeltaObject(line.content)) {
+        return line.content;
+      }
+      // Plain text content
+      else if (typeof line.content === 'string') {
+        return { ops: [{ insert: line.content }] };
+      }
+      
+      return null;
+    }).filter(Boolean);
+    
+    if (deltaContents.length > 0) {
+      console.log('🔄 reconstructContent: Combining', deltaContents.length, 'Deltas');
+      return combineDeltaContents(deltaContents) || '';
+    } else {
+      console.log('🔄 reconstructContent: No valid Delta content found');
+      return '';
+    }
+  } catch (error) {
+    console.error('🔄 Error reconstructing content:', error);
+    return '';
+  }
 };

@@ -39,10 +39,10 @@ export const safelyParseDelta = (content: string): DeltaContent | null => {
 };
 
 /**
- * Validates and potentially parses content as a Delta
- * Returns a detailed validation result
+ * Validates a potential Delta object or string
+ * Returns detailed validation result
  */
-export const validateDeltaContent = (content: any): DeltaValidationResult => {
+export const validateDelta = (content: any): DeltaValidationResult => {
   const result: DeltaValidationResult = {
     valid: false,
     originalType: typeof content
@@ -74,4 +74,12 @@ export const validateDeltaContent = (content: any): DeltaValidationResult => {
   }
   
   return result;
+};
+
+/**
+ * Validates and potentially parses content as a Delta
+ * Returns a detailed validation result
+ */
+export const validateDeltaContent = (content: any): DeltaValidationResult => {
+  return validateDelta(content);
 };
