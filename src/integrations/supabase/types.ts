@@ -129,7 +129,7 @@ export type Database = {
           draft: string | null
           edited_by: Json | null
           id: string
-          line_number: number
+          line_number: number | null
           line_number_draft: number | null
           original_author: string | null
           script_id: string | null
@@ -141,7 +141,7 @@ export type Database = {
           draft?: string | null
           edited_by?: Json | null
           id?: string
-          line_number: number
+          line_number?: number | null
           line_number_draft?: number | null
           original_author?: string | null
           script_id?: string | null
@@ -153,7 +153,7 @@ export type Database = {
           draft?: string | null
           edited_by?: Json | null
           id?: string
-          line_number?: number
+          line_number?: number | null
           line_number_draft?: number | null
           original_author?: string | null
           script_id?: string | null
