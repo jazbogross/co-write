@@ -1,12 +1,22 @@
 
-import { useRef } from 'react';
+import { useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
-import { loadUserDrafts } from '@/utils/suggestions/loadUserDrafts';
+import { useDraftLoadingState } from './useDraftLoadingState';
+import { useAdminDraftLoader } from './useAdminDraftLoader';
+import { useNonAdminDraftLoader } from './useNonAdminDraftLoader';
 
+/**
+ * Main drafts management hook that orchestrates different draft loading strategies
+ */
 export const useDrafts = () => {
-  const isLoadingDrafts = useRef<boolean>(false);
+  const { draftLoadAttempted, isLoadingDrafts, markLoadingStarted, markLoadingComplete } = useDraftLoadingState();
+  const { loadAdminDrafts } = useAdminDraftLoader();
+  const { loadNonAdminDrafts } = useNonAdminDraftLoader();
   
-  const loadDraftsForCurrentUser = async (
+  /**
+   * Loads drafts for the current user based on their role
+   */
+  const loadDraftsForCurrentUser = useCallback(async (
     scriptId: string, 
     userId: string | null, 
     setLineData: React.Dispatch<React.SetStateAction<LineData[]>>,
@@ -14,35 +24,28 @@ export const useDrafts = () => {
     loadDraftsImplementation: (userId: string | null) => Promise<void>,
     isAdmin: boolean = false
   ) => {
-    if (!scriptId || !userId || isLoadingDrafts.current) return;
+    if (!scriptId || !userId || isLoadingDrafts) return;
     
-    isLoadingDrafts.current = true;
+    markLoadingStarted();
     console.log('Loading drafts for user:', userId, 'isAdmin:', isAdmin);
     
     try {
       if (isAdmin) {
         // For admin users, use the implementation from useLineDataInit
-        // that loads drafts from script_content
-        console.log('Using admin draft loading implementation');
-        await loadDraftsImplementation(userId);
+        await loadAdminDrafts(userId, loadDraftsImplementation);
       } else {
         // For non-admin users, load drafts from script_suggestions
-        console.log('Using non-admin draft loading from script_suggestions');
-        const draftLines = await loadUserDrafts(scriptId, userId, contentToUuidMapRef);
-        
-        if (draftLines.length > 0) {
-          console.log(`Loaded ${draftLines.length} draft lines for non-admin user`);
-          setLineData(draftLines);
-        } else {
-          console.log('No draft lines found for non-admin user');
-        }
+        await loadNonAdminDrafts(scriptId, userId, contentToUuidMapRef, setLineData);
       }
     } catch (error) {
       console.error('Error loading drafts:', error);
     } finally {
-      isLoadingDrafts.current = false;
+      markLoadingComplete();
     }
-  };
+  }, [isLoadingDrafts, markLoadingStarted, markLoadingComplete, loadAdminDrafts, loadNonAdminDrafts]);
 
-  return { loadDraftsForCurrentUser };
+  return { 
+    loadDraftsForCurrentUser,
+    draftLoadAttempted
+  };
 };
