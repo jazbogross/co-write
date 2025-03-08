@@ -1,29 +1,29 @@
 
 /**
- * LinePositionTypes.ts - Types for line position tracking
+ * LinePositionTypes.ts - Type definitions for line position tracking
  */
 
-// Basic mapping interfaces
-export interface LineUuidMap {
-  get(index: number): string | undefined;
-  set(index: number, uuid: string): void;
-  has(index: number): boolean;
-  size: number;
+export interface LineContentMapping {
+  getUuidByContent(content: string): string | undefined;
+  mapContentToUuid(content: string, uuid: string): void;
+  trackContentHistory(uuid: string, content: string): void;
+  hasContentChanged(uuid: string, newContent: string): boolean;
+  getContentToUuidMap(): Map<string, string>;
 }
 
-export interface ContentUuidMap {
-  get(content: string): string | undefined;
-  set(content: string, uuid: string): void;
-  has(content: string): boolean;
-  size: number;
+export interface LineCountState {
+  lastKnownLines: number;
+  detectLineCountChanges(quill: any, isProgrammaticUpdate: boolean): void;
+  resetLineCount(count: number): void;
+  getLineCount(): number;
 }
 
-// Line operation types
-export type LineOperationType = 'insert' | 'delete' | 'move' | 'edit';
-
-export interface LineOperation {
-  type: LineOperationType;
-  index: number;
-  content?: string;
-  uuid?: string;
+export interface LinePositionState {
+  quill: any;
+  lineUuidManager: any;
+  contentTracker: any;
+  countTracker: any;
+  uuidRefresher: any;
+  initializer: any;
+  attributeUpdater: any;
 }
