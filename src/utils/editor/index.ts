@@ -8,6 +8,8 @@ export * from './types';
 export * from './validation/deltaValidation';
 export * from './textFormatting/textExtraction';
 export * from './content/insertionUtils';
+export * from './content/textExtraction';
+export * from './reconstructUtils';
 
 // Export individual utility functions
 import { DeltaContent } from './types';
@@ -28,6 +30,9 @@ import {
   extractTextFromDeltaOps
 } from './textFormatting/textExtraction';
 
+// Editor utilities imports
+import { extractLineContents, preserveFormattedContent } from '../editorUtils';
+
 // Re-export functions
 export {
   isDeltaObject,
@@ -37,5 +42,11 @@ export {
   combineDeltaContents,
   createDeltaFromLineData,
   extractPlainTextFromDelta,
-  extractTextFromDeltaOps
+  extractTextFromDeltaOps,
+  // Editor utilities
+  extractLineContents,
+  preserveFormattedContent
 };
+
+// Also export reconstructContent for useContentInitialization.tsx
+export { reconstructContent } from './reconstructUtils';
