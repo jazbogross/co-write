@@ -6,6 +6,7 @@
 export class CursorTracker {
   private lastCursorPosition: { index: number, line: number } | null = null;
   private lastOperation: { type: string, lineIndex: number, movedContent?: string } | null = null;
+  private savedSelectionRange: { index: number, length: number } | null = null;
 
   constructor() {
     this.resetOperation();
@@ -23,6 +24,12 @@ export class CursorTracker {
       this.lastCursorPosition = {
         index: range.index,
         line: lineIndex
+      };
+      
+      // Also save the full selection range for restoration
+      this.savedSelectionRange = {
+        index: range.index,
+        length: range.length || 0
       };
     }
   }
@@ -98,6 +105,46 @@ export class CursorTracker {
   private getLineContent(line: any): string {
     if (!line) return '';
     return line.cache?.delta?.ops?.[0]?.insert || '';
+  }
+
+  // Save current cursor position and selection
+  saveCursorPosition(quill: any): void {
+    if (!quill) return;
+    
+    const selection = quill.getSelection();
+    if (selection) {
+      this.savedSelectionRange = {
+        index: selection.index,
+        length: selection.length
+      };
+      console.log(`**** CursorTracker **** Saved cursor at index ${selection.index}, length ${selection.length}`);
+    }
+  }
+
+  // Restore previously saved cursor position and selection
+  restoreCursorPosition(quill: any): void {
+    if (!quill || !this.savedSelectionRange) return;
+    
+    // Small delay to ensure DOM is ready after content changes
+    setTimeout(() => {
+      try {
+        const index = this.savedSelectionRange.index;
+        const length = this.savedSelectionRange.length;
+        
+        // Check if the position is still valid in the document
+        const docLength = quill.getLength();
+        if (index < docLength) {
+          quill.setSelection(index, length);
+          console.log(`**** CursorTracker **** Restored cursor to index ${index}, length ${length}`);
+        } else {
+          // Fallback to a safe position if original position is now invalid
+          quill.setSelection(Math.min(index, docLength - 1), 0);
+          console.log(`**** CursorTracker **** Restored cursor to adjusted index ${Math.min(index, docLength - 1)}`);
+        }
+      } catch (e) {
+        console.error('**** CursorTracker **** Failed to restore cursor:', e);
+      }
+    }, 10);
   }
 
   // Get last detected operation

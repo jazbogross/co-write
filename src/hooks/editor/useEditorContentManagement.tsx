@@ -12,6 +12,7 @@ export const useEditorContentManagement = (
 ) => {
   // Prevent recursive updates
   const isUpdatingEditorRef = useRef(false);
+  const needsFullUpdateRef = useRef(false);
 
   /**
    * Updates editor content programmatically
@@ -43,8 +44,9 @@ export const useEditorContentManagement = (
     try {
       isUpdatingEditorRef.current = true;
       
-      // Set the line tracker to programmatic update mode
+      // Save cursor position before making changes if we have lineTracking
       if (editor.lineTracking) {
+        // Notify line tracking about programmatic update
         console.log('📝 useEditorContentManagement: Setting programmatic update mode ON');
         editor.lineTracking.setProgrammaticUpdate(true);
       }
@@ -59,7 +61,6 @@ export const useEditorContentManagement = (
           const uuid = line.domNode.getAttribute('data-line-uuid');
           if (uuid) {
             domUuids.set(index, uuid);
-            console.log(`📝 useEditorContentManagement: Preserved UUID ${uuid} from line ${index + 1}`);
           }
         }
       });
@@ -69,91 +70,90 @@ export const useEditorContentManagement = (
       if (editor.lineTracking && typeof editor.lineTracking.getDomUuidMap === 'function') {
         try {
           lineTrackingUuids = editor.lineTracking.getDomUuidMap();
-          console.log(`📝 useEditorContentManagement: Got ${lineTrackingUuids.size} UUIDs from lineTracking`);
         } catch (error) {
           console.error('📝 useEditorContentManagement: Error getting UUIDs from lineTracking:', error);
         }
       }
       
-      // Merge UUIDs from both sources
-      for (const [index, uuid] of lineTrackingUuids.entries()) {
-        if (!domUuids.has(index)) {
-          domUuids.set(index, uuid);
-          console.log(`📝 useEditorContentManagement: Added UUID ${uuid} from lineTracking for line ${index + 1}`);
-        }
-      }
-      
+      // Determine if we need a full update or an incremental update
       const currentLength = editor.getLength();
-      console.log(`📝 useEditorContentManagement: Clearing existing content (length: ${currentLength})`);
-      editor.deleteText(0, currentLength);
+      const shouldDoFullUpdate = forceUpdate || needsFullUpdateRef.current || currentLength <= 1;
       
-      if (isDeltaObject(newContent)) {
-        // If it's a Delta object, use setContents directly
-        const delta = safelyParseDelta(newContent);
-        if (delta) {
-          console.log('📝 useEditorContentManagement: Setting editor contents with delta object, ops:', delta.ops.length);
-          // Cast to any to work around the type issues with Quill's Delta type
-          editor.setContents(delta as any);
-          
-          // Update content state
-          setContent(delta);
-          console.log('📝 useEditorContentManagement: Content state updated with delta');
+      // For draft loading and initial loads, do a full update
+      if (shouldDoFullUpdate) {
+        console.log(`📝 useEditorContentManagement: Performing full content update`);
+        editor.deleteText(0, currentLength);
+        
+        if (isDeltaObject(newContent)) {
+          // If it's a Delta object, use setContents directly
+          const delta = safelyParseDelta(newContent);
+          if (delta) {
+            console.log('📝 useEditorContentManagement: Setting editor contents with delta object');
+            // Cast to any to work around the type issues with Quill's Delta type
+            editor.setContents(delta as any);
+            
+            // Update content state
+            setContent(delta);
+          } else {
+            // Fallback to plain text if Delta parsing fails
+            console.log('📝 useEditorContentManagement: Delta parsing failed, falling back to plain text');
+            const textContent = extractPlainTextFromDelta(newContent);
+            insertContentWithLineBreaks(editor, textContent);
+            
+            // Update content state with text
+            setContent(textContent);
+          }
         } else {
-          // Fallback to plain text if Delta parsing fails
-          console.log('📝 useEditorContentManagement: Delta parsing failed, falling back to plain text');
-          const textContent = extractPlainTextFromDelta(newContent);
-          insertContentWithLineBreaks(editor, textContent);
+          // For string content, split by newlines and insert properly
+          console.log('📝 useEditorContentManagement: Handling string content');
+          const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
+          insertContentWithLineBreaks(editor, contentStr);
           
           // Update content state with text
-          setContent(textContent);
-          console.log('📝 useEditorContentManagement: Content state updated with text');
+          setContent(contentStr);
         }
-      } else {
-        // For string content, split by newlines and insert properly
-        console.log('📝 useEditorContentManagement: Handling string content');
-        const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
-        insertContentWithLineBreaks(editor, contentStr);
         
-        // Update content state with text
-        setContent(contentStr);
-        console.log('📝 useEditorContentManagement: Content state updated with text');
+        // Reset the full update flag after completing a full update
+        needsFullUpdateRef.current = false;
+      } else {
+        // Only update content state for incremental changes
+        console.log('📝 useEditorContentManagement: Updating content state only (no full editor reset)');
+        setContent(newContent);
       }
       
-      // Apply UUIDs to DOM elements
-      const updatedLines = editor.getLines(0);
-      console.log(`📝 useEditorContentManagement: Restoring UUIDs to ${updatedLines.length} updated lines`);
-      
-      // First pass: Apply preserved UUIDs to matching positions
-      let restoredCount = 0;
-      updatedLines.forEach((line: any, index: number) => {
-        if (line.domNode && domUuids.has(index)) {
-          const uuid = domUuids.get(index);
-          line.domNode.setAttribute('data-line-uuid', uuid || '');
-          line.domNode.setAttribute('data-line-index', String(index + 1));
-          restoredCount++;
-        }
-      });
-      
-      console.log(`📝 useEditorContentManagement: Restored ${restoredCount} UUIDs to DOM elements`);
-      
-      // Ensure any lineTracking knows about the applied UUIDs
-      if (editor.lineTracking && typeof editor.lineTracking.initialize === 'function') {
-        console.log('📝 useEditorContentManagement: Re-initializing line tracking after UUID restoration');
-        editor.lineTracking.initialize();
-      }
-      
-      // Log line UUIDs after update
-      if (updatedLines.length > 0) {
-        updatedLines.slice(0, 3).forEach((line: any, i: number) => {
+      // Apply UUIDs to DOM elements if we did a full update
+      if (shouldDoFullUpdate) {
+        const updatedLines = editor.getLines(0);
+        console.log(`📝 useEditorContentManagement: Restoring UUIDs to ${updatedLines.length} updated lines`);
+        
+        // First pass: Apply preserved UUIDs to matching positions
+        let restoredCount = 0;
+        updatedLines.forEach((line: any, index: number) => {
           if (line.domNode) {
-            const uuid = line.domNode.getAttribute('data-line-uuid');
-            console.log(`📝 After update - Line ${i+1} UUID from DOM: ${uuid || 'missing'}`);
+            // Try to get UUID from our maps
+            const uuid = domUuids.get(index) || lineTrackingUuids.get(index);
+            if (uuid) {
+              line.domNode.setAttribute('data-line-uuid', uuid);
+              line.domNode.setAttribute('data-line-index', String(index + 1));
+              restoredCount++;
+            }
           }
         });
+        
+        console.log(`📝 useEditorContentManagement: Restored ${restoredCount} UUIDs to DOM elements`);
+        
+        // Ensure any lineTracking knows about the applied UUIDs
+        if (editor.lineTracking && typeof editor.lineTracking.initialize === 'function') {
+          console.log('📝 useEditorContentManagement: Re-initializing line tracking after UUID restoration');
+          editor.lineTracking.initialize();
+        }
       }
       
     } catch (error) {
       console.error('📝 useEditorContentManagement: Error updating editor content:', error);
+      
+      // On error, force a full update next time
+      needsFullUpdateRef.current = true;
       
       const textContent = typeof newContent === 'string' 
         ? newContent 
@@ -170,8 +170,15 @@ export const useEditorContentManagement = (
     }
   }, [setContent]);
 
+  // Method to mark that the next update should be a full content reset
+  const markForFullContentUpdate = useCallback(() => {
+    needsFullUpdateRef.current = true;
+    console.log('📝 useEditorContentManagement: Marked for full content update on next change');
+  }, []);
+
   return {
     updateEditorContent,
-    isUpdatingEditorRef
+    isUpdatingEditorRef,
+    markForFullContentUpdate
   };
 };

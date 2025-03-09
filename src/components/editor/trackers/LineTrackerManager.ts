@@ -158,4 +158,13 @@ export class LineTrackerManager {
   public forceRefreshUuids(): void {
     this.initializer.forceRefreshUuids((index) => this.getLineUuid(index));
   }
+  
+  // Cursor position handling
+  public saveCursorPosition(): void {
+    this.cursorTracker.saveCursorPosition(this.quill);
+  }
+  
+  public restoreCursorPosition(): void {
+    this.cursorTracker.restoreCursorPosition(this.quill);
+  }
 }

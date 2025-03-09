@@ -10,6 +10,7 @@ export class LineTrackerEventHandler {
   private linePosition: any;
   private cursorTracker: any;
   private uuidPreservation: any;
+  private isTextChange: boolean = false;
   
   constructor(
     quill: any,
@@ -48,26 +49,66 @@ export class LineTrackerEventHandler {
     if (state.isUpdating) {
       return;
     }
+    
+    this.isTextChange = true;
 
     // Skip line tracking operations if it's a programmatic update
     if (!state.isProgrammaticUpdate) {
-      // Preserve UUIDs before changes
-      this.uuidPreservation.preserveLineUuids();
+      // Save cursor position before text changes
+      this.cursorTracker.saveCursorPosition(this.quill);
+      
+      // Check if this is a structural change (like line split or merge)
+      const isStructuralChange = this.detectStructuralChange(delta);
+      
+      if (isStructuralChange) {
+        console.log('**** LineTrackerEventHandler **** Detected structural change, preserving UUIDs');
+        // Only preserve UUIDs for structural changes
+        this.uuidPreservation.preserveLineUuids();
+      }
 
       // Analyze delta to detect line operations, update line positions, etc.
       this.cursorTracker.analyzeTextChange(delta, this.quill);
       this.linePosition.updateLineIndexAttributes(this.quill, false);
       this.linePosition.detectLineCountChanges(this.quill, false);
 
-      // Restore UUIDs after changes
-      this.uuidPreservation.restoreLineUuids();
+      if (isStructuralChange) {
+        // Restore UUIDs after changes
+        this.uuidPreservation.restoreLineUuids();
+      }
       
       // Make sure all lines have UUIDs
       this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
+      
+      // Restore cursor position after changes
+      this.cursorTracker.restoreCursorPosition(this.quill);
     } else {
       // Still update line indices during programmatic changes
       this.linePosition.updateLineIndexAttributes(this.quill, true);
     }
+    
+    this.isTextChange = false;
+  }
+
+  /**
+   * Detect if the delta represents a structural change (line added/removed)
+   */
+  private detectStructuralChange(delta: any): boolean {
+    if (!delta || !delta.ops) return false;
+    
+    // Look for newline insertions or deletions
+    for (const op of delta.ops) {
+      // Check for newline insertion
+      if (op.insert && typeof op.insert === 'string' && op.insert.includes('\n')) {
+        return true;
+      }
+      
+      // Check for deletions that might span a newline
+      if (op.delete && op.delete > 1) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   /**
@@ -78,13 +119,19 @@ export class LineTrackerEventHandler {
     getLineUuid: (index: number) => string | undefined
   ): void {
     if (value) {
-      // If turning on programmatic mode, preserve current UUIDs
+      // If turning on programmatic mode, preserve current UUIDs and cursor
       this.uuidPreservation.preserveLineUuids();
+      this.cursorTracker.saveCursorPosition(this.quill);
     } else if (this.uuidPreservation.hasPreservedUuids()) {
       // When turning off, restore them
       this.uuidPreservation.restoreLineUuids();
       // Ensure all lines have UUIDs after programmatic updates
       this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
+      
+      // Restore cursor unless we're in a text change operation
+      if (!this.isTextChange) {
+        this.cursorTracker.restoreCursorPosition(this.quill);
+      }
     }
   }
 
