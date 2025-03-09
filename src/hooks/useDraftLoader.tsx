@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/hooks/useLineData';
 import { isDeltaObject, combineDeltaContents, extractPlainTextFromDelta } from '@/utils/editor';
 import ReactQuill from 'react-quill';
@@ -23,95 +22,117 @@ export const useDraftLoader = ({
   updateEditorContent
 }: DraftLoaderProps) => {
   const [draftApplied, setDraftApplied] = useState(false);
+  const updateInProgressRef = useRef(false);
+  const lastLineDataRef = useRef<LineData[]>([]);
 
   useEffect(() => {
-    if (editorInitialized && draftLoadAttempted && lineData.length > 0 && !draftApplied) {
+    // Reset draft applied state when lineData changes
+    if (lineData !== lastLineDataRef.current) {
+      setDraftApplied(false);
+      lastLineDataRef.current = lineData;
+    }
+  }, [lineData]);
+
+  useEffect(() => {
+    if (!editorInitialized || !draftLoadAttempted || lineData.length === 0 || draftApplied || updateInProgressRef.current) {
+      return;
+    }
+
+    const editor = quillRef.current?.getEditor();
+    if (!editor) {
+      return;
+    }
+
+    const applyDrafts = async () => {
+      updateInProgressRef.current = true;
       console.log('📙 useDraftLoader: Applying drafts to editor. LineData length:', lineData.length);
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        try {
-          if (editor.lineTracking) {
-            console.log('📙 useDraftLoader: Setting programmatic update mode ON');
-            editor.lineTracking.setProgrammaticUpdate(true);
-          }
+
+      try {
+        if (editor.lineTracking) {
+          console.log('📙 useDraftLoader: Setting programmatic update mode ON');
+          editor.lineTracking.setProgrammaticUpdate(true);
+        }
+        
+        // Log the UUIDs present in lineData
+        console.log('📙 useDraftLoader: LineData UUIDs:', lineData.map(line => line.uuid));
+        
+        const hasDeltaContent = lineData.some(line => isDeltaObject(line.content));
+        console.log('📙 useDraftLoader: Has Delta content:', hasDeltaContent);
+        
+        if (hasDeltaContent) {
+          console.log('📙 useDraftLoader: Creating combined Delta from line data');
           
-          // Log the UUIDs present in lineData
-          console.log('📙 useDraftLoader: LineData UUIDs:', lineData.map(line => line.uuid));
+          // Filter out only active lines that have content
+          const deltaContents = lineData
+            .filter(line => line.content !== null && line.content !== undefined)
+            .map(line => line.content);
+            
+          console.log('📙 useDraftLoader: Processing', deltaContents.length, 'content items');
           
-          const hasDeltaContent = lineData.some(line => isDeltaObject(line.content));
-          console.log('📙 useDraftLoader: Has Delta content:', hasDeltaContent);
+          const combinedDelta = combineDeltaContents(deltaContents);
           
-          if (hasDeltaContent) {
-            console.log('📙 useDraftLoader: Creating combined Delta from line data');
+          if (combinedDelta) {
+            console.log('📙 useDraftLoader: Final Delta ops count:', combinedDelta.ops.length);
+            updateEditorContent(combinedDelta);
             
-            // Filter out only active lines that have content
-            const deltaContents = lineData
-              .filter(line => line.content !== null && line.content !== undefined)
-              .map(line => line.content);
-              
-            console.log('📙 useDraftLoader: Processing', deltaContents.length, 'content items');
+            // Wait for content update to complete before refreshing UUIDs
+            await new Promise(resolve => setTimeout(resolve, 0));
             
-            // Log content for debugging
-            deltaContents.forEach((content, i) => {
-              console.log(`📙 useDraftLoader: Content ${i+1} type:`, 
-                typeof content, 
-                isDeltaObject(content) ? 'isDelta' : 'notDelta'
-              );
-            });
-            
-            const combinedDelta = combineDeltaContents(deltaContents);
-            
-            if (combinedDelta) {
-              console.log('📙 useDraftLoader: Final Delta ops count:', combinedDelta.ops.length);
-              console.log('📙 useDraftLoader: First few ops:', JSON.stringify(combinedDelta.ops.slice(0, 3)));
-              updateEditorContent(combinedDelta);
-              
-              // After updating content, ensure UUIDs are refreshed in the DOM
-              setTimeout(() => {
-                if (editor.lineTracking && typeof editor.lineTracking.refreshLineUuids === 'function') {
-                  console.log('📙 useDraftLoader: Refreshing line UUIDs from lineData');
-                  editor.lineTracking.refreshLineUuids(lineData);
-                }
-              }, 50);
-            } else {
-              console.log('📙 useDraftLoader: Failed to create combined Delta, using plain text fallback');
-              const combinedContent = lineData.map(line => 
-                typeof line.content === 'string' ? line.content : 
-                extractPlainTextFromDelta(line.content)
-              ).join('\n');
-              
-              if (typeof content === 'string' && combinedContent !== content) {
-                console.log('📙 useDraftLoader: Updating editor with plain text fallback');
-                updateEditorContent(combinedContent);
-              }
+            if (editor.lineTracking?.refreshLineUuids) {
+              console.log('📙 useDraftLoader: Refreshing line UUIDs from lineData');
+              editor.lineTracking.refreshLineUuids(lineData);
             }
           } else {
-            console.log('📙 useDraftLoader: Creating combined content from strings');
-            const combinedContent = lineData.map(line => {
-              return typeof line.content === 'string' ? 
+            console.log('📙 useDraftLoader: Failed to create combined Delta, using plain text fallback');
+            const combinedContent = lineData
+              .map(line => typeof line.content === 'string' ? 
                 line.content : 
-                extractPlainTextFromDelta(line.content);
-            }).join('\n');
+                extractPlainTextFromDelta(line.content)
+              )
+              .join('\n');
             
-            if (typeof content === 'string' && combinedContent !== content) {
-              console.log('📙 useDraftLoader: Updating editor content from loaded drafts');
+            if (combinedContent !== content) {
               updateEditorContent(combinedContent);
-            } else {
-              console.log('📙 useDraftLoader: Content unchanged, skipping update');
             }
           }
+        } else {
+          console.log('📙 useDraftLoader: Creating combined content from strings');
+          const combinedContent = lineData
+            .map(line => typeof line.content === 'string' ? 
+              line.content : 
+              extractPlainTextFromDelta(line.content)
+            )
+            .join('\n');
           
-          setDraftApplied(true);
-          console.log('📙 useDraftLoader: Draft application complete');
-        } finally {
-          if (editor.lineTracking) {
-            console.log('📙 useDraftLoader: Setting programmatic update mode OFF');
-            editor.lineTracking.setProgrammaticUpdate(false);
+          if (combinedContent !== content) {
+            updateEditorContent(combinedContent);
           }
         }
+        
+        setDraftApplied(true);
+        console.log('📙 useDraftLoader: Draft application complete');
+      } catch (error) {
+        console.error('📙 useDraftLoader: Error applying drafts:', error);
+        setDraftApplied(false);
+      } finally {
+        if (editor.lineTracking) {
+          console.log('📙 useDraftLoader: Setting programmatic update mode OFF');
+          editor.lineTracking.setProgrammaticUpdate(false);
+        }
+        updateInProgressRef.current = false;
       }
-    }
-  }, [lineData, editorInitialized, draftLoadAttempted, quillRef, content, updateEditorContent]);
+    };
+
+    applyDrafts();
+  }, [
+    lineData,
+    editorInitialized,
+    draftLoadAttempted,
+    draftApplied,
+    quillRef,
+    content,
+    updateEditorContent
+  ]);
 
   return { draftApplied };
 };

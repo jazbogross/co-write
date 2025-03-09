@@ -5,16 +5,23 @@ import { logDraftLoading } from './draftLoggingUtils';
 /**
  * Fetches user's draft suggestions from script_suggestions for a given script
  */
-export const fetchUserSuggestions = async (scriptId: string, userId: string) => {
+export const fetchUserSuggestions = async (scriptId: string, userId: string, signal?: AbortSignal) => {
   try {
     logDraftLoading(`🔍 DEBUG: Fetching suggestions from script_suggestions table for script ${scriptId} and user ${userId}`);
     
-    const { data: suggestions, error: suggestionsError } = await supabase
+    const query = supabase
       .from('script_suggestions')
       .select('id, line_uuid, line_number, line_number_draft, content, draft')
       .eq('script_id', scriptId)
       .eq('user_id', userId)
       .eq('status', 'pending');
+
+    // Add abort signal to the request if provided
+    if (signal) {
+      query.abortSignal(signal);
+    }
+
+    const { data: suggestions, error: suggestionsError } = await query;
       
     if (suggestionsError) {
       logDraftLoading('🔍 DEBUG: Error fetching suggestions from script_suggestions:', suggestionsError);

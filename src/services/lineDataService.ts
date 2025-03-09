@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
 import { processLinesData, processDraftLines } from '@/utils/lineDataProcessing';
@@ -13,11 +12,13 @@ export const fetchAllLines = async (scriptId: string, isAdmin: boolean = false) 
       ? 'id, line_number, line_number_draft, content, draft'
       : 'id, line_number, content';
 
-    const { data, error } = await supabase
+    const query = supabase
       .from('script_content')
       .select(columnSelection)
       .eq('script_id', scriptId)
       .order('line_number', { ascending: true });
+
+    const { data, error } = await query;
       
     if (error) throw error;
     return data || [];

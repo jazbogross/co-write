@@ -5,13 +5,20 @@ import { logDraftLoading } from './draftLoggingUtils';
 /**
  * Fetches original lines from script_content for a given script
  */
-export const fetchScriptContent = async (scriptId: string) => {
+export const fetchScriptContent = async (scriptId: string, signal?: AbortSignal) => {
   try {
-    const { data: originalLines, error: originalLinesError } = await supabase
+    const query = supabase
       .from('script_content')
       .select('id, line_number, content')
       .eq('script_id', scriptId)
       .order('line_number', { ascending: true });
+
+    // Add abort signal to the request if provided
+    if (signal) {
+      query.abortSignal(signal);
+    }
+
+    const { data: originalLines, error: originalLinesError } = await query;
       
     if (originalLinesError) {
       logDraftLoading('Error fetching original lines:', originalLinesError);

@@ -1,4 +1,3 @@
-
 import { LineData } from '@/types/lineTypes';
 import { parseDraftContent } from './draftContentParser';
 import { logDraftLoading } from './draftLoggingUtils';
@@ -21,6 +20,13 @@ export const applyDraftSuggestions = (
   const processedDraftLines: LineData[] = [...initialLineData];
   
   logDraftLoading(`🔍 DEBUG: Processing ${suggestions.length} suggestions`);
+
+  const getPlainTextFromDelta = (delta: any): string => {
+    if (delta && Array.isArray(delta.ops)) {
+      return delta.ops.map(op => typeof op.insert === 'string' ? op.insert : '').join('');
+    }
+    return '';
+  };
   
   // Create a map for quick lookup of existing lines by number
   const lineNumberMap = new Map<number, LineData>();
@@ -66,23 +72,19 @@ export const applyDraftSuggestions = (
     const draftContent = parseDraftContent(suggestion.draft);
     logDraftLoading(`🔍 DEBUG: Parsed draft content type: ${typeof draftContent}`);
     logDraftLoading(`🔍 DEBUG: Is parsed content a Delta: ${isDeltaObject(draftContent)}`);
-    
-    // Preview the content after parsing
-    if (typeof draftContent === 'string') {
-      logDraftLoading(`🔍 DEBUG: Parsed content (string): ${draftContent.substring(0, 50)}...`);
-    } else {
-      logDraftLoading(`🔍 DEBUG: Parsed content (object): ${JSON.stringify(draftContent).substring(0, 50)}...`);
-    }
+
+    // Log plain text conversion of the parsed content
+    const parsedDraftPlainText = getPlainTextFromDelta(draftContent);
+    logDraftLoading(`🔍 DEBUG: Parsed draft content plaintext: ${parsedDraftPlainText}`);
     
     // Try to find the line by UUID first (most accurate)
     if (suggestion.line_uuid && lineDataMap.has(suggestion.line_uuid)) {
       const lineData = lineDataMap.get(suggestion.line_uuid)!;
       
-      // Log the original line content before updating
+      // Log the original line content (converted to plain text)
+      const originalPlainText = getPlainTextFromDelta(lineData.content);
       logDraftLoading(`🔍 DEBUG: Found line by UUID ${suggestion.line_uuid}:`, {
-        originalContent: typeof lineData.content === 'string' ? 
-          lineData.content.substring(0, 30) : 
-          JSON.stringify(lineData.content).substring(0, 30) + '...',
+        originalContent: originalPlainText,
         lineNumber: lineData.lineNumber,
         hasDraft: lineData.hasDraft
       });
@@ -98,7 +100,10 @@ export const applyDraftSuggestions = (
       }
       
       appliedSuggestionCount++;
-      logDraftLoading(`🔍 DEBUG: Applied draft to line UUID ${suggestion.line_uuid}, new line number: ${lineData.lineNumber}`);
+      
+      // Log the updated content in plain text
+      const updatedPlainText = getPlainTextFromDelta(lineData.content);
+      logDraftLoading(`🔍 DEBUG: Applied draft to line UUID ${suggestion.line_uuid}, new line number: ${lineData.lineNumber}, content: ${updatedPlainText}`);
     } 
     // If line_uuid lookup fails, try line_number
     else if (suggestion.line_number) {
@@ -108,11 +113,10 @@ export const applyDraftSuggestions = (
       const lineData = lineNumberMap.get(suggestion.line_number);
       
       if (lineData) {
+        const originalPlainText = getPlainTextFromDelta(lineData.content);
         logDraftLoading(`🔍 DEBUG: Found line by number ${suggestion.line_number}:`, {
           uuid: lineData.uuid,
-          originalContent: typeof lineData.content === 'string' ? 
-            lineData.content.substring(0, 30) : 
-            JSON.stringify(lineData.content).substring(0, 30) + '...',
+          originalContent: originalPlainText,
           hasDraft: lineData.hasDraft
         });
         
@@ -127,7 +131,8 @@ export const applyDraftSuggestions = (
         }
         
         appliedSuggestionCount++;
-        logDraftLoading(`🔍 DEBUG: Applied draft to line number ${suggestion.line_number}, new line number: ${lineData.lineNumber}`);
+        const updatedPlainText = getPlainTextFromDelta(lineData.content);
+        logDraftLoading(`🔍 DEBUG: Applied draft to line number ${suggestion.line_number}, new line number: ${lineData.lineNumber}, content: ${updatedPlainText}`);
       } else {
         logDraftLoading(`🔍 DEBUG: Could not find line with number ${suggestion.line_number}`);
       }
@@ -157,6 +162,10 @@ export const applyDraftSuggestions = (
         editedBy: [],
         hasDraft: true
       };
+      
+      // Log the new line content in plain text before adding
+      const newLinePlainText = getPlainTextFromDelta(newLine.content);
+      logDraftLoading(`🔍 DEBUG: New line content plaintext: ${newLinePlainText}`);
       
       processedDraftLines.push(newLine);
       appliedSuggestionCount++;

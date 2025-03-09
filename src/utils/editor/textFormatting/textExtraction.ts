@@ -76,6 +76,7 @@ export const extractTextFromDeltaOps = (ops: DeltaOp[]): string => {
     }
   }
   
-  console.log('🔷 extractTextFromDeltaOps: Extracted', text.length, 'characters');
+  console.log('🔷 extractTextFromDeltaOps: Extracted:', text.length, 'characters');
+  console.log('🔷 extractTextFromDeltaOps: Extracted: "',text,'"');
   return text;
 };
