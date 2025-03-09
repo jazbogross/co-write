@@ -132,9 +132,4 @@ export class CursorTracker {
   getLastOperation(): { type: string, lineIndex: number, movedContent?: string } | null {
     return this.lastOperation;
   }
-
-  // Get the current cursor position
-  getCursorPosition(): { index: number, line: number } | null {
-    return this.lastCursorPosition;
-  }
 }
