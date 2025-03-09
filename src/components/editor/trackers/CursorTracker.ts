@@ -4,7 +4,7 @@
  */
 
 export class CursorTracker {
-  private lastCursorPosition: { index: number, line: number } | null = null;
+  private lastCursorPosition: { index: number, line: number, length?: number } | null = null;
   private lastOperation: { type: string, lineIndex: number, movedContent?: string } | null = null;
 
   constructor() {
@@ -22,9 +22,20 @@ export class CursorTracker {
       const lineIndex = this.getLineIndexFromPosition(range.index, quill);
       this.lastCursorPosition = {
         index: range.index,
-        line: lineIndex
+        line: lineIndex,
+        length: range.length || 0
       };
     }
+  }
+
+  // Get the last cursor position
+  getCursorPosition(): { index: number, line: number, length?: number } | null {
+    return this.lastCursorPosition;
+  }
+
+  // Set cursor position explicitly
+  setCursorPosition(index: number, line: number, length: number = 0): void {
+    this.lastCursorPosition = { index, line, length };
   }
 
   // Get line index from cursor position
@@ -34,6 +45,23 @@ export class CursorTracker {
     
     const lines = quill.getLines(0);
     return lines.findIndex((l: any) => l === line.parent);
+  }
+
+  // Restore last known cursor position
+  restoreCursorPosition(quill: any, silent: boolean = false): boolean {
+    if (!this.lastCursorPosition || !quill) return false;
+    
+    try {
+      quill.setSelection(
+        this.lastCursorPosition.index, 
+        this.lastCursorPosition.length || 0, 
+        silent ? 'silent' : 'api'
+      );
+      return true;
+    } catch (error) {
+      console.error("Error restoring cursor position:", error);
+      return false;
+    }
   }
 
   // Analyze text changes to detect operations like Enter key presses

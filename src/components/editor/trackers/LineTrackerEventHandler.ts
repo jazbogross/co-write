@@ -10,6 +10,10 @@ export class LineTrackerEventHandler {
   private linePosition: any;
   private cursorTracker: any;
   private uuidPreservation: any;
+  private lastCursorPosition: any = null;
+  private lastTextChangeTimestamp: number = 0;
+  // Track if we're currently in a UUID operation to avoid recursive operations
+  private isHandlingUuidOperation: boolean = false;
   
   constructor(
     quill: any,
@@ -31,6 +35,15 @@ export class LineTrackerEventHandler {
     state: LineTrackerState
   ): void {
     if (state.isProgrammaticUpdate) return; // Skip tracking during programmatic updates
+    
+    // Store the cursor position for later restoration
+    if (range) {
+      this.lastCursorPosition = { 
+        index: range.index, 
+        length: range.length 
+      };
+    }
+    
     this.cursorTracker.trackCursorChange(range, this.quill);
   }
 
@@ -45,29 +58,96 @@ export class LineTrackerEventHandler {
     getLineUuid: (index: number) => string | undefined
   ): void {
     // Skip if already updating
-    if (state.isUpdating) {
+    if (state.isUpdating || this.isHandlingUuidOperation) {
       return;
     }
 
     // Skip line tracking operations if it's a programmatic update
     if (!state.isProgrammaticUpdate) {
-      // Preserve UUIDs before changes
-      this.uuidPreservation.preserveLineUuids();
-
-      // Analyze delta to detect line operations, update line positions, etc.
-      this.cursorTracker.analyzeTextChange(delta, this.quill);
-      this.linePosition.updateLineIndexAttributes(this.quill, false);
-      this.linePosition.detectLineCountChanges(this.quill, false);
-
-      // Restore UUIDs after changes
-      this.uuidPreservation.restoreLineUuids();
+      // Check if this delta contains line operations that would change line count
+      const containsLineOperations = this.containsLineOperations(delta);
+      const currentTime = Date.now();
       
-      // Make sure all lines have UUIDs
-      this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
+      try {
+        // Only preserve UUIDs if this change affects line structure
+        if (containsLineOperations) {
+          this.isHandlingUuidOperation = true;
+          
+          // Save current cursor position
+          const currentSelection = this.quill.getSelection();
+          if (currentSelection) {
+            this.lastCursorPosition = { ...currentSelection };
+          }
+          
+          // Preserve UUIDs before changes
+          this.uuidPreservation.preserveLineUuids();
+
+          // Analyze delta to detect line operations, update line positions, etc.
+          this.cursorTracker.analyzeTextChange(delta, this.quill);
+          this.linePosition.updateLineIndexAttributes(this.quill, false);
+          this.linePosition.detectLineCountChanges(this.quill, false);
+
+          // Restore UUIDs after changes
+          this.uuidPreservation.restoreLineUuids();
+          
+          // Make sure all lines have UUIDs
+          this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
+          
+          // Restore cursor position after UUID operations
+          if (this.lastCursorPosition) {
+            setTimeout(() => {
+              this.quill.setSelection(
+                this.lastCursorPosition.index, 
+                this.lastCursorPosition.length,
+                'silent'
+              );
+            }, 0);
+          }
+        } else {
+          // For simple text changes (no line operations), just track the cursor
+          this.cursorTracker.analyzeTextChange(delta, this.quill);
+          
+          // Update line attributes without UUID preservation for regular edits
+          if (currentTime - this.lastTextChangeTimestamp > 500) {
+            this.linePosition.updateLineIndexAttributes(this.quill, true);
+          }
+        }
+        
+        this.lastTextChangeTimestamp = currentTime;
+      } finally {
+        this.isHandlingUuidOperation = false;
+      }
     } else {
       // Still update line indices during programmatic changes
       this.linePosition.updateLineIndexAttributes(this.quill, true);
     }
+  }
+
+  /**
+   * Determine if a delta contains operations that would change line count
+   */
+  private containsLineOperations(delta: any): boolean {
+    if (!delta || !delta.ops) return false;
+    
+    // Check for line-changing operations
+    return delta.ops.some((op: any) => {
+      // New line insertions
+      if (op.insert && typeof op.insert === 'string' && op.insert.includes('\n')) {
+        return true;
+      }
+      
+      // Line deletions
+      if (op.delete && op.delete > 10) { // Potentially deleting across lines
+        return true;
+      }
+      
+      // Check for paste operations that might include multiple lines
+      if (op.insert && typeof op.insert === 'string' && op.insert.length > 30) {
+        return true;
+      }
+      
+      return false;
+    });
   }
 
   /**
