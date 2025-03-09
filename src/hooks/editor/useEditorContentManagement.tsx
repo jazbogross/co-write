@@ -13,6 +13,7 @@ export const useEditorContentManagement = (
   // Prevent recursive updates
   const isUpdatingEditorRef = useRef(false);
   const needsFullUpdateRef = useRef(false);
+  const updateAttemptCountRef = useRef(0);
 
   /**
    * Updates editor content programmatically
@@ -28,11 +29,26 @@ export const useEditorContentManagement = (
     }
     
     if (!editor) {
+      console.error('📝 useEditorContentManagement: Editor not available');
       return;
     }
     
+    // Skip empty content updates unless forced
+    if (!forceUpdate && 
+        ((typeof newContent === 'string' && newContent === '') ||
+         (isDeltaObject(newContent) && (!newContent.ops || newContent.ops.length === 0)))) {
+      console.log('📝 useEditorContentManagement: Skipping empty content update');
+      return;
+    }
+    
+    // Track update attempts for validation
+    updateAttemptCountRef.current++;
+    const currentAttempt = updateAttemptCountRef.current;
+    
     try {
       isUpdatingEditorRef.current = true;
+      
+      console.log(`📝 useEditorContentManagement: Updating content (attempt ${currentAttempt}), force=${forceUpdate}, type=${typeof newContent}`);
       
       // Save cursor position before making changes if we have lineTracking
       if (editor.lineTracking) {
@@ -69,21 +85,27 @@ export const useEditorContentManagement = (
       
       // For draft loading and initial loads, do a full update
       if (shouldDoFullUpdate) {
+        console.log(`📝 useEditorContentManagement: Performing full content update, length=${currentLength}`);
+        
+        // Delete all content before setting new content
         editor.deleteText(0, currentLength);
         
         if (isDeltaObject(newContent)) {
           // If it's a Delta object, use setContents directly
           const delta = safelyParseDelta(newContent);
           if (delta) {
+            console.log(`📝 useEditorContentManagement: Setting content using Delta with ${delta.ops.length} ops`);
             // Cast to any to work around the type issues with Quill's Delta type
             editor.setContents(delta as any);
           } else {
             // Fallback to plain text if Delta parsing fails
+            console.log(`📝 useEditorContentManagement: Delta parsing failed, using plain text fallback`);
             const textContent = extractPlainTextFromDelta(newContent);
             insertContentWithLineBreaks(editor, textContent);
           }
         } else {
           // For string content, split by newlines and insert properly
+          console.log(`📝 useEditorContentManagement: Setting content using string`);
           const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
           insertContentWithLineBreaks(editor, contentStr);
         }
@@ -95,6 +117,7 @@ export const useEditorContentManagement = (
       // Apply UUIDs to DOM elements if we did a full update
       if (shouldDoFullUpdate) {
         const updatedLines = editor.getLines(0);
+        console.log(`📝 useEditorContentManagement: Content updated, found ${updatedLines.length} lines`);
         
         // First pass: Apply preserved UUIDs to matching positions
         updatedLines.forEach((line: any, index: number) => {
@@ -104,6 +127,7 @@ export const useEditorContentManagement = (
             if (uuid) {
               line.domNode.setAttribute('data-line-uuid', uuid);
               line.domNode.setAttribute('data-line-index', String(index + 1));
+              console.log(`📝 useEditorContentManagement: Applied UUID ${uuid} to line ${index + 1}`);
             }
           }
         });
@@ -112,7 +136,29 @@ export const useEditorContentManagement = (
         if (editor.lineTracking && typeof editor.lineTracking.initialize === 'function') {
           editor.lineTracking.initialize();
         }
+        
+        // Set the React state to match the editor content
+        if (isDeltaObject(newContent)) {
+          setContent(newContent);
+        } else {
+          // Make sure we update React state with the content we just set
+          setContent(newContent);
+        }
       }
+      
+      // Verify the update was successful
+      setTimeout(() => {
+        if (editor) {
+          const verifyLines = editor.getLines(0);
+          console.log(`📝 useEditorContentManagement: Verification after update (attempt ${currentAttempt}): found ${verifyLines.length} lines`);
+          
+          // If Delta content should have multiple lines but we only have one, something went wrong
+          if (isDeltaObject(newContent) && newContent.ops && newContent.ops.length > 1 && verifyLines.length <= 1) {
+            console.log(`📝 useEditorContentManagement: Content update verification failed, will retry on next update`);
+            needsFullUpdateRef.current = true;
+          }
+        }
+      }, 50);
       
     } catch (error) {
       console.error('📝 useEditorContentManagement: Error updating editor content:', error);
@@ -120,10 +166,15 @@ export const useEditorContentManagement = (
       // On error, force a full update next time
       needsFullUpdateRef.current = true;
       
-      const textContent = typeof newContent === 'string' 
-        ? newContent 
-        : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
-      insertContentWithLineBreaks(editor, textContent);
+      try {
+        // Try plain text fallback on error
+        const textContent = typeof newContent === 'string' 
+          ? newContent 
+          : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
+        insertContentWithLineBreaks(editor, textContent);
+      } catch (fallbackError) {
+        console.error('📝 useEditorContentManagement: Fallback insert failed:', fallbackError);
+      }
     } finally {
       // Turn off programmatic update mode
       if (editor.lineTracking) {

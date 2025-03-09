@@ -48,6 +48,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 }) => {
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
+  const [isContentLoaded, setIsContentLoaded] = useState(false);
   const initializedRef = useRef(false);
 
   // Get user data
@@ -61,7 +62,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     loadDraftsForCurrentUser,
     isDataReady,
     initializeEditor,
-  } = useLineData(scriptId, '', userId, isAdmin);
+  } = useLineData(scriptId, originalContent, userId, isAdmin);
 
   // Initialize text editor
   const {
@@ -77,7 +78,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     formats,
     modules,
   } = useTextEditor(
-    '',
+    originalContent,  // Pass originalContent correctly here
     scriptId,
     lineData,
     setLineData,
@@ -98,8 +99,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     captureCurrentContent
   });
 
-  // Draft loader
-  const { draftApplied } = useDraftLoader({
+  // Draft loader - enhanced with ability to force updates
+  const { draftApplied, applyDrafts } = useDraftLoader({
     editorInitialized,
     draftLoadAttempted,
     lineData,
@@ -108,18 +109,40 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateEditorContent,
   });
 
-  // Attempt draft load
+  // Load drafts once data and editor are ready
   const attemptDraftLoad = useCallback(() => {
     if (userId && isDataReady && !draftLoadAttempted && !initializedRef.current) {
+      console.log('📝 TextEditor: Loading drafts for user:', userId);
       initializedRef.current = true;
       loadDraftsForCurrentUser();
       setDraftLoadAttempted(true);
     }
   }, [userId, isDataReady, draftLoadAttempted, loadDraftsForCurrentUser]);
 
+  // Effect to attempt draft loading
   useEffect(() => {
     attemptDraftLoad();
   }, [userId, isDataReady, attemptDraftLoad]);
+
+  // Effect to check content after editor is ready
+  useEffect(() => {
+    if (editorInitialized && draftApplied && !isContentLoaded) {
+      const editor = quillRef.current?.getEditor();
+      if (editor) {
+        const lines = editor.getLines(0);
+        
+        // If we have lineData but editor is empty, force reapply drafts
+        if (lines.length <= 1 && lineData.length > 1) {
+          console.log('📝 TextEditor: Content missing after draft application, forcing update');
+          setTimeout(() => {
+            applyDrafts(true); // Force update
+          }, 100);
+        } else if (lines.length > 0) {
+          setIsContentLoaded(true);
+        }
+      }
+    }
+  }, [editorInitialized, draftApplied, lineData, quillRef, applyDrafts, isContentLoaded]);
 
   // Explicitly capture content before submission
   const captureAndSubmit = useCallback(() => {

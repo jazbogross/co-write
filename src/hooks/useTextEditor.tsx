@@ -23,7 +23,7 @@ export const useTextEditor = (
   // Track if editor has been fully initialized to prevent re-initialization
   const fullyInitializedRef = useRef(false);
   
-  // Initialize editor state - use memo to prevent recreation
+  // Initialize editor state with original content to guarantee it's not empty
   const editorState = useEditorState(originalContent);
   const {
     content,
@@ -33,7 +33,8 @@ export const useTextEditor = (
     editorInitialized,
     setEditorInitialized,
     isProcessingLinesRef,
-    hasInitializedRef
+    hasInitializedRef,
+    contentResetRef
   } = editorState;
   
   // Set up content flushing - memoize to prevent recreation
