@@ -1,8 +1,9 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/hooks/useLineData';
-import { createContentMap } from './contentUtils';
+import { createContentMap, normalizeContentForStorage } from './contentUtils';
 import { trackChanges, trackDeletedLines, ChangeRecord } from './changeTracker';
+import { isDeltaObject } from '@/utils/editor';
 
 /**
  * Save suggestions to the database
@@ -15,6 +16,10 @@ export const saveSuggestions = async (
 ) => {
   console.log('********Line Data********', lineData);
   try {
+    if (!userId) {
+      throw new Error('User ID is required to save suggestions');
+    }
+    
     // First, get the existing script content to track UUIDs and line numbers
     const { data: existingContent, error: contentError } = await supabase
       .from('script_content')
@@ -39,7 +44,8 @@ export const saveSuggestions = async (
     }
 
     if (changes.length === 0) {
-      throw new Error('No changes detected');
+      console.log('No changes detected to save as suggestions');
+      return;
     }
 
     console.log('Detected changes with preserved UUIDs:', changes);
@@ -83,4 +89,3 @@ const saveChangesToDatabase = async (
     if (error) throw error;
   }
 };
-

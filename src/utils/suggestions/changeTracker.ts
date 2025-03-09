@@ -29,7 +29,7 @@ export const trackChanges = (
     // Get plain text content for comparison if needed
     const currentContent = isDeltaObject(currentLine.content) 
       ? extractPlainTextFromDelta(currentLine.content)
-      : currentLine.content as string;
+      : typeof currentLine.content === 'string' ? currentLine.content : '';
     
     if (i < originalLines.length) {
       if (currentContent.trim() !== originalLines[i].trim()) {

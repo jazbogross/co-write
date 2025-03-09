@@ -5,7 +5,7 @@ import { saveDraft } from '@/utils/saveDraftUtils';
 import { saveLinesToDatabase } from '@/utils/saveLineUtils';
 import { saveSuggestions, saveLineDrafts } from '@/utils/suggestions';
 import { toast } from 'sonner';
-import { DeltaContent } from '@/utils/editor/types';
+import { DeltaContent, isDeltaObject } from '@/utils/editor';
 
 export const useSubmitEdits = (
   isAdmin: boolean,
@@ -14,7 +14,7 @@ export const useSubmitEdits = (
   content: string | DeltaContent,
   lineData: LineData[],
   userId: string | null,
-  onSuggestChange: (suggestion: string | DeltaContent) => void, // Updated to accept DeltaContent
+  onSuggestChange: (suggestion: string | DeltaContent) => void, 
   loadDrafts: () => Promise<void>,
   quill: any = null
 ) => {
@@ -22,18 +22,27 @@ export const useSubmitEdits = (
 
   // Function to save line data (draft)
   const saveToSupabase = useCallback(async (currentContent?: string | DeltaContent) => {
-    if (!scriptId) return;
+    if (!scriptId) {
+      toast.error('No script ID provided');
+      return;
+    }
+
+    if (!userId) {
+      toast.error('You must be logged in to save drafts');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
+      console.log(`Saving drafts for ${isAdmin ? 'admin' : 'non-admin'} user`, userId);
+      
       if (isAdmin) {
-        // Use provided content if available, otherwise fall back to state content
-        const contentToSave = currentContent || content;
-        await saveDraft(scriptId, lineData, contentToSave, userId, quill);
+        // For admins: Use saveDraft to save to script_content table
+        await saveDraft(scriptId, lineData, currentContent || content, userId, quill);
         toast.success('Draft saved successfully!');
       } else {
-        // For contributors we save suggestions as drafts
-        await saveLineDrafts(scriptId, lineData, "", userId); // Empty originalContent
+        // For non-admins: Use saveLineDrafts to save to script_suggestions table
+        await saveLineDrafts(scriptId, lineData, "", userId);
         toast.success('Suggestion saved as draft!');
       }
 
@@ -49,21 +58,29 @@ export const useSubmitEdits = (
 
   // Function to submit changes (for approval)
   const handleSubmit = useCallback(async (currentContent?: string | DeltaContent) => {
-    if (!scriptId) return;
+    if (!scriptId) {
+      toast.error('No script ID provided');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
+      console.log(`Submitting changes for ${isAdmin ? 'admin' : 'non-admin'} user`);
+      
+      // Use provided content if available, otherwise fall back to state content
+      const contentToSave = currentContent || content;
+      
       if (isAdmin) {
-        // Use provided content if available, otherwise fall back to state content
-        const contentToSave = currentContent || content;
-        
         // Admin can directly save changes to the script_content table
         await saveLinesToDatabase(scriptId, lineData, contentToSave);
         onSuggestChange(contentToSave); // Pass the content directly
         toast.success('Changes saved successfully!');
       } else {
         // Non-admin submits suggestions
-        await saveSuggestions(scriptId, lineData, "", userId); // Empty originalContent
+        if (!userId) {
+          throw new Error('User ID is required to submit suggestions');
+        }
+        await saveSuggestions(scriptId, lineData, "", userId);
         toast.success('Suggestions submitted for approval!');
       }
     } catch (error) {
