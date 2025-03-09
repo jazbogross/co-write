@@ -1,5 +1,5 @@
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
 import { useContentChangeHandler } from './editor/useContentChangeHandler';
@@ -17,6 +17,7 @@ export const useContentUpdates = (
 ) => {
   // Flag to identify if we're loading drafts or content for the first time
   const isInitialLoadRef = useRef(true);
+  const contentLoadedRef = useRef(false);
   
   // Get editor content management utilities
   const { updateEditorContent, isUpdatingEditorRef, markForFullContentUpdate } = useEditorContentManagement(setContent);
@@ -31,11 +32,12 @@ export const useContentUpdates = (
   );
 
   // Create the wrapped updateEditorContent function that includes the editor reference
-  const updateEditor = (newContent: string | DeltaContent, forceUpdate: boolean = false) => {
+  const updateEditor = useCallback((newContent: string | DeltaContent, forceUpdate: boolean = false) => {
     const editor = quillRef.current?.getEditor();
     if (editor) {
       // If this is an initial load or we're forcing an update, mark it for full content update
       if (isInitialLoadRef.current || forceUpdate) {
+        console.log('🔄 useContentUpdates: Performing full content update');
         markForFullContentUpdate();
         isInitialLoadRef.current = false;
       }
@@ -45,8 +47,28 @@ export const useContentUpdates = (
         editor.lineTracking.saveCursorPosition();
       }
       
+      // Skip empty content updates during initialization
+      if (!contentLoadedRef.current && 
+          (typeof newContent === 'string' && newContent === '')) {
+        console.log('🔄 useContentUpdates: Skipping empty content update during initialization');
+        return;
+      }
+      
+      // Skip if content is exactly the same
+      if (newContent === content) {
+        console.log('🔄 useContentUpdates: Content unchanged, skipping update');
+        return;
+      }
+      
       // Update the content
       updateEditorContent(editor, newContent, forceUpdate);
+      
+      // If the content isn't empty, mark that we've loaded content
+      if (typeof newContent === 'string' && newContent.length > 0) {
+        contentLoadedRef.current = true;
+      } else if (isDeltaObject(newContent) && newContent.ops && newContent.ops.length > 0) {
+        contentLoadedRef.current = true;
+      }
       
       // Restore cursor position if we have lineTracking
       if (editor.lineTracking && typeof editor.lineTracking.restoreCursorPosition === 'function') {
@@ -55,13 +77,14 @@ export const useContentUpdates = (
       
       // Update line count after content update
       const lines = editor.getLines(0);
+      console.log('🔄 useContentUpdates: Updated editor content, line count:', lines.length);
       setLineCount(lines.length);
       lastLineCountRef.current = lines.length;
     }
-  };
+  }, [quillRef, markForFullContentUpdate, updateEditorContent, setLineCount, lastLineCountRef, content]);
   
   // Explicitly capture current editor state for saving
-  const captureCurrentContent = () => {
+  const captureCurrentContent = useCallback(() => {
     const editor = quillRef.current?.getEditor();
     if (editor) {
       const editorDelta = editor.getContents();
@@ -83,15 +106,27 @@ export const useContentUpdates = (
       };
     }
     return null;
-  };
+  }, [quillRef, setContent, setLineCount]);
   
-  // When editor is initialized, mark that any content update should be a full reset
+  // Verify content after initialization - if empty, try to use lineData
   useEffect(() => {
-    if (editorInitialized && isInitialLoadRef.current) {
-      // Make sure the first update after initialization is a full content reset
-      markForFullContentUpdate();
+    if (editorInitialized && !contentLoadedRef.current) {
+      const editor = quillRef.current?.getEditor();
+      if (editor) {
+        const lines = editor.getLines(0);
+        
+        // If the editor has no content but should have content, mark for full update
+        if (lines.length <= 1 && (
+            (typeof content === 'string' && content.length > 0) ||
+            (isDeltaObject(content) && content.ops && content.ops.length > 0)
+          )) {
+          console.log('🔄 useContentUpdates: Content missing after initialization, forcing update');
+          markForFullContentUpdate();
+          updateEditor(content, true);
+        }
+      }
     }
-  }, [editorInitialized, markForFullContentUpdate]);
+  }, [editorInitialized, content, quillRef, markForFullContentUpdate, updateEditor]);
 
   return {
     contentUpdateRef,
