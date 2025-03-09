@@ -1,3 +1,4 @@
+
 // File: src/components/editor/TextEditor.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -45,8 +46,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   scriptId,
   onSuggestChange,
 }) => {
-  console.log('📋 TextEditor: Initializing with scriptId:', scriptId, 'isAdmin:', isAdmin);
-
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true);
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
   const initializedRef = useRef(false);
@@ -74,6 +73,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     handleChange,
     updateEditorContent,
     flushContentToLineData,
+    captureCurrentContent,
     formats,
     modules,
   } = useTextEditor(
@@ -95,6 +95,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     editorInitialized,
     handleChange,
     flushContentToLineData,
+    captureCurrentContent
   });
 
   // Draft loader
@@ -110,7 +111,6 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   // Attempt draft load
   const attemptDraftLoad = useCallback(() => {
     if (userId && isDataReady && !draftLoadAttempted && !initializedRef.current) {
-      console.log('📋 TextEditor: User ID available, loading drafts:', userId);
       initializedRef.current = true;
       loadDraftsForCurrentUser();
       setDraftLoadAttempted(true);
@@ -121,12 +121,25 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     attemptDraftLoad();
   }, [userId, isDataReady, attemptDraftLoad]);
 
+  // Explicitly capture content before submission
+  const captureAndSubmit = useCallback(() => {
+    // Capture the current editor state
+    const captured = captureCurrentContent?.();
+    if (captured) {
+      setContent(captured.content);
+    }
+    
+    // Now flush line data and submit
+    flushContentToLineData();
+    return captured?.content || content;
+  }, [captureCurrentContent, flushContentToLineData, content, setContent]);
+
   // Submissions
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
     isAdmin,
     scriptId,
     '',
-    content, // can be string or DeltaContent
+    content,
     lineData,
     userId,
     onSuggestChange,
@@ -136,26 +149,25 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   // Save & sync
   const handleSaveAndSync = useCallback(() => {
-    console.log('📋 TextEditor: Save button clicked');
+    // Capture current content before saving
+    const currentContent = captureAndSubmit();
+    
     handleSave();
-    saveToSupabase();
-  }, [handleSave, saveToSupabase]);
+    saveToSupabase(currentContent);
+  }, [handleSave, saveToSupabase, captureAndSubmit]);
 
   // Submit changes
   const handleSubmitChanges = useCallback(() => {
-    console.log('📋 TextEditor: Submit button clicked');
-    flushContentToLineData();
-    handleSubmit();
-  }, [flushContentToLineData, handleSubmit]);
+    // Capture current content before submitting
+    const currentContent = captureAndSubmit();
+    
+    handleSubmit(currentContent);
+  }, [captureAndSubmit, handleSubmit]);
 
   // Show loading if data not ready
   if (!isDataReady) {
-    console.log('📋 TextEditor: Data not ready, showing loading');
     return <div className="flex items-center justify-center p-8">Loading editor data...</div>;
   }
-
-  console.log('📋 TextEditor: Rendering editor with ready data');
-  console.log('📋 TextEditor: Content type:', typeof content, isDeltaObject(content) ? 'isDelta' : 'notDelta');
   
   return (
     <>
@@ -168,7 +180,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       />
 
       <TextEditorContent
-        content={content} // Direct pass of content, which can be string or Delta
+        content={content}
         lineCount={lineCount}
         quillRef={quillRef}
         modules={modules}

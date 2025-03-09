@@ -16,96 +16,74 @@ export const useContentChangeHandler = (
 ) => {
   const contentUpdateRef = useRef(false);
   const lastContentRef = useRef<string | null>(null);
+  const lastLineCountRef = useRef<number>(0);
   
   const handleChange = useCallback((newContent: string | DeltaContent, delta?: any, source?: string) => {
     // Skip processing if source is not 'user' (i.e., it's a programmatic change)
     if (source && source !== 'user') {
-      console.log('📝 useContentChangeHandler: Skipping non-user change:', source);
       return;
     }
     
-    let previewText: string;
-    
-    if (typeof newContent === 'string') {
-      previewText = newContent.substring(0, 50) + '...';
-    } else if (newContent) {
-      previewText = JSON.stringify(newContent).substring(0, 50) + '...';
-    } else {
-      previewText = '[empty content]';
-    }
-      
-    console.log('📝 useContentChangeHandler: handleChange called with', {
-      contentType: typeof newContent,
-      isDelta: isDeltaObject(newContent),
-      preview: previewText,
-      source
-    });
-    
     if (!editorInitialized) {
-      console.log('📝 useContentChangeHandler: Ignoring content change before editor initialization');
       return;
     }
     
     if (isProcessingLinesRef.current || isUpdatingEditorRef.current) {
-      console.log('📝 useContentChangeHandler: Skipping update during line processing or editor update');
       return;
     }
     
-    // Compare with previous content to avoid unnecessary updates
-    const contentString = typeof newContent === 'string' 
-      ? newContent 
-      : JSON.stringify(newContent);
-      
-    if (lastContentRef.current === contentString) {
-      console.log('📝 useContentChangeHandler: Content unchanged, skipping update');
-      return;
-    }
-    
-    lastContentRef.current = contentString;
-    
-    console.log('📝 useContentChangeHandler: Processing content change');
     const editor = quillRef.current?.getEditor();
     if (!editor) {
-      console.log('📝 useContentChangeHandler: No editor available, skipping update');
       return;
     }
 
-    // Get the actual Delta content from the editor to preserve formatting
-    const editorDelta = editor.getContents();
-    console.log('📝 useContentChangeHandler: Editor delta ops:', editorDelta.ops.length);
-    
-    // Convert editor Delta to our DeltaContent type
-    const convertedDelta: DeltaContent = {
-      ops: editorDelta.ops.map(op => ({
-        ...op,
-        insert: op.insert || ''
-      }))
-    };
-    
-    setContent(convertedDelta);
-    console.log('📝 useContentChangeHandler: Content state updated with delta');
-    
+    // Check if this is a structural change that affects line count
     const lines = editor.getLines(0);
-    console.log(`📝 useContentChangeHandler: Line count from editor: ${lines.length}`);
+    const currentLineCount = lines.length;
+    const isLineCountChange = currentLineCount !== lastLineCountRef.current;
     
-    // Log line UUIDs from DOM
-    if (lines.length > 0) {
-      lines.slice(0, 3).forEach((line: any, i: number) => {
-        if (line.domNode) {
-          const uuid = line.domNode.getAttribute('data-line-uuid');
-          console.log(`📝 Line ${i+1} UUID from DOM: ${uuid || 'missing'}`);
-        }
-      });
+    // Only process changes that affect line structure or on explicit save actions
+    if (isLineCountChange) {
+      console.log(`📝 useContentChangeHandler: Line count changed: ${lastLineCountRef.current} -> ${currentLineCount}`);
+      
+      // Get the actual Delta content from the editor to preserve formatting
+      const editorDelta = editor.getContents();
+      
+      // Convert editor Delta to our DeltaContent type
+      const convertedDelta: DeltaContent = {
+        ops: editorDelta.ops.map(op => ({
+          ...op,
+          insert: op.insert || ''
+        }))
+      };
+      
+      // Only update React state for line structure changes
+      setContent(convertedDelta);
+      
+      // Update line count reference
+      lastLineCountRef.current = currentLineCount;
+      
+      // Log lines if debugging needed
+      if (lines.length > 0) {
+        lines.slice(0, 3).forEach((line: any, i: number) => {
+          if (line.domNode) {
+            const uuid = line.domNode.getAttribute('data-line-uuid');
+            console.log(`📝 Line ${i+1} UUID from DOM: ${uuid || 'missing'}`);
+          }
+        });
+      }
     }
     
     return { 
       editor,
-      lines
+      lines,
+      isLineCountChange
     };
   }, [editorInitialized, quillRef, setContent, isProcessingLinesRef, isUpdatingEditorRef]);
 
   return {
     contentUpdateRef,
-    handleChange
+    handleChange,
+    lastLineCountRef
   };
 };

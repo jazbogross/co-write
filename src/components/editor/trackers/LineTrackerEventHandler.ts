@@ -11,6 +11,7 @@ export class LineTrackerEventHandler {
   private cursorTracker: any;
   private uuidPreservation: any;
   private isTextChange: boolean = false;
+  private lastLineCount: number = 0;
   
   constructor(
     quill: any,
@@ -22,6 +23,12 @@ export class LineTrackerEventHandler {
     this.linePosition = linePosition;
     this.cursorTracker = cursorTracker;
     this.uuidPreservation = uuidPreservation;
+    
+    // Initialize line count
+    if (quill) {
+      const lines = quill.getLines(0);
+      this.lastLineCount = lines.length;
+    }
   }
 
   /**
@@ -54,33 +61,41 @@ export class LineTrackerEventHandler {
 
     // Skip line tracking operations if it's a programmatic update
     if (!state.isProgrammaticUpdate) {
-      // Save cursor position before text changes
-      this.cursorTracker.saveCursorPosition(this.quill);
-      
       // Check if this is a structural change (like line split or merge)
-      const isStructuralChange = this.detectStructuralChange(delta);
+      const lines = this.quill.getLines(0);
+      const currentLineCount = lines.length;
+      const isStructuralChange = this.detectStructuralChange(delta) || 
+                                 currentLineCount !== this.lastLineCount;
       
       if (isStructuralChange) {
         console.log('**** LineTrackerEventHandler **** Detected structural change, preserving UUIDs');
+        
+        // Save cursor position before structural changes
+        this.cursorTracker.saveCursorPosition(this.quill);
+        
         // Only preserve UUIDs for structural changes
         this.uuidPreservation.preserveLineUuids();
-      }
 
-      // Analyze delta to detect line operations, update line positions, etc.
-      this.cursorTracker.analyzeTextChange(delta, this.quill);
-      this.linePosition.updateLineIndexAttributes(this.quill, false);
-      this.linePosition.detectLineCountChanges(this.quill, false);
+        // Analyze delta to detect line operations
+        this.cursorTracker.analyzeTextChange(delta, this.quill);
+        
+        // Update line indices and track line count changes
+        this.linePosition.updateLineIndexAttributes(this.quill, false);
+        this.linePosition.detectLineCountChanges(this.quill, false);
 
-      if (isStructuralChange) {
         // Restore UUIDs after changes
         this.uuidPreservation.restoreLineUuids();
+        
+        // Make sure all lines have UUIDs
+        this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
+        
+        // Restore cursor position after changes
+        this.cursorTracker.restoreCursorPosition(this.quill);
+        
+        // Update line count
+        this.lastLineCount = currentLineCount;
       }
-      
-      // Make sure all lines have UUIDs
-      this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
-      
-      // Restore cursor position after changes
-      this.cursorTracker.restoreCursorPosition(this.quill);
+      // For non-structural changes (normal typing), do nothing special
     } else {
       // Still update line indices during programmatic changes
       this.linePosition.updateLineIndexAttributes(this.quill, true);
@@ -160,5 +175,8 @@ export class LineTrackerEventHandler {
         }
       }
     }
+    
+    // Update line count
+    this.lastLineCount = lines.length;
   }
 }
