@@ -2,15 +2,29 @@
 import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 /**
- * Normalizes content to its appropriate string format for storage
+ * Normalizes content to its appropriate format for storage
  * Handles both string and Delta object formats
  */
 export const normalizeContentForStorage = (content: any): string => {
   if (isDeltaObject(content)) {
+    // If it's already a Delta object, stringify it ONCE
     return JSON.stringify(content);
+  } else if (typeof content === 'string') {
+    // If the content is already a string, check if it's a stringified Delta
+    try {
+      const parsed = JSON.parse(content);
+      // If it parsed successfully and looks like a Delta, return the string as is
+      if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+        return content;
+      }
+    } catch (e) {
+      // Not a JSON string, so it's just plain text - return as is
+    }
+    return content;
   }
   
-  return typeof content === 'string' ? content : '';
+  // Fallback to empty string for null or undefined
+  return '';
 };
 
 /**

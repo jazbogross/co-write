@@ -2,9 +2,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/hooks/useLineData';
 import { normalizeContentForStorage } from './contentUtils';
+import { isDeltaObject } from '@/utils/editor';
 
 /**
- * Save line drafts to the database
+ * Save line drafts to the database for non-admin users
  */
 export const saveLineDrafts = async (
   scriptId: string,
@@ -13,7 +14,14 @@ export const saveLineDrafts = async (
   userId: string | null
 ) => {
   try {
-    // First, get current line data from database
+    if (!userId) {
+      console.error('Cannot save draft: No user ID provided');
+      throw new Error('User ID is required to save drafts');
+    }
+
+    console.log(`Saving ${lineData.length} line drafts for user ${userId} on script ${scriptId}`);
+    
+    // First, get current suggestions from database
     const { data: existingLines, error: fetchError } = await supabase
       .from('script_suggestions')
       .select('id, line_uuid, line_number, content, draft')
@@ -36,90 +44,83 @@ export const saveLineDrafts = async (
     // Get all current line UUIDs in the editor
     const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
     
+    console.log(`Found ${existingLineMap.size} existing suggestions, processing ${lineData.length} lines`);
+    
     // Update existing lines and create new ones
-    await updateExistingAndCreateNewLines(
-      lineData, 
-      existingLineMap, 
-      scriptId, 
-      userId
-    );
+    let updatedCount = 0;
+    let createdCount = 0;
+    
+    for (const line of lineData) {
+      const existingLine = existingLineMap.get(line.uuid);
+      
+      // Convert content to appropriate format for storage - ONLY normalize once
+      const contentToStore = normalizeContentForStorage(line.content);
+      
+      if (existingLine) {
+        // Line exists - update its draft content and draft line number
+        const { error } = await supabase
+          .from('script_suggestions')
+          .update({
+            draft: contentToStore,
+            line_number_draft: line.lineNumber
+          })
+          .eq('id', existingLine.id);
+          
+        if (error) {
+          console.error('Error updating draft for line', line.uuid, error);
+          throw error;
+        }
+        updatedCount++;
+      } else {
+        // New line - create a suggestion entry with draft content
+        const { error } = await supabase
+          .from('script_suggestions')
+          .insert({
+            script_id: scriptId,
+            content: '',  // Original content is empty for new lines
+            draft: contentToStore,
+            user_id: userId,
+            line_uuid: line.uuid,
+            status: 'pending',
+            line_number: null,  // No original line number for new lines
+            line_number_draft: line.lineNumber
+          });
+          
+        if (error) {
+          console.error('Error creating draft for line', line.uuid, error);
+          throw error;
+        }
+        createdCount++;
+      }
+    }
+    
+    console.log(`Updated ${updatedCount} existing suggestions and created ${createdCount} new ones`);
     
     // Handle deleted lines
-    await handleDeletedLines(
-      existingLines || [], 
-      currentLineUUIDs
-    );
+    let deletedCount = 0;
+    for (const existingLine of (existingLines || [])) {
+      if (existingLine.line_uuid && !currentLineUUIDs.has(existingLine.line_uuid)) {
+        // Line was deleted - mark it as deleted in draft
+        const { error } = await supabase
+          .from('script_suggestions')
+          .update({
+            draft: '{deleted-uuid}'
+          })
+          .eq('id', existingLine.id);
+          
+        if (error) {
+          console.error('Error marking suggestion as deleted', existingLine.id, error);
+          throw error;
+        }
+        deletedCount++;
+      }
+    }
+    
+    console.log(`Marked ${deletedCount} suggestions as deleted`);
+    console.log('Draft suggestions saved successfully');
     
   } catch (error) {
     console.error('Error saving line drafts:', error);
     throw error;
-  }
-};
-
-/**
- * Update existing lines and create new ones
- */
-const updateExistingAndCreateNewLines = async (
-  lineData: LineData[],
-  existingLineMap: Map<any, any>,
-  scriptId: string,
-  userId: string | null
-) => {
-  for (const line of lineData) {
-    const existingLine = existingLineMap.get(line.uuid);
-    
-    // Convert content to appropriate format for storage
-    const contentToStore = normalizeContentForStorage(line.content);
-    
-    if (existingLine) {
-      // Line exists - update its draft content and draft line number
-      const { error } = await supabase
-        .from('script_suggestions')
-        .update({
-          draft: contentToStore !== existingLine.content ? contentToStore : existingLine.draft,
-          line_number_draft: line.lineNumber
-        })
-        .eq('id', existingLine.id);
-        
-      if (error) throw error;
-    } else {
-      // New line - create a suggestion entry with draft content
-      const { error } = await supabase
-        .from('script_suggestions')
-        .insert({
-          script_id: scriptId,
-          content: '',  // Original content is empty for new lines
-          draft: contentToStore,
-          user_id: userId,
-          line_uuid: line.uuid,
-          status: 'pending',
-          line_number: null,  // No original line number for new lines
-          line_number_draft: line.lineNumber
-        });
-        
-      if (error) throw error;
-    }
-  }
-};
-
-/**
- * Handle lines that were deleted in the editor
- */
-const handleDeletedLines = async (
-  existingLines: any[],
-  currentLineUUIDs: Set<string>
-) => {
-  for (const existingLine of existingLines) {
-    if (existingLine.line_uuid && !currentLineUUIDs.has(existingLine.line_uuid)) {
-      // Line was deleted - mark it as deleted in draft
-      const { error } = await supabase
-        .from('script_suggestions')
-        .update({
-          draft: '{deleted-uuid}'
-        })
-        .eq('id', existingLine.id);
-        
-      if (error) throw error;
-    }
   }
 };

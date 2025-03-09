@@ -1,7 +1,8 @@
 
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
-import { DeltaContent, extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+import { DeltaContent, isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
 
 export const saveLinesToDatabase = async (
   scriptId: string,
@@ -56,16 +57,12 @@ export const saveLinesToDatabase = async (
     
     // Process each line: update existing lines, insert new ones
     for (const line of lineData) {
-      // Convert Delta object to string for database storage if needed
-      let storedContent: string;
+      // Properly normalize content for storage - ensure we only stringify ONCE
+      const storedContent = normalizeContentForStorage(line.content);
       
-      if (isDeltaObject(line.content)) {
-        // If it's a Delta object, stringify it for storage
-        storedContent = JSON.stringify(line.content);
-      } else {
-        // If it's already a string, use it directly
-        storedContent = typeof line.content === 'string' ? line.content : '';
-      }
+      // Debug log to verify proper content formatting
+      console.log(`Saving line ${line.lineNumber} content type: ${typeof line.content}, isDelta: ${isDeltaObject(line.content)}`);
+      console.log(`Saving as: ${storedContent.substring(0, 50)}${storedContent.length > 50 ? '...' : ''}`);
       
       if (existingLineMap.has(line.uuid)) {
         // Update existing line with current content and clear draft fields

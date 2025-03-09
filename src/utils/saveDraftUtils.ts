@@ -2,13 +2,12 @@
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
 import { 
-  preserveFormattedContent, 
   isDeltaObject, 
   logDeltaStructure, 
-  safelyParseDelta,
   extractPlainTextFromDelta 
 } from '@/utils/editor';
 import { DeltaContent } from '@/utils/editor/types';
+import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
 
 export const saveDraft = async (
   scriptId: string, 
@@ -49,32 +48,12 @@ export const saveDraft = async (
     for (const line of lineData) {
       const existingLine = existingLineMap.get(line.uuid);
       
-      // Get formatted content from quill if available, otherwise use plain text
-      let lineContent;
-      
-      if (quill) {
-        // If the line content is already a Delta object, don't rewrap it
-        if (isDeltaObject(line.content)) {
-          // If it's a Delta, make sure it's stored as Delta
-          lineContent = JSON.stringify(line.content);
-          console.log(`Line ${line.lineNumber} content is already a Delta, using as is`);
-        } else {
-          // Otherwise get the formatted content from Quill if possible
-          // If quill isn't capturing this line correctly, use the plain text
-          try {
-            lineContent = JSON.stringify(preserveFormattedContent(line.content, quill));
-          } catch (e) {
-            console.error('Error preserving formatted content for line', line.lineNumber, e);
-            lineContent = line.content;
-          }
-        }
-      } else {
-        lineContent = typeof line.content === 'object' ? JSON.stringify(line.content) : line.content;
-      }
+      // Store the line content properly normalized for DB storage
+      let lineContent = normalizeContentForStorage(line.content);
       
       // Debug log formatted content
-      if (quill && isDeltaObject(line.content)) {
-        console.log(`Line ${line.lineNumber} saving as Delta:`, JSON.stringify(line.content).substring(0, 50) + '...');
+      if (isDeltaObject(line.content)) {
+        console.log(`Line ${line.lineNumber} saving as Delta:`, lineContent.substring(0, 50) + '...');
         logDeltaStructure(line.content);
         
         // Extract and log the plain text so we can verify it's being saved correctly
@@ -87,17 +66,19 @@ export const saveDraft = async (
         const updates: { draft?: string; line_number_draft?: number } = {};
         let needsUpdate = false;
         
-        // Get plain text from Delta for accurate comparison
+        // Compare current content with existing content
+        let currentPlainContent = typeof line.content === 'string' ? line.content : 
+            isDeltaObject(line.content) ? extractPlainTextFromDelta(line.content) : '';
+        
         let existingPlainContent = existingLine.content;
-        let currentPlainContent = typeof line.content === 'object' ? 
-            JSON.stringify(line.content) : line.content;
-        
-        if (isDeltaObject(existingLine.content)) {
-          existingPlainContent = extractPlainTextFromDelta(existingLine.content);
-        }
-        
-        if (isDeltaObject(line.content)) {
-          currentPlainContent = extractPlainTextFromDelta(line.content);
+        try {
+          // Try to parse existing content if it's a stringified Delta
+          const parsed = JSON.parse(existingLine.content);
+          if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+            existingPlainContent = extractPlainTextFromDelta(parsed);
+          }
+        } catch (e) {
+          // Not JSON, use as-is
         }
         
         // Check if content has changed compared to the original
@@ -139,9 +120,7 @@ export const saveDraft = async (
             script_id: scriptId,
             line_number: 0,  // Minimal placeholder to satisfy not-null constraint
             line_number_draft: line.lineNumber,
-            content: line.originalContent ? 
-              (typeof line.originalContent === 'object' ? JSON.stringify(line.originalContent) : line.originalContent) 
-              : '',
+            content: '',  // Empty since this is a new line
             draft: lineContent,
             original_author: userId,
             edited_by: userId ? [userId] : []
