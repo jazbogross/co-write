@@ -15,8 +15,15 @@ export const useContentChangeHandler = (
   isUpdatingEditorRef: React.MutableRefObject<boolean>
 ) => {
   const contentUpdateRef = useRef(false);
+  const lastContentRef = useRef<string | null>(null);
   
-  const handleChange = useCallback((newContent: string | DeltaContent) => {
+  const handleChange = useCallback((newContent: string | DeltaContent, delta?: any, source?: string) => {
+    // Skip processing if source is not 'user' (i.e., it's a programmatic change)
+    if (source && source !== 'user') {
+      console.log('📝 useContentChangeHandler: Skipping non-user change:', source);
+      return;
+    }
+    
     let previewText: string;
     
     if (typeof newContent === 'string') {
@@ -30,7 +37,8 @@ export const useContentChangeHandler = (
     console.log('📝 useContentChangeHandler: handleChange called with', {
       contentType: typeof newContent,
       isDelta: isDeltaObject(newContent),
-      preview: previewText
+      preview: previewText,
+      source
     });
     
     if (!editorInitialized) {
@@ -42,6 +50,18 @@ export const useContentChangeHandler = (
       console.log('📝 useContentChangeHandler: Skipping update during line processing or editor update');
       return;
     }
+    
+    // Compare with previous content to avoid unnecessary updates
+    const contentString = typeof newContent === 'string' 
+      ? newContent 
+      : JSON.stringify(newContent);
+      
+    if (lastContentRef.current === contentString) {
+      console.log('📝 useContentChangeHandler: Content unchanged, skipping update');
+      return;
+    }
+    
+    lastContentRef.current = contentString;
     
     console.log('📝 useContentChangeHandler: Processing content change');
     const editor = quillRef.current?.getEditor();
