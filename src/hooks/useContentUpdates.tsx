@@ -15,20 +15,14 @@ export const useContentUpdates = (
   isProcessingLinesRef: React.MutableRefObject<boolean>,
   quillRef: React.RefObject<ReactQuill>
 ) => {
-  console.log('📝 useContentUpdates: Hook called with', {
-    contentType: typeof content,
-    lineCount,
-    editorInitialized
-  });
-  
   // Flag to identify if we're loading drafts or content for the first time
   const isInitialLoadRef = useRef(true);
   
   // Get editor content management utilities
   const { updateEditorContent, isUpdatingEditorRef, markForFullContentUpdate } = useEditorContentManagement(setContent);
   
-  // Get content change handler
-  const { contentUpdateRef, handleChange } = useContentChangeHandler(
+  // Get content change handler - optimized to only track line changes, not every keystroke
+  const { contentUpdateRef, handleChange, lastLineCountRef } = useContentChangeHandler(
     editorInitialized,
     quillRef,
     setContent,
@@ -61,11 +55,34 @@ export const useContentUpdates = (
       
       // Update line count after content update
       const lines = editor.getLines(0);
-      console.log(`📝 useContentUpdates: Updated line count: ${lines.length}`);
       setLineCount(lines.length);
-    } else {
-      console.log('📝 useContentUpdates: No editor available for updateEditor');
+      lastLineCountRef.current = lines.length;
     }
+  };
+  
+  // Explicitly capture current editor state for saving
+  const captureCurrentContent = () => {
+    const editor = quillRef.current?.getEditor();
+    if (editor) {
+      const editorDelta = editor.getContents();
+      const convertedDelta: DeltaContent = {
+        ops: editorDelta.ops.map(op => ({
+          ...op,
+          insert: op.insert || ''
+        }))
+      };
+      setContent(convertedDelta);
+      
+      // Update line count
+      const lines = editor.getLines(0);
+      setLineCount(lines.length);
+      
+      return {
+        content: convertedDelta,
+        lineCount: lines.length
+      };
+    }
+    return null;
   };
   
   // When editor is initialized, mark that any content update should be a full reset
@@ -79,6 +96,7 @@ export const useContentUpdates = (
   return {
     contentUpdateRef,
     handleChange,
-    updateEditorContent: updateEditor
+    updateEditorContent: updateEditor,
+    captureCurrentContent
   };
 };

@@ -21,13 +21,15 @@ export const useSubmitEdits = (
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Function to save line data (draft)
-  const saveToSupabase = useCallback(async () => {
+  const saveToSupabase = useCallback(async (currentContent?: string | DeltaContent) => {
     if (!scriptId) return;
 
     setIsSubmitting(true);
     try {
       if (isAdmin) {
-        await saveDraft(scriptId, lineData, content, userId, quill);
+        // Use provided content if available, otherwise fall back to state content
+        const contentToSave = currentContent || content;
+        await saveDraft(scriptId, lineData, contentToSave, userId, quill);
         toast.success('Draft saved successfully!');
       } else {
         // For contributors we save suggestions as drafts
@@ -46,15 +48,18 @@ export const useSubmitEdits = (
   }, [isAdmin, scriptId, lineData, content, userId, loadDrafts, quill]);
 
   // Function to submit changes (for approval)
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (currentContent?: string | DeltaContent) => {
     if (!scriptId) return;
 
     setIsSubmitting(true);
     try {
       if (isAdmin) {
+        // Use provided content if available, otherwise fall back to state content
+        const contentToSave = currentContent || content;
+        
         // Admin can directly save changes to the script_content table
-        await saveLinesToDatabase(scriptId, lineData, content);
-        onSuggestChange(content); // Pass the content directly, which could be string or DeltaContent
+        await saveLinesToDatabase(scriptId, lineData, contentToSave);
+        onSuggestChange(contentToSave); // Pass the content directly
         toast.success('Changes saved successfully!');
       } else {
         // Non-admin submits suggestions
@@ -63,7 +68,7 @@ export const useSubmitEdits = (
       }
     } catch (error) {
       console.error('Error submitting changes:', error);
-      toast.error(error instanceof Error ? error.message : 'Error submitting changes');
+      toast.error('Error submitting changes');
     } finally {
       setIsSubmitting(false);
     }

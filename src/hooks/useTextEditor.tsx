@@ -20,12 +20,6 @@ export const useTextEditor = (
   initializeEditor: (editor: any) => boolean,
   updateLineContents: (lines: any[], editor: any) => void
 ) => {
-  console.log('🪝 useTextEditor: Hook called with', { 
-    scriptId, 
-    lineDataLength: lineData.length, 
-    isDataReady
-  });
-  
   // Track if editor has been fully initialized to prevent re-initialization
   const fullyInitializedRef = useRef(false);
   
@@ -63,7 +57,6 @@ export const useTextEditor = (
     useCallback((editor) => {
       // Only initialize once
       if (hasInitializedRef.current) {
-        console.log('🪝 useTextEditor: Editor already initialized, skipping');
         return true;
       }
       
@@ -88,7 +81,12 @@ export const useTextEditor = (
     isProcessingLinesRef,
     quillRef
   );
-  const { contentUpdateRef, handleChange, updateEditorContent } = contentUpdates;
+  const { 
+    contentUpdateRef, 
+    handleChange, 
+    updateEditorContent,
+    captureCurrentContent 
+  } = contentUpdates;
   
   // Placeholder for userId (will be connected in TextEditor)
   const userId = null;
@@ -109,15 +107,6 @@ export const useTextEditor = (
   );
   const { draftLoadAttempted, draftApplied } = draftManagement;
 
-  console.log('🪝 useTextEditor: Hook state', { 
-    contentType: typeof content, 
-    isDelta: isDeltaObject(content),
-    lineCount, 
-    editorInitialized,
-    draftApplied,
-    fullyInitialized: fullyInitializedRef.current
-  });
-
   return {
     quillRef,
     content,
@@ -127,6 +116,7 @@ export const useTextEditor = (
     handleChange,
     updateEditorContent,
     flushContentToLineData,
+    captureCurrentContent,
     formats,
     modules,
     draftLoadAttempted,
