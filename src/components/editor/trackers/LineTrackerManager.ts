@@ -54,19 +54,12 @@ export class LineTrackerManager {
 
   private setupEventListeners(): void {
     // Handle cursor position changes
-    this.quill.on('selection-change', (range: any, oldRange: any, source: string) => {
-      // Only track API/user-initiated selection changes
-      if (source !== 'silent') {
-        this.eventHandler.handleSelectionChange(range, this.state);
-      }
+    this.quill.on('selection-change', (range: any) => {
+      this.eventHandler.handleSelectionChange(range, this.state);
     });
 
     // Handle text changes
     this.quill.on('text-change', (delta: any, oldDelta: any, source: string) => {
-      // Skip processing during programmatic update mode
-      if (this.state.isUpdating) return;
-      
-      const beforeLines = this.quill.getLines().length;
       this.state.isUpdating = true;
       
       try {
@@ -77,11 +70,6 @@ export class LineTrackerManager {
           this.state,
           (index) => this.getLineUuid(index)
         );
-        
-        const afterLines = this.quill.getLines().length;
-        if (beforeLines !== afterLines) {
-          console.log(`**** LineTrackerManager **** Line count changed: ${beforeLines} -> ${afterLines}`);
-        }
       } finally {
         this.state.isUpdating = false;
       }
@@ -152,9 +140,6 @@ export class LineTrackerManager {
   }
   
   public refreshLineUuids(lineData: any[]): void {
-    // Store current selection before refreshing UUIDs
-    const selection = this.quill.getSelection();
-    
     this.eventHandler.refreshLineUuids(lineData);
     
     // Also update our linePosition tracking
@@ -166,41 +151,11 @@ export class LineTrackerManager {
     
     // If no UUIDs applied and we have lineData, try again after a delay
     if (lineData.length > 0) {
-      setTimeout(() => {
-        this.eventHandler.refreshLineUuids(lineData);
-        
-        // Restore cursor position after UUID refresh
-        if (selection) {
-          this.quill.setSelection(selection.index, selection.length, 'silent');
-        }
-      }, 200);
-    } else if (selection) {
-      // Restore cursor position if no delayed refresh needed
-      this.quill.setSelection(selection.index, selection.length, 'silent');
+      setTimeout(() => this.eventHandler.refreshLineUuids(lineData), 200);
     }
   }
 
   public forceRefreshUuids(): void {
-    // Store current selection
-    const selection = this.quill.getSelection();
-    
     this.initializer.forceRefreshUuids((index) => this.getLineUuid(index));
-    
-    // Restore selection after refresh
-    if (selection) {
-      setTimeout(() => {
-        this.quill.setSelection(selection.index, selection.length, 'silent');
-      }, 10);
-    }
-  }
-
-  // Get current cursor position
-  public getCursorPosition(): { index: number, line: number } | null {
-    return this.cursorTracker.getCursorPosition();
-  }
-  
-  // Restore cursor position
-  public restoreCursorPosition(): boolean {
-    return this.cursorTracker.restoreCursorPosition(this.quill);
   }
 }
