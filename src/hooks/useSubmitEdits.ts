@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { saveDraft } from '@/utils/saveDraftUtils';
@@ -44,6 +45,17 @@ export const useSubmitEdits = (
       
       const contentToSave = getContentToSave(currentContent);
       console.log('saveToSupabase: Content to save:', JSON.stringify(contentToSave).substring(0, 100) + '...');
+      console.log('saveToSupabase: Number of line data items:', lineData.length);
+      
+      // Log the first few line data items for debugging
+      lineData.slice(0, 3).forEach((line, i) => {
+        console.log(`Line ${i+1}:`, {
+          uuid: line.uuid,
+          lineNumber: line.lineNumber,
+          contentType: typeof line.content,
+          preview: JSON.stringify(line.content).substring(0, 100) + '...'
+        });
+      });
       
       if (isAdmin) {
         await saveDraft(scriptId, lineData, contentToSave, userId, quill);
@@ -52,7 +64,11 @@ export const useSubmitEdits = (
       }
       
       toast.success('Draft saved successfully!');
-      await loadDrafts();
+      
+      // Only reload drafts if we're in admin mode, for non-admin they're already in sync
+      if (isAdmin) {
+        await loadDrafts();
+      }
     } catch (error) {
       console.error('Error saving draft:', error);
       toast.error('Error saving draft');

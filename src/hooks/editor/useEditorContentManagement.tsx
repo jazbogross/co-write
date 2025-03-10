@@ -101,7 +101,7 @@ export const useEditorContentManagement = (
             // Fallback to plain text if Delta parsing fails
             console.log(`📝 useEditorContentManagement: Delta parsing failed, using plain text fallback`);
             const textContent = extractPlainTextFromDelta(newContent);
-            insertContentWithLineBreaks(editor, textContent);
+            insertContentWithLineBreaks(editor, textContent || '');
           }
         } else {
           // For string content, split by newlines and insert properly

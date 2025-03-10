@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { createInitialLineData } from '@/utils/lineDataUtils';
@@ -44,8 +45,9 @@ export const useLineDataInit = (
           // For admins, prioritize draft content over main content if it exists
           const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin).map(line => {
             if (isAdmin) {
+              // Safely find the matching line and check for draft
               const matchingLine = allLines.find(l => l.id === line.uuid);
-              if (matchingLine?.draft) {
+              if (matchingLine && typeof matchingLine === 'object' && 'draft' in matchingLine && matchingLine.draft) {
                 // If there's a draft, use it instead of the main content
                 try {
                   const draftContent = JSON.parse(matchingLine.draft);

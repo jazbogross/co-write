@@ -64,7 +64,7 @@ export const useContentFlushing = (
     }
     
     const { lines: lineContents, editor } = captured;
-    console.log(`💾 useContentFlushing: About to call updateLineContents with extracted lines`);
+    console.log(`💾 useContentFlushing: About to call updateLineContents with ${lineContents.length} extracted lines`);
     
     try {
       // Pass to updateLineContents to update the lineData state with the new content
