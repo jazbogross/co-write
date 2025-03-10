@@ -41,26 +41,30 @@ export const useLineDataInit = (
         if (allLines && allLines.length > 0 && Array.isArray(allLines)) {
           console.log('📊 useLineDataInit: Data fetched successfully. Lines:', allLines.length);
           
-          const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin);
-          console.log('📊 useLineDataInit: Processed lines:', processedLines.length);
-          
-          // Log sample of processed lines for debugging
-          processedLines.slice(0, 3).forEach((line, i) => {
-            const contentPreview = typeof line.content === 'string' 
-              ? line.content.substring(0, 30)
-              : line.content && typeof line.content === 'object' && 'ops' in line.content
-                ? JSON.stringify(line.content).substring(0, 30)
-                : '[invalid content]';
-            
-            console.log(`📊 Line ${i+1}:`, {
-              uuid: line.uuid,
-              lineNumber: line.lineNumber,
-              contentType: typeof line.content,
-              isDelta: isDeltaObject(line.content),
-              preview: contentPreview
-            });
+          // For admins, prioritize draft content over main content if it exists
+          const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin).map(line => {
+            if (isAdmin) {
+              const matchingLine = allLines.find(l => l.id === line.uuid);
+              if (matchingLine?.draft) {
+                // If there's a draft, use it instead of the main content
+                try {
+                  const draftContent = JSON.parse(matchingLine.draft);
+                  return {
+                    ...line,
+                    content: draftContent,
+                    hasDraft: true,
+                    originalContent: line.content // Store original content
+                  };
+                } catch (e) {
+                  console.error('Error parsing draft content:', e);
+                  return line;
+                }
+              }
+            }
+            return line;
           });
-          
+
+          console.log('📊 useLineDataInit: Processed lines:', processedLines.length);
           setLineData(processedLines);
           lastLineCountRef.current = processedLines.length;
         } else {
@@ -138,11 +142,11 @@ export const useLineDataInit = (
     }
   };
 
-  return { 
-    lineData, 
-    setLineData, 
-    isDataReady, 
-    contentToUuidMapRef, 
+  return {
+    lineData,
+    setLineData,
+    isDataReady,
+    contentToUuidMapRef,
     lastLineCountRef,
     loadDrafts
   };
