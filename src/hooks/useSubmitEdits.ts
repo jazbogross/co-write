@@ -20,6 +20,22 @@ export const useSubmitEdits = (
 ) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Helper to ensure we have the most current content
+  const getContentToSave = useCallback((currentContent?: string | DeltaContent) => {
+    console.log('getContentToSave: Original content:', currentContent || content);
+    
+    // Use provided content if available, otherwise use state content
+    const contentToUse = currentContent || content;
+    
+    // If it's a Delta object, ensure it's properly stringified for storage
+    if (isDeltaObject(contentToUse)) {
+      console.log('getContentToSave: Detected Delta object, stringifying once');
+      return contentToUse;
+    }
+    
+    return contentToUse;
+  }, [content]);
+
   // Function to save line data (draft)
   const saveToSupabase = useCallback(async (currentContent?: string | DeltaContent) => {
     if (!scriptId) {
@@ -36,9 +52,13 @@ export const useSubmitEdits = (
     try {
       console.log(`Saving drafts for ${isAdmin ? 'admin' : 'non-admin'} user`, userId);
       
+      // Get the full content to save - this ensures all lines are included
+      const contentToSave = getContentToSave(currentContent);
+      console.log('saveToSupabase: Content to save:', JSON.stringify(contentToSave).substring(0, 100) + '...');
+      
       if (isAdmin) {
         // For admins: Use saveDraft to save to script_content table
-        await saveDraft(scriptId, lineData, currentContent || content, userId, quill);
+        await saveDraft(scriptId, lineData, contentToSave, userId, quill);
         toast.success('Draft saved successfully!');
       } else {
         // For non-admins: Use saveLineDrafts to save to script_suggestions table
@@ -54,7 +74,7 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, userId, loadDrafts, quill]);
+  }, [isAdmin, scriptId, lineData, content, userId, loadDrafts, quill, getContentToSave]);
 
   // Function to submit changes (for approval)
   const handleSubmit = useCallback(async (currentContent?: string | DeltaContent) => {
@@ -67,8 +87,8 @@ export const useSubmitEdits = (
     try {
       console.log(`Submitting changes for ${isAdmin ? 'admin' : 'non-admin'} user`);
       
-      // Use provided content if available, otherwise fall back to state content
-      const contentToSave = currentContent || content;
+      // Get the full content to save - this ensures all lines are included
+      const contentToSave = getContentToSave(currentContent);
       
       if (isAdmin) {
         // Admin can directly save changes to the script_content table
@@ -89,7 +109,7 @@ export const useSubmitEdits = (
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, userId, onSuggestChange]);
+  }, [isAdmin, scriptId, lineData, userId, onSuggestChange, getContentToSave]);
 
   return {
     isSubmitting,

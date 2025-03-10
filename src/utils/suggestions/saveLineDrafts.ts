@@ -20,6 +20,12 @@ export const saveLineDrafts = async (
     }
 
     console.log(`Saving ${lineData.length} line drafts for user ${userId} on script ${scriptId}`);
+    console.log('LineData received for saving:', lineData);
+    
+    // Log some sample line data for debugging
+    lineData.slice(0, 3).forEach((line, i) => {
+      console.log(`Line ${i+1}: UUID=${line.uuid}, lineNumber=${line.lineNumber}, content=${JSON.stringify(line.content).substring(0, 100)}${JSON.stringify(line.content).length > 100 ? '...' : ''}`);
+    });
     
     // First, get current suggestions from database
     const { data: existingLines, error: fetchError } = await supabase
@@ -41,9 +47,6 @@ export const saveLineDrafts = async (
       });
     }
     
-    // Get all current line UUIDs in the editor
-    const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
-    
     console.log(`Found ${existingLineMap.size} existing suggestions, processing ${lineData.length} lines`);
     
     // Update existing lines and create new ones
@@ -51,13 +54,21 @@ export const saveLineDrafts = async (
     let createdCount = 0;
     
     for (const line of lineData) {
-      const existingLine = existingLineMap.get(line.uuid);
+      console.log('-----------------------------------------------------');
+      console.log(`Processing line UUID: ${line.uuid}`);
+      console.log(`  Original content: ${JSON.stringify(line.content).substring(0, 100)}${JSON.stringify(line.content).length > 100 ? '...' : ''}`);
       
       // Convert content to appropriate format for storage - ONLY normalize once
       const contentToStore = normalizeContentForStorage(line.content);
+      console.log(`  Normalized content: ${contentToStore.substring(0, 100)}${contentToStore.length > 100 ? '...' : ''}`);
+      console.log(`  Line number draft: ${line.lineNumber}`);
+      
+      const existingLine = existingLineMap.get(line.uuid);
       
       if (existingLine) {
         // Line exists - update its draft content and draft line number
+        console.log(`Existing suggestion found for line UUID: ${line.uuid} (Suggestion ID: ${existingLine.id})`);
+        
         const { error } = await supabase
           .from('script_suggestions')
           .update({
@@ -70,9 +81,12 @@ export const saveLineDrafts = async (
           console.error('Error updating draft for line', line.uuid, error);
           throw error;
         }
+        console.log(`Successfully updated suggestion for line UUID: ${line.uuid}`);
         updatedCount++;
       } else {
         // New line - create a suggestion entry with draft content
+        console.log(`No existing suggestion found for line UUID: ${line.uuid}, creating new one`);
+        
         const { error } = await supabase
           .from('script_suggestions')
           .insert({
@@ -90,14 +104,17 @@ export const saveLineDrafts = async (
           console.error('Error creating draft for line', line.uuid, error);
           throw error;
         }
+        console.log(`Successfully created new suggestion for line UUID: ${line.uuid}`);
         createdCount++;
       }
     }
     
-    console.log(`Updated ${updatedCount} existing suggestions and created ${createdCount} new ones`);
+    console.log(`Summary: Updated ${updatedCount} existing suggestions, Created ${createdCount} new suggestions.`);
     
     // Handle deleted lines
     let deletedCount = 0;
+    const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
+    
     for (const existingLine of (existingLines || [])) {
       if (existingLine.line_uuid && !currentLineUUIDs.has(existingLine.line_uuid)) {
         // Line was deleted - mark it as deleted in draft

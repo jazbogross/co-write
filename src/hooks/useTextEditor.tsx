@@ -48,7 +48,7 @@ export const useTextEditor = (
   
   // Initialize content flushing - memoize to prevent recreation
   const contentFlushing = useContentFlushing(quillRef, updateLineContents);
-  const { flushContentToLineData } = contentFlushing;
+  const { flushContentToLineData, captureEditorContent } = contentFlushing;
   
   // Initialize editor - memoize to prevent recreation
   const editorInitResult = useEditorInitialization(
@@ -118,6 +118,7 @@ export const useTextEditor = (
     updateEditorContent,
     flushContentToLineData,
     captureCurrentContent,
+    captureEditorContent,  // Expose the new function
     formats,
     modules,
     draftLoadAttempted,
