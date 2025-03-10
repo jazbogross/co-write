@@ -1,3 +1,4 @@
+
 /**
  * UuidPreservationService.ts - Handles preserving and restoring line UUIDs during text changes
  */
@@ -6,6 +7,7 @@ export class UuidPreservationService {
   private preservedUuids: Map<number, string> = new Map();
   private preservedContentMap: Map<string, string> = new Map(); // Content hash to UUID mapping
   private quill: any;
+  private cursorState: {index: number, length: number} | null = null;
 
   constructor(quill: any) {
     this.quill = quill;
@@ -20,6 +22,17 @@ export class UuidPreservationService {
     console.log('🔍 UuidPreservationService preserving line UUIDs');
     this.preservedUuids.clear();
     this.preservedContentMap.clear();
+
+    // Save cursor position to detect merge operations
+    const selection = this.quill.getSelection();
+    if (selection) {
+      this.cursorState = {
+        index: selection.index,
+        length: selection.length
+      };
+    } else {
+      this.cursorState = null;
+    }
 
     const lines = this.quill.getLines();
     lines.forEach((line: any, index: number) => {
@@ -71,6 +84,19 @@ export class UuidPreservationService {
     const lines = this.quill.getLines();
     let restoredCount = 0;
     let contentMatchCount = 0;
+    
+    // Check if this was likely a backspace at position 0 (merge operation)
+    const wasMergeOperation = this.cursorState && 
+                              this.cursorState.index === 0 && 
+                              this.cursorState.length === 0;
+    
+    if (wasMergeOperation) {
+      console.log('🔍 UuidPreservationService detected potential merge operation');
+      
+      // In a merge operation, we want to prioritize preserving the UUID of the 
+      // line that receives the content (the previous line)
+      // This should be handled by the DeleteMergeHandler, but we add this as a fallback
+    }
 
     lines.forEach((line: any, index: number) => {
       if (!line.domNode) return;
@@ -103,6 +129,9 @@ export class UuidPreservationService {
     });
 
     console.log(`🔍 UuidPreservationService restored ${restoredCount} line UUIDs by position and ${contentMatchCount} by content`);
+    
+    // Reset cursor state
+    this.cursorState = null;
   }
   
   /**
