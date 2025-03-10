@@ -66,7 +66,7 @@ export const useContentUpdates = (
       // If the content isn't empty, mark that we've loaded content
       if (typeof newContent === 'string' && newContent.length > 0) {
         contentLoadedRef.current = true;
-      } else if (isDeltaObject(newContent) && newContent.ops && newContent.ops.length > 0) {
+      } else if (isDeltaObject(newContent) && (newContent as DeltaContent).ops && (newContent as DeltaContent).ops.length > 0) {
         contentLoadedRef.current = true;
       }
       
@@ -118,7 +118,7 @@ export const useContentUpdates = (
         // If the editor has no content but should have content, mark for full update
         if (lines.length <= 1 && (
             (typeof content === 'string' && content.length > 0) ||
-            (isDeltaObject(content) && content.ops && content.ops.length > 0)
+            (isDeltaObject(content) && (content as DeltaContent).ops && (content as DeltaContent).ops.length > 0)
           )) {
           console.log('🔄 useContentUpdates: Content missing after initialization, forcing update');
           markForFullContentUpdate();

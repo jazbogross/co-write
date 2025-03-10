@@ -1,4 +1,3 @@
-
 import { useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
@@ -63,15 +62,18 @@ export const useContentChangeHandler = (
       // Only update React state for line structure changes
       setContent(convertedDelta);
       
-      // Assign UUIDs to new lines
+      // Determine new lines (added since last count)
       const newLines = lines.slice(lastLineCountRef.current);
       const newUUIDs: string[] = [];
-      newLines.forEach(line => {
-        const uuid = line.domNode?.getAttribute('data-line-uuid');
-        if (!uuid) {
+      
+      // Force assign new UUIDs to all new lines, regardless of existing attributes
+      newLines.forEach((line, index) => {
+        if (line.domNode) {
+          // Always generate a new UUID for new lines
           const newUUID = uuidv4();
-          line.domNode?.setAttribute('data-line-uuid', newUUID);
+          line.domNode.setAttribute('data-line-uuid', newUUID);
           newUUIDs.push(newUUID);
+          console.log(`📝 useContentChangeHandler: Assigned new UUID ${newUUID} to new line ${lastLineCountRef.current + index + 1}`);
         }
       });
       
@@ -106,4 +108,3 @@ export const useContentChangeHandler = (
     lastLineUUIDsRef
   };
 };
-/******  3d3a8796-070a-416a-bfaf-12322270e14f  *******/
