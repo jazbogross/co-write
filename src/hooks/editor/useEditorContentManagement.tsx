@@ -96,7 +96,7 @@ export const useEditorContentManagement = (
           const delta = safelyParseDelta(newContent);
           if (delta) {
             console.log(`📝 useEditorContentManagement: Setting content using Delta with ${delta.ops.length} ops`);
-            editor.setContents(delta as any);
+            editor.setContents(delta);
           } else {
             // Fallback to plain text if Delta parsing fails
             console.log(`📝 useEditorContentManagement: Delta parsing failed, using plain text fallback`);
@@ -168,7 +168,7 @@ export const useEditorContentManagement = (
         if (editor) {
           const textContent = typeof newContent === 'string' 
             ? newContent 
-            : extractPlainTextFromDelta(newContent as DeltaContent) || JSON.stringify(newContent);
+            : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
           insertContentWithLineBreaks(editor, textContent);
         }
       } catch (fallbackError) {

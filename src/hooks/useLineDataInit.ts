@@ -47,14 +47,16 @@ export const useLineDataInit = (
             if (isAdmin) {
               // Safely find the matching line and check for draft
               const matchingLine = allLines.find(l => {
-                return typeof l === 'object' && l !== null && 'id' in (l as any) && (l as any).id === line.uuid;
+                // Type-safe check for object structure
+                return typeof l === 'object' && l !== null && 
+                       'id' in l && l.id === line.uuid;
               });
               
               if (matchingLine && typeof matchingLine === 'object' && matchingLine !== null && 
-                  'draft' in (matchingLine as any) && (matchingLine as any).draft) {
+                  'draft' in matchingLine && matchingLine.draft) {
                 // If there's a draft, use it instead of the main content
                 try {
-                  const draftContent = JSON.parse((matchingLine as any).draft);
+                  const draftContent = JSON.parse(matchingLine.draft as string);
                   return {
                     ...line,
                     content: draftContent,
