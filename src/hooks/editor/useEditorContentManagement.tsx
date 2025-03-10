@@ -96,7 +96,7 @@ export const useEditorContentManagement = (
           const delta = safelyParseDelta(newContent);
           if (delta) {
             console.log(`📝 useEditorContentManagement: Setting content using Delta with ${delta.ops.length} ops`);
-            // Cast to any to avoid type issues with Quill's Delta
+            // Use any type here to avoid TypeScript errors with Delta compatibility
             editor.setContents(delta as any);
           } else {
             // Fallback to plain text if Delta parsing fails
