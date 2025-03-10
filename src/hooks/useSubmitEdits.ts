@@ -54,26 +54,10 @@ export const useSubmitEdits = (
       console.log('📋 useSubmitEdits: Saving content type:', typeof contentToSave);
       console.log('📋 useSubmitEdits: Number of line data items:', lineDataToSave.length);
       
-      // Log the first few line data items for debugging
-      lineDataToSave.slice(0, 3).forEach((line, i) => {
-        console.log(`📋 Line ${i+1}:`, {
-          uuid: line.uuid,
-          lineNumber: line.lineNumber,
-          contentType: typeof line.content
-        });
-      });
-      
-      if (isAdmin) {
-        await saveDraft(scriptId, lineDataToSave, contentToSave, userId, quill);
-      } else {
+      // Only save drafts for non-admin users
+      if (!isAdmin) {
         await saveLineDrafts(scriptId, lineDataToSave, "", userId);
-      }
-      
-      toast.success('Draft saved successfully!');
-      
-      // Only reload drafts if we're in admin mode, for non-admin they're already in sync
-      if (isAdmin) {
-        await loadDrafts();
+        toast.success('Draft saved successfully!');
       }
     } catch (error) {
       console.error('📋 useSubmitEdits: Error saving draft:', error);

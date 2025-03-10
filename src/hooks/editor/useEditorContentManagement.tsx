@@ -1,195 +1,140 @@
 
-import { useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
-import { isDeltaObject, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
-import { insertContentWithLineBreaks } from '@/utils/editor/content/insertionUtils';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+import { useLineMatching } from '@/hooks/useLineMatching';
 
-/**
- * Hook to handle updating editor content programmatically
- */
 export const useEditorContentManagement = (
-  setContent: (content: string | DeltaContent) => void
+  initialContent: string,
+  scriptId: string,
+  lineData: LineData[],
+  setLineData: React.Dispatch<React.SetStateAction<LineData[]>>,
+  editorReady: boolean,
+  refreshEditor: () => void
 ) => {
-  // Prevent recursive updates
+  // State
+  const [content, setContent] = useState<string | DeltaContent>(initialContent);
+  const [lineCount, setLineCount] = useState(1);
+  const [mounted, setMounted] = useState(false);
   const isUpdatingEditorRef = useRef(false);
-  const needsFullUpdateRef = useRef(false);
-  const updateAttemptCountRef = useRef(0);
-
-  /**
-   * Updates editor content programmatically
-   */
-  const updateEditorContent = useCallback((
-    editor: any,
-    newContent: string | DeltaContent, 
-    forceUpdate: boolean = false
-  ) => {
-    // Prevent recursive updates
-    if (isUpdatingEditorRef.current && !forceUpdate) {
-      return;
+  
+  // Utilities for line matching
+  const { findBestMatchingLine } = useLineMatching();
+  
+  useEffect(() => {
+    if (!mounted) {
+      setMounted(true);
     }
-    
-    if (!editor) {
-      console.error('📝 useEditorContentManagement: Editor not available');
-      return;
-    }
-    
-    // Skip empty content updates unless forced
-    if (!forceUpdate && 
-        ((typeof newContent === 'string' && newContent === '') ||
-         (isDeltaObject(newContent) && 
-          (!('ops' in newContent) || !newContent.ops || newContent.ops.length === 0)))) {
-      console.log('📝 useEditorContentManagement: Skipping empty content update');
-      return;
-    }
-    
-    // Track update attempts for validation
-    updateAttemptCountRef.current++;
-    const currentAttempt = updateAttemptCountRef.current;
-    
-    try {
-      isUpdatingEditorRef.current = true;
-      
-      console.log(`📝 useEditorContentManagement: Updating content (attempt ${currentAttempt}), force=${forceUpdate}, type=${typeof newContent}`);
-      
-      // Save cursor position before making changes if we have lineTracking
-      if (editor.lineTracking) {
-        // Notify line tracking about programmatic update
-        editor.lineTracking.setProgrammaticUpdate(true);
-      }
-      
-      // Preserve DOM UUIDs before making any changes
-      const domUuids = new Map<number, string>();
-      const lines = editor.getLines(0);
-      
-      lines.forEach((line: any, index: number) => {
-        if (line.domNode) {
-          const uuid = line.domNode.getAttribute('data-line-uuid');
-          if (uuid) {
-            domUuids.set(index, uuid);
-          }
-        }
-      });
-      
-      // Get UUIDs from lineTracking as well to ensure we have as many as possible
-      let lineTrackingUuids = new Map<number, string>();
-      if (editor.lineTracking && typeof editor.lineTracking.getDomUuidMap === 'function') {
-        try {
-          lineTrackingUuids = editor.lineTracking.getDomUuidMap();
-        } catch (error) {
-          console.error('📝 useEditorContentManagement: Error getting UUIDs from lineTracking:', error);
-        }
-      }
-      
-      // Determine if we need a full update or an incremental update
-      const currentLength = editor.getLength();
-      const shouldDoFullUpdate = forceUpdate || needsFullUpdateRef.current || currentLength <= 1;
-      
-      // For draft loading and initial loads, do a full update
-      if (shouldDoFullUpdate) {
-        console.log(`📝 useEditorContentManagement: Performing full content update, length=${currentLength}`);
-        
-        // Delete all content before setting new content
-        editor.deleteText(0, currentLength);
-        
-        if (isDeltaObject(newContent)) {
-          // If it's a Delta object, use setContents directly
-          const delta = safelyParseDelta(newContent);
-          if (delta) {
-            console.log(`📝 useEditorContentManagement: Setting content using Delta with ${delta.ops.length} ops`);
-            editor.setContents(delta);
-          } else {
-            // Fallback to plain text if Delta parsing fails
-            console.log(`📝 useEditorContentManagement: Delta parsing failed, using plain text fallback`);
-            const textContent = extractPlainTextFromDelta(newContent);
-            insertContentWithLineBreaks(editor, textContent || '');
-          }
-        } else {
-          // For string content, split by newlines and insert properly
-          console.log(`📝 useEditorContentManagement: Setting content using string`);
-          const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
-          insertContentWithLineBreaks(editor, contentStr);
-        }
-        
-        // Reset the full update flag after completing a full update
-        needsFullUpdateRef.current = false;
-      }
-      
-      // Apply UUIDs to DOM elements if we did a full update
-      if (shouldDoFullUpdate) {
-        const updatedLines = editor.getLines(0);
-        console.log(`📝 useEditorContentManagement: Content updated, found ${updatedLines.length} lines`);
-        
-        // First pass: Apply preserved UUIDs to matching positions
-        updatedLines.forEach((line: any, index: number) => {
-          if (line.domNode) {
-            // Try to get UUID from our maps
-            const uuid = domUuids.get(index) || lineTrackingUuids.get(index);
-            if (uuid) {
-              line.domNode.setAttribute('data-line-uuid', uuid);
-              line.domNode.setAttribute('data-line-index', String(index + 1));
-              console.log(`📝 useEditorContentManagement: Applied UUID ${uuid} to line ${index + 1}`);
-            }
-          }
-        });
-        
-        // Ensure any lineTracking knows about the applied UUIDs
-        if (editor.lineTracking && typeof editor.lineTracking.initialize === 'function') {
-          editor.lineTracking.initialize();
-        }
-        
-        // Set the React state to match the editor content
-        setContent(newContent);
-      }
-      
-      // Verify the update was successful
-      setTimeout(() => {
-        if (editor) {
-          const verifyLines = editor.getLines(0);
-          console.log(`📝 useEditorContentManagement: Verification after update (attempt ${currentAttempt}): found ${verifyLines.length} lines`);
-          
-          // If Delta content should have multiple lines but we only have one, something went wrong
-          if (isDeltaObject(newContent) && 
-              ('ops' in newContent) && newContent.ops && 
-              newContent.ops.length > 1 && verifyLines.length <= 1) {
-            console.log(`📝 useEditorContentManagement: Content update verification failed, will retry on next update`);
-            needsFullUpdateRef.current = true;
-          }
-        }
-      }, 50);
-      
-    } catch (error) {
-      console.error('📝 useEditorContentManagement: Error updating editor content:', error);
-      
-      // On error, force a full update next time
-      needsFullUpdateRef.current = true;
-      
-      try {
-        // Try plain text fallback on error
-        if (editor) {
-          const textContent = typeof newContent === 'string' 
-            ? newContent 
-            : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
-          insertContentWithLineBreaks(editor, textContent);
-        }
-      } catch (fallbackError) {
-        console.error('📝 useEditorContentManagement: Fallback insert failed:', fallbackError);
-      }
-    } finally {
-      // Turn off programmatic update mode
-      if (editor && editor.lineTracking) {
-        editor.lineTracking.setProgrammaticUpdate(false);
-      }
-      isUpdatingEditorRef.current = false;
-    }
-  }, [setContent]);
-
-  // Method to mark that the next update should be a full content reset
-  const markForFullContentUpdate = useCallback(() => {
-    needsFullUpdateRef.current = true;
   }, []);
 
+  // Mark the editor for full content update
+  const markForFullContentUpdate = useCallback(() => {
+    isUpdatingEditorRef.current = true;
+  }, []);
+  
+  // Update line contents based on changes
+  const updateLineContents = useCallback((lineData: LineData[], newText: string) => {
+    let lines = newText.split('\n');
+    setLineCount(lines.length);
+    
+    // If there are no existing lines, create initial ones
+    if (lineData.length === 0) {
+      return lineData;
+    }
+    
+    // Apply changes to existing lines
+    const updatedLineData = [...lineData];
+    
+    // Ensure we have the right number of lines
+    while (updatedLineData.length < lines.length) {
+      // Create a new line with UUID
+      const newLineIndex = updatedLineData.length;
+      updatedLineData.push({
+        uuid: crypto.randomUUID(),
+        lineNumber: newLineIndex + 1,
+        content: lines[newLineIndex],
+        originalAuthor: null,
+        editedBy: []
+      });
+    }
+    
+    // Remove excess lines if needed
+    if (updatedLineData.length > lines.length) {
+      updatedLineData.splice(lines.length);
+    }
+    
+    // Update content of each line
+    for (let i = 0; i < lines.length; i++) {
+      updatedLineData[i].lineNumber = i + 1;
+      updatedLineData[i].content = lines[i];
+    }
+    
+    return updatedLineData;
+  }, []);
+  
+  // Enable content flushing to line data
+  const flushContentToLineData = useCallback(() => {
+    if (!editorReady) return false;
+    
+    // Handle different content formats
+    let plainText: string;
+    
+    if (typeof content === 'string') {
+      plainText = content;
+    } else if (isDeltaObject(content)) {
+      plainText = extractPlainTextFromDelta(content);
+    } else {
+      console.error('Unknown content format:', content);
+      return false;
+    }
+    
+    const updatedLines = updateLineContents(lineData, plainText);
+    setLineData(updatedLines);
+    
+    return true;
+  }, [content, lineData, setLineData, updateLineContents, editorReady]);
+  
+  // Call this to update editor content
+  const updateEditorContent = useCallback((newContent: string | DeltaContent) => {
+    setContent(newContent);
+    
+    // If it's a string, also update line data
+    if (typeof newContent === 'string') {
+      const updatedLines = updateLineContents(lineData, newContent);
+      setLineData(updatedLines);
+    }
+    
+    // Refresh the editor view if needed
+    refreshEditor();
+    
+    return true;
+  }, [lineData, setLineData, updateLineContents, refreshEditor]);
+  
+  // Called when content changes in the editor
+  const handleChange = useCallback((newContent: string | DeltaContent) => {
+    // Update content state
+    setContent(newContent);
+    
+    // If it's a Delta object, we extract plain text for line data
+    if (isDeltaObject(newContent)) {
+      const plainText = extractPlainTextFromDelta(newContent);
+      const lines = plainText.split('\n');
+      setLineCount(lines.length);
+    } else if (typeof newContent === 'string') {
+      const lines = newContent.split('\n');
+      setLineCount(lines.length);
+    }
+  }, []);
+  
   return {
+    content,
+    setContent,
+    lineCount,
+    updateLineContents,
+    flushContentToLineData,
     updateEditorContent,
+    handleChange,
     isUpdatingEditorRef,
     markForFullContentUpdate
   };

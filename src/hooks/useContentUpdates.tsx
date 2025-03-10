@@ -3,7 +3,6 @@ import { useRef, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
 import { useContentChangeHandler } from './editor/useContentChangeHandler';
-import { useEditorContentManagement } from './editor/useEditorContentManagement';
 import { isDeltaObject } from '@/utils/editor';
 
 export const useContentUpdates = (
@@ -18,18 +17,20 @@ export const useContentUpdates = (
   // Flag to identify if we're loading drafts or content for the first time
   const isInitialLoadRef = useRef(true);
   const contentLoadedRef = useRef(false);
-  
-  // Get editor content management utilities
-  const { updateEditorContent, isUpdatingEditorRef, markForFullContentUpdate } = useEditorContentManagement(setContent);
+  const isUpdatingEditorRef = useRef(false);
   
   // Get content change handler - optimized to only track line changes, not every keystroke
   const { contentUpdateRef, handleChange, lastLineCountRef } = useContentChangeHandler(
     editorInitialized,
     quillRef,
     setContent,
-    isProcessingLinesRef,
-    isUpdatingEditorRef
+    isProcessingLinesRef
   );
+
+  // Mark for full content update
+  const markForFullContentUpdate = useCallback(() => {
+    isUpdatingEditorRef.current = true;
+  }, []);
 
   // Create the wrapped updateEditorContent function that includes the editor reference
   const updateEditor = useCallback((newContent: string | DeltaContent, forceUpdate: boolean = false) => {
@@ -61,7 +62,14 @@ export const useContentUpdates = (
       }
       
       // Update the content
-      updateEditorContent(editor, newContent, forceUpdate);
+      if (typeof newContent === 'string') {
+        editor.setText(newContent);
+      } else if (isDeltaObject(newContent)) {
+        // Create a compatible delta for Quill using its own Delta constructor
+        const Delta = editor.constructor.import('delta');
+        const compatibleDelta = new Delta(newContent.ops);
+        editor.setContents(compatibleDelta);
+      }
       
       // If the content isn't empty, mark that we've loaded content
       if (typeof newContent === 'string' && newContent.length > 0) {
@@ -81,7 +89,7 @@ export const useContentUpdates = (
       setLineCount(lines.length);
       lastLineCountRef.current = lines.length;
     }
-  }, [quillRef, markForFullContentUpdate, updateEditorContent, setLineCount, lastLineCountRef, content]);
+  }, [quillRef, markForFullContentUpdate, setLineCount, lastLineCountRef, content]);
   
   // Explicitly capture current editor state for saving
   const captureCurrentContent = useCallback(() => {
@@ -132,6 +140,8 @@ export const useContentUpdates = (
     contentUpdateRef,
     handleChange,
     updateEditorContent: updateEditor,
-    captureCurrentContent
+    captureCurrentContent,
+    isUpdatingEditorRef,
+    markForFullContentUpdate
   };
 };

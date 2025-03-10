@@ -13,8 +13,35 @@ export function useSuggestionManager(scriptId: string) {
   const [originalContent, setOriginalContent] = useState<string | any>('');
   const { toast } = useToast();
 
+  const fetchScriptContent = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('script_content')
+        .select('id, line_number, content')
+        .eq('script_id', scriptId)
+        .order('line_number', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching script content:', error);
+      return [];
+    }
+  };
+
   const loadSuggestions = async () => {
     try {
+      const currentScriptContent = await fetchScriptContent();
+      
+      const contentByUuid = new Map();
+      if (currentScriptContent) {
+        currentScriptContent.forEach(line => {
+          if (line && typeof line === 'object' && 'id' in line && 'content' in line) {
+            contentByUuid.set(line.id, line.content);
+          }
+        });
+      }
+      
       const { data, error } = await supabase
         .from('script_suggestions')
         .select(`
@@ -36,10 +63,20 @@ export function useSuggestionManager(scriptId: string) {
 
       if (error) throw error;
       
-      setSuggestions(data || []);
+      const filteredSuggestions = (data || []).filter(suggestion => {
+        if (!suggestion.line_uuid || !contentByUuid.has(suggestion.line_uuid)) {
+          return true;
+        }
+        
+        const currentContent = contentByUuid.get(suggestion.line_uuid);
+        return suggestion.content !== currentContent;
+      });
       
-      // Group suggestions by user
-      const grouped = SuggestionGroupManager.groupByUser(data || []);
+      console.log(`Filtered ${data?.length || 0} suggestions to ${filteredSuggestions.length} with changes`);
+      
+      setSuggestions(filteredSuggestions);
+      
+      const grouped = SuggestionGroupManager.groupByUser(filteredSuggestions);
       setGroupedSuggestions(grouped);
     } catch (error) {
       console.error('Error loading suggestions:', error);
@@ -63,7 +100,6 @@ export function useSuggestionManager(scriptId: string) {
     setIsProcessing(true);
     try {
       for (const id of ids) {
-        // Get the suggestion details first
         const { data: suggestionData, error: suggestionError } = await supabase
           .from('script_suggestions')
           .select('*')
@@ -73,58 +109,89 @@ export function useSuggestionManager(scriptId: string) {
         if (suggestionError) throw suggestionError;
         if (!suggestionData) throw new Error('Suggestion not found');
 
-        // Update the script_content with the suggestion
+        console.log('Processing suggestion:', {
+          id: suggestionData.id,
+          line_uuid: suggestionData.line_uuid,
+          content_preview: typeof suggestionData.content === 'string' 
+            ? suggestionData.content.substring(0, 50) 
+            : '(complex content)'
+        });
+
         if (suggestionData.line_uuid) {
-          // Get the current content to inspect existing edited_by
           const { data: contentData, error: contentError } = await supabase
             .from('script_content')
             .select('edited_by')
             .eq('id', suggestionData.line_uuid)
             .single();
             
-          if (contentError) throw contentError;
+          if (contentError) {
+            console.error('Error fetching content data:', contentError);
+            if (contentError.code === 'PGRST116') {
+              console.log('Line does not exist, creating new line');
+              const { error: insertError } = await supabase
+                .from('script_content')
+                .insert({
+                  id: suggestionData.line_uuid,
+                  script_id: scriptId,
+                  content: suggestionData.content,
+                  line_number: suggestionData.line_number || 0,
+                  edited_by: suggestionData.user_id ? [suggestionData.user_id] : []
+                });
+              
+              if (insertError) throw insertError;
+              console.log('Created new line successfully');
+              continue;
+            } else {
+              throw contentError;
+            }
+          }
           
-          // Make sure we have an array
           let editedByArray = [];
           if (contentData && contentData.edited_by) {
             editedByArray = Array.isArray(contentData.edited_by) ? contentData.edited_by : [];
             
-            // Only add the user if not already in the array
-            if (!editedByArray.includes(suggestionData.user_id)) {
+            if (suggestionData.user_id && !editedByArray.includes(suggestionData.user_id)) {
               editedByArray.push(suggestionData.user_id);
             }
-          } else {
+          } else if (suggestionData.user_id) {
             editedByArray = [suggestionData.user_id];
           }
+          
+          console.log('Updating existing line with suggestion content and editedBy:', editedByArray);
           
           const { error: updateError } = await supabase
             .from('script_content')
             .update({ 
               content: suggestionData.content,
-              edited_by: editedByArray
+              edited_by: editedByArray,
+              line_number: suggestionData.line_number || null
             })
             .eq('id', suggestionData.line_uuid);
 
-          if (updateError) throw updateError;
+          if (updateError) {
+            console.error('Error updating script_content:', updateError);
+            throw updateError;
+          }
+          
+          console.log('Line updated successfully');
         }
 
-        // Update suggestion status
         const { error: statusError } = await supabase
           .from('script_suggestions')
           .update({ status: 'approved' })
           .eq('id', id);
 
         if (statusError) throw statusError;
+        
+        console.log('Suggestion marked as approved');
       }
 
-      // Update the local state
       setSuggestions(suggestions.map(suggestion => 
         ids.includes(suggestion.id) 
           ? { ...suggestion, status: 'approved' } 
           : suggestion
       ));
       
-      // Re-group suggestions
       const updatedSuggestions = suggestions.map(suggestion => 
         ids.includes(suggestion.id) 
           ? { ...suggestion, status: 'approved' } 
@@ -140,6 +207,8 @@ export function useSuggestionManager(scriptId: string) {
           ? `${ids.length} suggestions approved` 
           : "Suggestion approved and changes applied",
       });
+      
+      loadSuggestions();
     } catch (error) {
       console.error('Error approving suggestion:', error);
       toast({
@@ -167,14 +236,12 @@ export function useSuggestionManager(scriptId: string) {
 
       if (error) throw error;
 
-      // Update the local state
       setSuggestions(suggestions.map(suggestion =>
         suggestion.id === id
           ? { ...suggestion, status: 'rejected', rejection_reason: reason }
           : suggestion
       ));
       
-      // Re-group suggestions
       const updatedSuggestions = suggestions.map(suggestion =>
         suggestion.id === id
           ? { ...suggestion, status: 'rejected', rejection_reason: reason }
@@ -201,7 +268,6 @@ export function useSuggestionManager(scriptId: string) {
   };
 
   const handleExpandSuggestion = async (id: string) => {
-    // Find the suggestion in our grouped data
     let foundSuggestion: GroupedSuggestion | null = null;
     
     for (const group of groupedSuggestions) {
@@ -215,7 +281,6 @@ export function useSuggestionManager(scriptId: string) {
     if (!foundSuggestion) return;
     setExpandedSuggestion(foundSuggestion);
     
-    // If the suggestion has a line_uuid, fetch the original content
     if (foundSuggestion.line_uuid) {
       try {
         const { data, error } = await supabase
@@ -235,7 +300,6 @@ export function useSuggestionManager(scriptId: string) {
               : JSON.stringify(data.content).substring(0, 30)
           });
           
-          // Keep the original format (Delta or string)
           setOriginalContent(data.content);
         }
       } catch (error) {

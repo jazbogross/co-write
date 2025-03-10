@@ -5,7 +5,10 @@ export {
   isContentEmpty, 
   getPlainTextContent,
   splitContentIntoLines,
-  joinLinesWithBreaks
+  joinLinesWithBreaks,
+  safeIncludes,
+  safeTrim,
+  getTrimmedContent
 } from './contentUtils';
 export { findBestMatchingLine } from './findBestMatchingLine';
 export { 
@@ -19,3 +22,7 @@ export {
   matchNonEmptyLines,
   matchRemainingLines
 } from './lineMatchers';
+export { useLineMatching } from '../useLineMatching';
+
+// Also export all strategies
+export * from './strategies';
