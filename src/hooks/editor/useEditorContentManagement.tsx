@@ -1,9 +1,9 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
-import { useLineMatching } from '@/hooks/lineMatching';
 import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+import { useLineMatching } from '@/hooks/useLineMatching';
 
 export const useEditorContentManagement = (
   initialContent: string,
@@ -17,6 +17,7 @@ export const useEditorContentManagement = (
   const [content, setContent] = useState<string | DeltaContent>(initialContent);
   const [lineCount, setLineCount] = useState(1);
   const [mounted, setMounted] = useState(false);
+  const isUpdatingEditorRef = useRef(false);
   
   // Utilities for line matching
   const { findBestMatchingLine } = useLineMatching();
@@ -25,6 +26,11 @@ export const useEditorContentManagement = (
     if (!mounted) {
       setMounted(true);
     }
+  }, []);
+
+  // Mark the editor for full content update
+  const markForFullContentUpdate = useCallback(() => {
+    isUpdatingEditorRef.current = true;
   }, []);
   
   // Update line contents based on changes
@@ -128,6 +134,8 @@ export const useEditorContentManagement = (
     updateLineContents,
     flushContentToLineData,
     updateEditorContent,
-    handleChange
+    handleChange,
+    isUpdatingEditorRef,
+    markForFullContentUpdate
   };
 };

@@ -19,3 +19,4 @@ export {
   matchNonEmptyLines,
   matchRemainingLines
 } from './lineMatchers';
+export { useLineMatching } from '../useLineMatching';
