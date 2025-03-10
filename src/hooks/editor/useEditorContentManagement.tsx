@@ -20,48 +20,6 @@ export const useEditorContentManagement = (
   const [isProcessingContent, setIsProcessingContent] = useState(false);
   const lastProcessedContentRef = useRef<string | DeltaContent | null>(null);
   const contentUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isUpdatingEditorRef = useRef<boolean>(false);
-  
-  /**
-   * Mark the editor for a full content update
-   */
-  const markForFullContentUpdate = useCallback(() => {
-    console.log('✨ Marking editor for full content update');
-    lastProcessedContentRef.current = null;
-  }, []);
-  
-  /**
-   * Update editor content with new content
-   */
-  const updateEditorContent = useCallback((
-    editor: any,
-    newContent: string | DeltaContent,
-    forceUpdate: boolean = false
-  ) => {
-    if (!editor || !isInitialized) {
-      console.log('❌ Cannot update editor: editor not available or not initialized');
-      return;
-    }
-    
-    try {
-      console.log('✨ Updating editor content, force update:', forceUpdate);
-      isUpdatingEditorRef.current = true;
-      
-      // Apply content to editor
-      if (isDeltaObject(newContent)) {
-        editor.setContents(newContent);
-      } else {
-        editor.setText(newContent);
-      }
-      
-      // Reset the reference after update
-      lastProcessedContentRef.current = newContent;
-    } catch (error) {
-      console.error('Error updating editor content:', error);
-    } finally {
-      isUpdatingEditorRef.current = false;
-    }
-  }, [isInitialized]);
   
   /**
    * Process content changes and update line data
@@ -205,9 +163,6 @@ export const useEditorContentManagement = (
   return {
     processContentChange,
     scheduleContentUpdate,
-    isProcessingContent,
-    updateEditorContent,
-    isUpdatingEditorRef,
-    markForFullContentUpdate
+    isProcessingContent
   };
 };

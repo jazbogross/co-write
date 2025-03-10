@@ -13,21 +13,14 @@ export const useContentUpdates = (
   setLineCount: (count: number) => void,
   editorInitialized: boolean,
   isProcessingLinesRef: React.MutableRefObject<boolean>,
-  quillRef: React.RefObject<ReactQuill>,
-  lineData: any[],
-  updateLineContents: (contents: any[], quill: any) => void
+  quillRef: React.RefObject<ReactQuill>
 ) => {
   // Flag to identify if we're loading drafts or content for the first time
   const isInitialLoadRef = useRef(true);
   const contentLoadedRef = useRef(false);
   
   // Get editor content management utilities
-  const { 
-    updateEditorContent, 
-    isUpdatingEditorRef, 
-    markForFullContentUpdate,
-    processContentChange
-  } = useEditorContentManagement(quillRef, lineData, updateLineContents, editorInitialized);
+  const { updateEditorContent, isUpdatingEditorRef, markForFullContentUpdate } = useEditorContentManagement(setContent);
   
   // Get content change handler - optimized to only track line changes, not every keystroke
   const { contentUpdateRef, handleChange, lastLineCountRef } = useContentChangeHandler(
