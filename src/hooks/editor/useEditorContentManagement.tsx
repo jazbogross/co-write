@@ -36,7 +36,7 @@ export const useEditorContentManagement = (
     // Skip empty content updates unless forced
     if (!forceUpdate && 
         ((typeof newContent === 'string' && newContent === '') ||
-         (isDeltaObject(newContent) && (!newContent.ops || newContent.ops.length === 0)))) {
+         (isDeltaObject(newContent) && (!(newContent as DeltaContent).ops || (newContent as DeltaContent).ops.length === 0)))) {
       console.log('📝 useEditorContentManagement: Skipping empty content update');
       return;
     }
@@ -153,7 +153,7 @@ export const useEditorContentManagement = (
           console.log(`📝 useEditorContentManagement: Verification after update (attempt ${currentAttempt}): found ${verifyLines.length} lines`);
           
           // If Delta content should have multiple lines but we only have one, something went wrong
-          if (isDeltaObject(newContent) && newContent.ops && newContent.ops.length > 1 && verifyLines.length <= 1) {
+          if (isDeltaObject(newContent) && (newContent as DeltaContent).ops && (newContent as DeltaContent).ops.length > 1 && verifyLines.length <= 1) {
             console.log(`📝 useEditorContentManagement: Content update verification failed, will retry on next update`);
             needsFullUpdateRef.current = true;
           }
