@@ -155,7 +155,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     if (captureEditorContent) {
       captured = captureEditorContent();
       if (captured) {
-        console.log('📝 TextEditor: Captured editor content directly with', captured.lines.length, 'lines');
+        console.log('📝 TextEditor: Captured editor content directly with', captured.lines?.length, 'lines');
       }
     }
     
