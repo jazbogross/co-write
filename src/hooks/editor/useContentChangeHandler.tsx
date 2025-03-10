@@ -2,8 +2,10 @@
 import { useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
+import { v4 as uuidv4 } from 'uuid';
 import { isDeltaObject } from '@/utils/editor';
 
+/*************  ✨ Codeium Command 🌟  *************/
 /**
  * Hook to handle content changes in the editor
  */
@@ -17,6 +19,7 @@ export const useContentChangeHandler = (
   const contentUpdateRef = useRef(false);
   const lastContentRef = useRef<string | null>(null);
   const lastLineCountRef = useRef<number>(0);
+  const lastLineUUIDsRef = useRef<string[]>([]);
   
   const handleChange = useCallback((newContent: string | DeltaContent, delta?: any, source?: string) => {
     // Skip processing if source is not 'user' (i.e., it's a programmatic change)
@@ -60,8 +63,23 @@ export const useContentChangeHandler = (
       // Only update React state for line structure changes
       setContent(convertedDelta);
       
+      // Assign UUIDs to new lines
+      const newLines = lines.slice(lastLineCountRef.current);
+      const newUUIDs: string[] = [];
+      newLines.forEach(line => {
+        const uuid = line.domNode?.getAttribute('data-line-uuid');
+        if (!uuid) {
+          const newUUID = uuidv4();
+          line.domNode?.setAttribute('data-line-uuid', newUUID);
+          newUUIDs.push(newUUID);
+        }
+      });
+      
       // Update line count reference
       lastLineCountRef.current = currentLineCount;
+      
+      // Update line UUIDs reference
+      lastLineUUIDsRef.current = [...lastLineUUIDsRef.current, ...newUUIDs];
       
       // Log lines if debugging needed
       if (lines.length > 0) {
@@ -84,6 +102,8 @@ export const useContentChangeHandler = (
   return {
     contentUpdateRef,
     handleChange,
-    lastLineCountRef
+    lastLineCountRef,
+    lastLineUUIDsRef
   };
 };
+/******  3d3a8796-070a-416a-bfaf-12322270e14f  *******/

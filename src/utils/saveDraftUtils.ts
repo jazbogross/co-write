@@ -118,9 +118,9 @@ export const saveDraft = async (
           .insert({
             id: line.uuid,
             script_id: scriptId,
-            line_number: 0,  // Minimal placeholder to satisfy not-null constraint
+            line_number: null,  // Minimal placeholder to satisfy not-null constraint
             line_number_draft: line.lineNumber,
-            content: '',  // Empty since this is a new line
+            content: '',  // Empty since this is a draft of a new line
             draft: lineContent,
             original_author: userId,
             edited_by: userId ? [userId] : []

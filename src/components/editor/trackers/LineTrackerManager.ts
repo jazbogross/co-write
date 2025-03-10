@@ -1,4 +1,3 @@
-
 /**
  * LineTrackerManager.ts - Main class for line tracking management
  */
@@ -61,8 +60,8 @@ export class LineTrackerManager {
     // Handle text changes
     this.quill.on('text-change', (delta: any, oldDelta: any, source: string) => {
       this.state.isUpdating = true;
-      
       try {
+        console.log('LineTrackerManager - text-change delta', delta);
         this.eventHandler.handleTextChange(
           delta, 
           oldDelta, 
@@ -124,6 +123,7 @@ export class LineTrackerManager {
   }
 
   public setLineUuid(oneBasedIndex: number, uuid: string): void {
+    console.log(`LineTrackerManager - setLineUuid(${oneBasedIndex}, ${uuid})`);
     this.linePosition.setLineUuid(oneBasedIndex, uuid, this.quill);
   }
 
@@ -139,17 +139,25 @@ export class LineTrackerManager {
     return this.changeHistory.getChangeHistory(uuid);
   }
   
+  /**
+   * Modified refreshLineUuids: if a line in lineData does not have a UUID, generate one and then set it.
+   */
   public refreshLineUuids(lineData: any[]): void {
     this.eventHandler.refreshLineUuids(lineData);
     
-    // Also update our linePosition tracking
+    // Update our linePosition tracking and assign new UUIDs if missing
     for (let i = 0; i < lineData.length; i++) {
-      if (lineData[i] && lineData[i].uuid) {
+      if (lineData[i]) {
+        if (!lineData[i].uuid) {
+          const newUuid = crypto.randomUUID();
+          lineData[i].uuid = newUuid;
+          console.log(`LineTrackerManager - Assigned new UUID for line ${i + 1}: ${newUuid}`);
+        }
         this.setLineUuid(i + 1, lineData[i].uuid);
       }
     }
     
-    // If no UUIDs applied and we have lineData, try again after a delay
+    // If there is content, try refreshing again after a delay to catch late updates
     if (lineData.length > 0) {
       setTimeout(() => this.eventHandler.refreshLineUuids(lineData), 200);
     }

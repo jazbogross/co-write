@@ -135,7 +135,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         if (lines.length <= 1 && lineData.length > 1) {
           console.log('📝 TextEditor: Content missing after draft application, forcing update');
           setTimeout(() => {
-            applyDrafts(true); // Force update
+            applyDrafts(); // Force update
           }, 100);
         } else if (lines.length > 0) {
           setIsContentLoaded(true);
