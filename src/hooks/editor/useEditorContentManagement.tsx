@@ -96,7 +96,7 @@ export const useEditorContentManagement = (
           const delta = safelyParseDelta(newContent);
           if (delta) {
             console.log(`📝 useEditorContentManagement: Setting content using Delta with ${delta.ops.length} ops`);
-            // Cast to any to work around the type issues with Quill's Delta type
+            // Cast to any to avoid type issues with Quill's Delta
             editor.setContents(delta as any);
           } else {
             // Fallback to plain text if Delta parsing fails
@@ -139,12 +139,7 @@ export const useEditorContentManagement = (
         }
         
         // Set the React state to match the editor content
-        if (isDeltaObject(newContent)) {
-          setContent(newContent);
-        } else {
-          // Make sure we update React state with the content we just set
-          setContent(newContent);
-        }
+        setContent(newContent);
       }
       
       // Verify the update was successful

@@ -1,4 +1,3 @@
-
 /**
  * LineTrackerEventHandler.ts - Handles event tracking for line changes
  */
@@ -15,12 +14,14 @@ export class LineTrackerEventHandler {
   private contentCache: Map<number, string> = new Map();
   private lastOperationType: string | null = null;
   private lastAffectedIndex: number = -1;
-  
+  private preventUuidRegenerationOnDelete: boolean = true;
+
   // Define operation types for structural changes
   private operationTypes = {
     SPLIT: 'split',
     NEW: 'new',
     MERGE: 'merge',
+    DELETE: 'delete',
     MODIFY: 'modify',
     ENTER_AT_ZERO: 'enter-at-position-0'
   };
@@ -73,7 +74,7 @@ export class LineTrackerEventHandler {
     range: any,
     state: LineTrackerState
   ): void {
-    if (state.isProgrammaticUpdate) return; // Skip tracking during programmatic updates
+    if (state.isProgrammaticUpdate) return;
     this.cursorTracker.trackCursorChange(range, this.quill);
   }
 
@@ -121,12 +122,9 @@ export class LineTrackerEventHandler {
           this.handleNewLines(lines, affectedLineIndex, currentLineCount);
         } else if (operationType === this.operationTypes.ENTER_AT_ZERO) {
           this.handleEnterAtZero(lines, currentLineCount);
-        } else if (operationType === this.operationTypes.MERGE) {
-          // For merges, standard handling with preserved UUIDs is sufficient
-          this.cursorTracker.analyzeTextChange(delta, this.quill);
-          this.linePosition.updateLineIndexAttributes(this.quill, false);
+        } else if (operationType === this.operationTypes.DELETE || operationType === this.operationTypes.MERGE) {
+          this.handleDeleteOrMerge(lines, currentLineCount);
         } else {
-          // For modifications, standard handling
           this.cursorTracker.analyzeTextChange(delta, this.quill);
           this.linePosition.updateLineIndexAttributes(this.quill, false);
         }
@@ -153,11 +151,35 @@ export class LineTrackerEventHandler {
         this.lastLineCount = currentLineCount;
       }
     } else {
-      // For programmatic changes, simply update line indices
       this.linePosition.updateLineIndexAttributes(this.quill, true);
     }
     
     this.isTextChange = false;
+  }
+
+  /**
+   * Handle deletion or merge operations by completely preserving existing UUIDs
+   * This ensures cursor position line doesn't get a new UUID after deletion
+   */
+  private handleDeleteOrMerge(lines: any[], currentLineCount: number): void {
+    console.log(`**** LineTrackerEventHandler **** Handling delete/merge, preserving all UUIDs`);
+    
+    // For delete operations, we mainly want to preserve existing UUIDs and
+    // NOT generate new ones for the remaining lines
+    
+    // Update line indices to reflect the new positions
+    this.linePosition.updateLineIndexAttributes(this.quill, false);
+    
+    // Log the current UUIDs to verify they're preserved
+    if (lines.length > 0) {
+      console.log('**** LineTrackerEventHandler **** UUIDs after delete/merge:');
+      lines.forEach((line, index) => {
+        if (line.domNode) {
+          const uuid = line.domNode.getAttribute('data-line-uuid');
+          console.log(`**** Line ${index + 1} UUID: ${uuid || 'missing'}`);
+        }
+      });
+    }
   }
 
   /**
@@ -365,7 +387,18 @@ export class LineTrackerEventHandler {
         operationType = this.operationTypes.NEW;
       }
     } else if (currentLineCount < this.lastLineCount) {
-      operationType = this.operationTypes.MERGE;
+      let hasDelete = false;
+      
+      for (const op of delta.ops) {
+        if (op.delete) {
+          hasDelete = true;
+          break;
+        }
+      }
+      
+      // If delta contains delete operation, mark as delete
+      // Otherwise, it's likely a merge (e.g., backspace at start of line)
+      operationType = hasDelete ? this.operationTypes.DELETE : this.operationTypes.MERGE;
     }
     
     return { operationType, affectedLineIndex };
@@ -394,17 +427,13 @@ export class LineTrackerEventHandler {
     getLineUuid: (index: number) => string | undefined
   ): void {
     if (value) {
-      // When enabling programmatic updates, preserve UUIDs and save cursor position.
       this.uuidPreservation.preserveLineUuids();
       this.cursorTracker.saveCursorPosition(this.quill);
     } else if (this.uuidPreservation.hasPreservedUuids()) {
-      // When disabling, restore UUIDs and ensure all lines have them.
       this.uuidPreservation.restoreLineUuids();
       this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
       
-      // Also ensure all UUIDs are unique
-      const lines = this.quill.getLines(0);
-      this.ensureUniqueUuids(lines);
+      this.ensureUniqueUuids(this.quill.getLines(0));
       
       if (!this.isTextChange) {
         this.cursorTracker.restoreCursorPosition(this.quill);
@@ -443,10 +472,8 @@ export class LineTrackerEventHandler {
       }
     }
     
-    // Ensure all UUIDs are unique
     this.ensureUniqueUuids(lines);
     
-    // Update our content cache after refresh
     this.cacheLineContents(lines);
     this.lastLineCount = lines.length;
   }
