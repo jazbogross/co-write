@@ -75,6 +75,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateEditorContent,
     flushContentToLineData,
     captureCurrentContent,
+    captureEditorContent,  // Add the new capture function
     formats,
     modules,
   } = useTextEditor(
@@ -96,7 +97,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     editorInitialized,
     handleChange,
     flushContentToLineData,
-    captureCurrentContent
+    captureCurrentContent,
+    captureEditorContent  // Pass the new capture function
   });
 
   // Draft loader - enhanced with ability to force updates
@@ -146,16 +148,35 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   // Explicitly capture content before submission
   const captureAndSubmit = useCallback(() => {
-    // Capture the current editor state
-    const captured = captureCurrentContent?.();
-    if (captured) {
-      setContent(captured.content);
+    // First try the direct capture method
+    let captured = null;
+    
+    if (captureEditorContent) {
+      captured = captureEditorContent();
+      if (captured) {
+        console.log('📝 TextEditor: Captured editor content directly with', captured.lines.length, 'lines');
+      }
     }
     
-    // Now flush line data and submit
+    // If that fails, try the React state-based capture
+    if (!captured && captureCurrentContent) {
+      const stateCapture = captureCurrentContent();
+      if (stateCapture) {
+        console.log('📝 TextEditor: Captured content from state');
+        captured = { content: stateCapture.content };
+      }
+    }
+    
+    // If we still don't have content, use the current content state
+    if (!captured) {
+      console.log('📝 TextEditor: Using current content state');
+      captured = { content };
+    }
+    
+    // Now flush line data and return the captured content
     flushContentToLineData();
-    return captured?.content || content;
-  }, [captureCurrentContent, flushContentToLineData, content, setContent]);
+    return captured.content || content;
+  }, [captureEditorContent, captureCurrentContent, flushContentToLineData, content]);
 
   // Submissions
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(

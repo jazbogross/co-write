@@ -8,6 +8,7 @@ interface TextEditorOperationsProps {
   handleChange: (content: string) => void;
   flushContentToLineData: () => void;
   captureCurrentContent?: () => any;
+  captureEditorContent?: () => any;  // Add this new function prop
 }
 
 export const useEditorOperations = ({
@@ -15,7 +16,8 @@ export const useEditorOperations = ({
   editorInitialized,
   handleChange,
   flushContentToLineData,
-  captureCurrentContent
+  captureCurrentContent,
+  captureEditorContent
 }: TextEditorOperationsProps) => {
   
   const handleContentChange = useCallback((newContent: string) => {
@@ -31,14 +33,20 @@ export const useEditorOperations = ({
   }, [quillRef]);
 
   const handleSave = useCallback(() => {
-    // First capture current content if possible
-    if (captureCurrentContent) {
-      captureCurrentContent();
+    // First capture current content using the more direct method if available
+    let capturedContent = null;
+    if (captureEditorContent) {
+      capturedContent = captureEditorContent();
+    } else if (captureCurrentContent) {
+      capturedContent = captureCurrentContent();
     }
     
     // Then flush to line data
-    flushContentToLineData();
-  }, [flushContentToLineData, captureCurrentContent]);
+    const flushedContent = flushContentToLineData();
+    
+    // Return the captured content, prioritizing direct capture over flush result
+    return capturedContent || flushedContent;
+  }, [flushContentToLineData, captureCurrentContent, captureEditorContent]);
 
   return {
     handleContentChange,
