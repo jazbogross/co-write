@@ -1,6 +1,4 @@
 
-// File: src/components/editor/TextEditor.tsx
-
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { useTextEditor } from '@/hooks/useTextEditor';
@@ -75,11 +73,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     updateEditorContent,
     flushContentToLineData,
     captureCurrentContent,
-    captureEditorContent,  // Add the new capture function
+    captureEditorContent,
     formats,
     modules,
   } = useTextEditor(
-    originalContent,  // Pass originalContent correctly here
+    originalContent,
     scriptId,
     lineData,
     setLineData,
@@ -98,7 +96,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     handleChange,
     flushContentToLineData,
     captureCurrentContent,
-    captureEditorContent  // Pass the new capture function
+    captureEditorContent
   });
 
   // Draft loader - enhanced with ability to force updates
@@ -148,7 +146,10 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   // Explicitly capture content before submission
   const captureAndSubmit = useCallback(() => {
-    // First try the direct capture method
+    // First flush the content to ensure lineData is updated
+    const flushed = flushContentToLineData();
+    
+    // Then try the direct capture method
     let captured = null;
     
     if (captureEditorContent) {
@@ -173,10 +174,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       captured = { content };
     }
     
-    // Now flush line data and return the captured content
-    flushContentToLineData();
-    return captured.content || content;
-  }, [captureEditorContent, captureCurrentContent, flushContentToLineData, content]);
+    // Return the combined result - includes the current editor content and the updated lineData
+    return {
+      content: captured.content || content,
+      lineData: flushed ? lineData : null
+    };
+  }, [captureEditorContent, captureCurrentContent, flushContentToLineData, content, lineData]);
 
   // Submissions
   const { isSubmitting, handleSubmit, saveToSupabase } = useSubmitEdits(
@@ -193,18 +196,22 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   // Save & sync
   const handleSaveAndSync = useCallback(() => {
-    // Capture current content before saving
-    const currentContent = captureAndSubmit();
+    // First update the line data
+    const { content: currentContent } = captureAndSubmit();
     
+    // Then tell the editor about save operation
     handleSave();
+    
+    // Then save to database
     saveToSupabase(currentContent);
   }, [handleSave, saveToSupabase, captureAndSubmit]);
 
   // Submit changes
   const handleSubmitChanges = useCallback(() => {
-    // Capture current content before submitting
-    const currentContent = captureAndSubmit();
+    // First update the line data
+    const { content: currentContent } = captureAndSubmit();
     
+    // Then save to database
     handleSubmit(currentContent);
   }, [captureAndSubmit, handleSubmit]);
 

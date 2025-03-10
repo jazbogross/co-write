@@ -27,9 +27,9 @@ export const useSubmitEdits = (
     // Use provided content if available, otherwise use state content
     const contentToUse = currentContent || content;
     
-    // If it's a Delta object, ensure it's properly stringified for storage
+    // If it's a Delta object, ensure it's properly processed
     if (isDeltaObject(contentToUse)) {
-      console.log('getContentToSave: Detected Delta object, stringifying once');
+      console.log('getContentToSave: Detected Delta object');
       return contentToUse;
     }
     

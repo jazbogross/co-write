@@ -19,7 +19,8 @@ export const useContentFlushing = (
     
     // Get all lines from the editor
     const lines = editor.getLines(0);
-    console.log(`💾 useContentFlushing: Capturing ${lines.length} lines from editor`);
+    console.log(`💾 useContentFlushing: Found ${lines.length} lines in the editor`);
+    console.log('💾 Full editor content:', editor.getContents());
     
     // Extract content and UUIDs for each line
     const capturedContent = lines.map((line: any, index: number) => {
@@ -33,9 +34,9 @@ export const useContentFlushing = (
       let uuid = null;
       if (line.domNode) {
         uuid = line.domNode.getAttribute('data-line-uuid');
-        console.log(`💾 Captured line ${index+1} UUID from DOM: ${uuid || 'missing'}, delta ops: ${delta.ops.length}`);
+        console.log(`💾 Line ${index+1}: UUID from DOM: ${uuid || 'missing'}, Delta:`, JSON.stringify(delta));
       } else {
-        console.log(`💾 Captured line ${index+1} has no domNode, delta ops: ${delta.ops.length}`);
+        console.log(`💾 Line ${index+1} has no domNode, Delta:`, JSON.stringify(delta));
       }
       
       return {
@@ -44,6 +45,8 @@ export const useContentFlushing = (
         lineNumber: index + 1
       };
     });
+    
+    console.log('💾 useContentFlushing: Extracted line contents:', capturedContent);
     
     return {
       lines: capturedContent,
@@ -61,12 +64,13 @@ export const useContentFlushing = (
     }
     
     const { lines: lineContents, editor } = captured;
-    console.log(`💾 useContentFlushing: Flushing ${lineContents.length} lines to line data`);
+    console.log(`💾 useContentFlushing: About to call updateLineContents with extracted lines`);
     
     try {
       // Pass to updateLineContents to update the lineData state with the new content
+      // This should include ALL lines from the editor
       updateLineContents(lineContents.map(line => line.content), editor);
-      console.log('💾 useContentFlushing: Updated line contents successfully');
+      console.log('💾 useContentFlushing: updateLineContents callback executed successfully');
       return captured;
     } catch (error) {
       console.error('💾 useContentFlushing: Error updating line contents:', error);
