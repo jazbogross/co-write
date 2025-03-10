@@ -1,3 +1,4 @@
+
 import { useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
@@ -19,6 +20,7 @@ export const useContentChangeHandler = (
   const lastContentRef = useRef<string | null>(null);
   const lastLineCountRef = useRef<number>(0);
   const lastLineUUIDsRef = useRef<string[]>([]);
+  const pendingUUIDAssignmentRef = useRef<boolean>(false);
   
   const handleChange = useCallback((newContent: string | DeltaContent, delta?: any, source?: string) => {
     // Skip processing if source is not 'user' (i.e., it's a programmatic change)
@@ -62,30 +64,60 @@ export const useContentChangeHandler = (
       // Only update React state for line structure changes
       setContent(convertedDelta);
       
-      // Determine new lines (added since last count)
-      const newLines = lines.slice(lastLineCountRef.current);
-      const newUUIDs: string[] = [];
-      
-      // Force assign new UUIDs to all new lines, regardless of existing attributes
-      newLines.forEach((line, index) => {
-        if (line.domNode) {
-          // Always generate a new UUID for new lines
-          const newUUID = uuidv4();
-          line.domNode.setAttribute('data-line-uuid', newUUID);
-          newUUIDs.push(newUUID);
-          console.log(`📝 useContentChangeHandler: Assigned new UUID ${newUUID} to new line ${lastLineCountRef.current + index + 1}`);
+      // Determine if lines were added or removed
+      if (currentLineCount > lastLineCountRef.current) {
+        // Lines were added
+        const newLines = lines.slice(lastLineCountRef.current);
+        const newUUIDs: string[] = [];
+        
+        // Check if we can use LineTracking's built-in UUID assignment
+        if (editor.lineTracking) {
+          console.log(`📝 useContentChangeHandler: Deferring to LineTracking for UUID assignment`);
+          
+          // Do nothing here - let LineTracking assign UUIDs
+          // The LineTrackerEventHandler will handle this
+          pendingUUIDAssignmentRef.current = true;
+          
+          // Schedule a check to verify UUIDs were assigned correctly
+          setTimeout(() => {
+            verifyLineUUIDs(editor, lines);
+            pendingUUIDAssignmentRef.current = false;
+          }, 50);
+        } else {
+          // Fallback: Manually assign UUIDs to new lines
+          console.log(`📝 useContentChangeHandler: Manually assigning UUIDs to new lines`);
+          newLines.forEach((line, index) => {
+            if (line.domNode) {
+              // Get current UUID if it exists
+              const currentUuid = line.domNode.getAttribute('data-line-uuid');
+              
+              // Only assign a new UUID if one doesn't exist
+              if (!currentUuid) {
+                const newUUID = uuidv4();
+                line.domNode.setAttribute('data-line-uuid', newUUID);
+                newUUIDs.push(newUUID);
+                console.log(`📝 useContentChangeHandler: Assigned new UUID ${newUUID} to line ${lastLineCountRef.current + index + 1}`);
+              } else {
+                console.log(`📝 useContentChangeHandler: Line ${lastLineCountRef.current + index + 1} already has UUID ${currentUuid}`);
+                newUUIDs.push(currentUuid);
+              }
+            }
+          });
         }
-      });
+        
+        // Update line UUIDs reference with any new assignments
+        lastLineUUIDsRef.current = [...lastLineUUIDsRef.current, ...newUUIDs];
+      } else if (currentLineCount < lastLineCountRef.current) {
+        // Lines were removed - update our UUID tracking
+        lastLineUUIDsRef.current = lastLineUUIDsRef.current.slice(0, currentLineCount);
+      }
       
       // Update line count reference
       lastLineCountRef.current = currentLineCount;
       
-      // Update line UUIDs reference
-      lastLineUUIDsRef.current = [...lastLineUUIDsRef.current, ...newUUIDs];
-      
       // Log lines if debugging needed
       if (lines.length > 0) {
-        lines.slice(0, 3).forEach((line: any, i: number) => {
+        lines.slice(0, Math.min(lines.length, 3)).forEach((line: any, i: number) => {
           if (line.domNode) {
             const uuid = line.domNode.getAttribute('data-line-uuid');
             console.log(`📝 Line ${i+1} UUID from DOM: ${uuid || 'missing'}`);
@@ -101,10 +133,31 @@ export const useContentChangeHandler = (
     };
   }, [editorInitialized, quillRef, setContent, isProcessingLinesRef, isUpdatingEditorRef]);
 
+  // Helper function to verify that all lines have UUIDs after changes
+  const verifyLineUUIDs = (editor: any, lines: any[]) => {
+    let missingUUIDs = 0;
+    
+    lines.forEach((line, index) => {
+      if (line.domNode && !line.domNode.getAttribute('data-line-uuid')) {
+        missingUUIDs++;
+        
+        // If a line is missing a UUID, generate one
+        const newUUID = uuidv4();
+        line.domNode.setAttribute('data-line-uuid', newUUID);
+        console.log(`📝 verifyLineUUIDs: Assigned missing UUID ${newUUID} to line ${index + 1}`);
+      }
+    });
+    
+    if (missingUUIDs > 0) {
+      console.log(`📝 verifyLineUUIDs: Found and fixed ${missingUUIDs} lines with missing UUIDs`);
+    }
+  };
+
   return {
     contentUpdateRef,
     handleChange,
     lastLineCountRef,
-    lastLineUUIDsRef
+    lastLineUUIDsRef,
+    pendingUUIDAssignmentRef
   };
 };
