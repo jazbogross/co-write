@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { LineData } from '@/types/lineTypes';
 import { useDrafts } from './useDrafts';
@@ -14,7 +14,7 @@ export const useLineData = (
   scriptId: string, 
   originalContent: string, 
   userId: string | null,
-  isAdmin: boolean = false // Added isAdmin parameter with default false
+  isAdmin: boolean = false
 ) => {
   console.log('🔠 useLineData: Hook called with', { scriptId, userId, isAdmin });
   
@@ -39,6 +39,7 @@ export const useLineData = (
   const { loadDraftsForCurrentUser } = useDrafts();
   const { initializeEditor } = useEditorInit(lineData, isDataReady);
 
+  // Handle line content updates
   const updateLineContents = useCallback((newContents: any[], quill: any) => {
     console.log('🔠 useLineData: updateLineContents called with', { 
       newContentsLength: newContents.length, 
@@ -114,27 +115,16 @@ export const useLineData = (
       
       console.log(`🔠 useLineData: Returning ${newData.length} updated lines`);
       
-      // Log the first few new data items
-      newData.slice(0, 3).forEach((item, i) => {
-        console.log(`🔠 New data item ${i+1}:`, {
-          uuid: item.uuid,
-          lineNumber: item.lineNumber,
-          contentType: typeof item.content,
-          isDelta: isDeltaObject(item.content),
-          preview: typeof item.content === 'string' 
-            ? item.content.substring(0, 30)
-            : JSON.stringify(item.content).substring(0, 30) + '...'
-        });
-      });
-      
+      // Update content references
       previousContentRef.current = newContents.map(content => 
         typeof content === 'object' ? JSON.stringify(content) : String(content)
       );
       
       return newData;
     });
-  }, [matchAndAssignLines]);
+  }, [matchAndAssignLines, lastLineCountRef]);
 
+  // Update single line content
   const updateLineContent = useCallback((lineIndex: number, newContent: string) => {
     console.log(`🔠 useLineData: updateLineContent for line ${lineIndex}`);
     
@@ -176,7 +166,7 @@ export const useLineData = (
     });
   }, [userId, contentToUuidMapRef]);
 
-  // Updated to use the new consolidated loadDrafts function
+  // Load user drafts
   const loadUserDrafts = useCallback(() => {
     console.log('🔠 useLineData: loadUserDrafts called');
     return loadDraftsForCurrentUser(
@@ -184,9 +174,10 @@ export const useLineData = (
       userId, 
       setLineData, 
       contentToUuidMapRef,
-      loadDrafts // Pass the implementation from useLineDataInit
+      loadDrafts,
+      isAdmin
     );
-  }, [scriptId, userId, loadDraftsForCurrentUser, contentToUuidMapRef, loadDrafts, setLineData]);
+  }, [scriptId, userId, loadDraftsForCurrentUser, contentToUuidMapRef, loadDrafts, setLineData, isAdmin]);
 
   return { 
     lineData, 
