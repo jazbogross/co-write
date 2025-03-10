@@ -12,8 +12,7 @@ export const useDraftManagement = (
   content: string,
   quillRef: React.RefObject<ReactQuill>,
   updateEditorContent: (content: string | DeltaContent) => void,
-  loadDraftsForCurrentUser: () => void,
-  isAdmin: boolean = false // Add default value to make this parameter optional
+  loadDraftsForCurrentUser: () => void
 ) => {
   const [draftLoadAttempted, setDraftLoadAttempted] = useState(false);
   const [draftApplied, setDraftApplied] = useState(false);
@@ -54,4 +53,3 @@ export const useDraftManagement = (
     draftApplied
   };
 };
-

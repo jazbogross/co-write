@@ -104,9 +104,7 @@ export const useTextEditor = (
     typeof content === 'string' ? content : '',
     quillRef,
     updateEditorContent,
-    loadDraftsForCurrentUser,
-    // Add the missing isAdmin parameter
-    false  // default to false when not provided
+    loadDraftsForCurrentUser
   );
   const { draftLoadAttempted, draftApplied } = draftManagement;
 
@@ -126,4 +124,3 @@ export const useTextEditor = (
     draftApplied
   };
 };
-
