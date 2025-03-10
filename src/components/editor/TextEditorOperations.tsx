@@ -1,6 +1,7 @@
 
 import { useCallback } from 'react';
 import ReactQuill from 'react-quill';
+import { captureContentFromDOM } from '@/utils/saveDraftUtils';
 
 interface TextEditorOperationsProps {
   quillRef: React.RefObject<ReactQuill>;
@@ -8,7 +9,7 @@ interface TextEditorOperationsProps {
   handleChange: (content: string) => void;
   flushContentToLineData: () => void;
   captureCurrentContent?: () => any;
-  captureEditorContent?: () => any;  // Add this new function prop
+  captureEditorContent?: () => any;
 }
 
 export const useEditorOperations = ({
@@ -33,20 +34,25 @@ export const useEditorOperations = ({
   }, [quillRef]);
 
   const handleSave = useCallback(() => {
-    // First capture current content using the more direct method if available
-    let capturedContent = null;
-    if (captureEditorContent) {
-      capturedContent = captureEditorContent();
-    } else if (captureCurrentContent) {
-      capturedContent = captureCurrentContent();
+    // Directly capture from DOM for most accurate content
+    const editor = quillRef.current?.getEditor();
+    if (editor) {
+      const domCapture = captureContentFromDOM(editor);
+      if (domCapture) {
+        return domCapture;
+      }
     }
     
-    // Then flush to line data
-    const flushedContent = flushContentToLineData();
+    // Fallback to other capture methods if direct DOM capture fails
+    if (captureEditorContent) {
+      return captureEditorContent();
+    } else if (captureCurrentContent) {
+      return captureCurrentContent();
+    }
     
-    // Return the captured content, prioritizing direct capture over flush result
-    return capturedContent || flushedContent;
-  }, [flushContentToLineData, captureCurrentContent, captureEditorContent]);
+    // Final fallback - use flushContentToLineData
+    return flushContentToLineData();
+  }, [quillRef, flushContentToLineData, captureCurrentContent, captureEditorContent]);
 
   return {
     handleContentChange,

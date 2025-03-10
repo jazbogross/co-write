@@ -1,11 +1,11 @@
 
 import { useState, useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
-import { saveDraft } from '@/utils/saveDraftUtils';
+import { saveDraft, captureContentFromDOM } from '@/utils/saveDraftUtils';
 import { saveLinesToDatabase } from '@/utils/saveLineUtils';
 import { saveSuggestions, saveLineDrafts } from '@/utils/suggestions';
 import { toast } from 'sonner';
-import { DeltaContent, isDeltaObject } from '@/utils/editor';
+import { DeltaContent } from '@/utils/editor/types';
 
 export const useSubmitEdits = (
   isAdmin: boolean,
@@ -20,18 +20,21 @@ export const useSubmitEdits = (
 ) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const getContentToSave = useCallback((currentContent?: string | DeltaContent) => {
-    console.log('getContentToSave: Original content:', currentContent || content);
-    
-    const contentToUse = currentContent || content;
-    
-    if (isDeltaObject(contentToUse)) {
-      console.log('getContentToSave: Detected Delta object');
-      return contentToUse;
+  // Helper to capture the most up-to-date content from the DOM
+  const captureCurrentContent = useCallback(() => {
+    // Use DOM-based capture if we have an editor instance
+    if (quill) {
+      console.log('📋 useSubmitEdits: Capturing content directly from DOM');
+      return captureContentFromDOM(quill);
     }
     
-    return contentToUse;
-  }, [content]);
+    // Fallback to using the provided content and lineData
+    console.log('📋 useSubmitEdits: Using provided content for save');
+    return { 
+      content, 
+      lineData 
+    };
+  }, [quill, content, lineData]);
 
   const saveToSupabase = useCallback(async (currentContent?: string | DeltaContent) => {
     if (!scriptId || !userId) {
@@ -41,26 +44,29 @@ export const useSubmitEdits = (
 
     setIsSubmitting(true);
     try {
-      console.log(`Saving drafts for ${isAdmin ? 'admin' : 'non-admin'} user`, userId);
+      console.log(`📋 useSubmitEdits: Saving drafts for ${isAdmin ? 'admin' : 'non-admin'} user`, userId);
       
-      const contentToSave = getContentToSave(currentContent);
-      console.log('saveToSupabase: Content to save:', JSON.stringify(contentToSave).substring(0, 100) + '...');
-      console.log('saveToSupabase: Number of line data items:', lineData.length);
+      // Capture the most up-to-date content
+      const captured = captureCurrentContent();
+      const contentToSave = currentContent || captured?.content || content;
+      const lineDataToSave = captured?.lineData || lineData;
+      
+      console.log('📋 useSubmitEdits: Saving content type:', typeof contentToSave);
+      console.log('📋 useSubmitEdits: Number of line data items:', lineDataToSave.length);
       
       // Log the first few line data items for debugging
-      lineData.slice(0, 3).forEach((line, i) => {
-        console.log(`Line ${i+1}:`, {
+      lineDataToSave.slice(0, 3).forEach((line, i) => {
+        console.log(`📋 Line ${i+1}:`, {
           uuid: line.uuid,
           lineNumber: line.lineNumber,
-          contentType: typeof line.content,
-          preview: JSON.stringify(line.content).substring(0, 100) + '...'
+          contentType: typeof line.content
         });
       });
       
       if (isAdmin) {
-        await saveDraft(scriptId, lineData, contentToSave, userId, quill);
+        await saveDraft(scriptId, lineDataToSave, contentToSave, userId, quill);
       } else {
-        await saveLineDrafts(scriptId, lineData, "", userId);
+        await saveLineDrafts(scriptId, lineDataToSave, "", userId);
       }
       
       toast.success('Draft saved successfully!');
@@ -70,12 +76,12 @@ export const useSubmitEdits = (
         await loadDrafts();
       }
     } catch (error) {
-      console.error('Error saving draft:', error);
+      console.error('📋 useSubmitEdits: Error saving draft:', error);
       toast.error('Error saving draft');
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, content, userId, loadDrafts, quill, getContentToSave]);
+  }, [isAdmin, scriptId, userId, loadDrafts, quill, content, lineData, captureCurrentContent]);
 
   const handleSubmit = useCallback(async (currentContent?: string | DeltaContent) => {
     if (!scriptId) {
@@ -85,32 +91,36 @@ export const useSubmitEdits = (
 
     setIsSubmitting(true);
     try {
-      console.log(`Submitting changes for ${isAdmin ? 'admin' : 'non-admin'} user`);
+      console.log(`📋 useSubmitEdits: Submitting changes for ${isAdmin ? 'admin' : 'non-admin'} user`);
       
-      const contentToSave = getContentToSave(currentContent);
+      // Capture the most up-to-date content
+      const captured = captureCurrentContent();
+      const contentToSave = currentContent || captured?.content || content;
+      const lineDataToSave = captured?.lineData || lineData;
       
       if (isAdmin) {
-        await saveLinesToDatabase(scriptId, lineData, contentToSave);
+        await saveLinesToDatabase(scriptId, lineDataToSave, contentToSave);
         onSuggestChange(contentToSave);
         toast.success('Changes saved successfully!');
       } else {
         if (!userId) {
           throw new Error('User ID is required to submit suggestions');
         }
-        await saveSuggestions(scriptId, lineData, "", userId);
+        await saveSuggestions(scriptId, lineDataToSave, "", userId);
         toast.success('Suggestions submitted for approval!');
       }
     } catch (error) {
-      console.error('Error submitting changes:', error);
+      console.error('📋 useSubmitEdits: Error submitting changes:', error);
       toast.error('Error submitting changes');
     } finally {
       setIsSubmitting(false);
     }
-  }, [isAdmin, scriptId, lineData, userId, onSuggestChange, getContentToSave]);
+  }, [isAdmin, scriptId, lineData, userId, onSuggestChange, content, captureCurrentContent]);
 
   return {
     isSubmitting,
     handleSubmit,
-    saveToSupabase
+    saveToSupabase,
+    captureCurrentContent
   };
 };
