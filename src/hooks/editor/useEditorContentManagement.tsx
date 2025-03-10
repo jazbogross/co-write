@@ -20,6 +20,8 @@ export const useEditorContentManagement = (
   const [isProcessingContent, setIsProcessingContent] = useState(false);
   const lastProcessedContentRef = useRef<string | DeltaContent | null>(null);
   const contentUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isUpdatingEditorRef = useRef(false);
+  const needsFullContentUpdateRef = useRef(false);
   
   /**
    * Process content changes and update line data
@@ -103,6 +105,33 @@ export const useEditorContentManagement = (
     }
   }, [quillRef, isInitialized, updateLineContents]);
   
+  /**
+   * Update editor content with the provided content
+   */
+  const updateEditorContent = useCallback((editor: any, newContent: string | DeltaContent, forceUpdate: boolean = false) => {
+    if (!editor) return;
+    
+    isUpdatingEditorRef.current = true;
+    try {
+      if (isDeltaObject(newContent)) {
+        editor.setContents(newContent);
+      } else {
+        editor.setText(newContent);
+      }
+    } catch (error) {
+      console.error('Error updating editor content:', error);
+    } finally {
+      isUpdatingEditorRef.current = false;
+    }
+  }, []);
+  
+  /**
+   * Mark the editor as needing a full content update
+   */
+  const markForFullContentUpdate = useCallback(() => {
+    needsFullContentUpdateRef.current = true;
+  }, []);
+  
   // Clear any pending content updates when unmounting
   useEffect(() => {
     return () => {
@@ -163,6 +192,11 @@ export const useEditorContentManagement = (
   return {
     processContentChange,
     scheduleContentUpdate,
-    isProcessingContent
+    isProcessingContent,
+    updateEditorContent,
+    isUpdatingEditorRef,
+    markForFullContentUpdate,
+    needsFullContentUpdateRef
   };
 };
+
