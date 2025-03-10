@@ -11,6 +11,7 @@ export class LineTrackerEventHandler {
   private uuidPreservation: any;
   private isTextChange: boolean = false;
   private lastLineCount: number = 0;
+  private contentCache: Map<number, string> = new Map();
   
   // Define operation types for structural changes
   private operationTypes = {
@@ -35,7 +36,30 @@ export class LineTrackerEventHandler {
     if (quill) {
       const lines = quill.getLines(0);
       this.lastLineCount = lines.length;
+      // Cache initial line content for better change detection
+      this.cacheLineContents(lines);
     }
+  }
+
+  /**
+   * Cache line contents for better change detection
+   */
+  private cacheLineContents(lines: any[]): void {
+    this.contentCache.clear();
+    lines.forEach((line, index) => {
+      const content = this.getLineContent(line);
+      this.contentCache.set(index, content);
+    });
+  }
+
+  /**
+   * Get content from a line
+   */
+  private getLineContent(line: any): string {
+    if (!line || !line.cache || !line.cache.delta || !line.cache.delta.ops) {
+      return '';
+    }
+    return line.cache.delta.ops?.[0]?.insert || '';
   }
 
   /**
@@ -75,48 +99,39 @@ export class LineTrackerEventHandler {
         // Save cursor position before making changes
         this.cursorTracker.saveCursorPosition(this.quill);
         
-        // Determine the type of structural change
-        const operationType = this.analyzeStructuralChange(delta, currentLineCount);
-        console.log(`**** LineTrackerEventHandler **** Operation type detected: ${operationType}`);
+        // Determine the type of structural change and where it occurred
+        const { operationType, affectedLineIndex } = this.analyzeStructuralChangeDetailed(delta, currentLineCount);
+        console.log(`**** LineTrackerEventHandler **** Operation type detected: ${operationType} at line ${affectedLineIndex + 1}`);
         
-        if (operationType === this.operationTypes.SPLIT || operationType === this.operationTypes.NEW) {
-          console.log(`**** LineTrackerEventHandler **** Handling ${operationType} operation`);
-          
-          // Preserve UUIDs only for existing lines
-          this.uuidPreservation.preserveLineUuids();
-          
-          // Analyze the delta for additional line operations
-          this.cursorTracker.analyzeTextChange(delta, this.quill);
-          
-          // Update line indices and detect changes in line count
-          this.linePosition.updateLineIndexAttributes(this.quill, false);
-          this.linePosition.detectLineCountChanges(this.quill, false);
-          
-          // Restore UUIDs for existing lines
-          this.uuidPreservation.restoreLineUuids();
-          
-          // For newly inserted lines, assign new UUIDs
-          if (currentLineCount > this.lastLineCount) {
-            this.assignNewUuidsToNewLines(this.quill.getLines(0), this.lastLineCount, currentLineCount);
-          }
+        // Preserve existing UUIDs before any DOM manipulations
+        this.uuidPreservation.preserveLineUuids();
+        
+        // Handle different types of line operations
+        if (operationType === this.operationTypes.SPLIT) {
+          this.handleLineSplit(lines, affectedLineIndex, currentLineCount);
+        } else if (operationType === this.operationTypes.NEW) {
+          this.handleNewLines(lines, affectedLineIndex, currentLineCount);
         } else if (operationType === this.operationTypes.MERGE) {
-          // For merges, preserve and then restore UUIDs normally
-          this.uuidPreservation.preserveLineUuids();
+          // For merges, standard handling with preserved UUIDs is sufficient
           this.cursorTracker.analyzeTextChange(delta, this.quill);
           this.linePosition.updateLineIndexAttributes(this.quill, false);
-          this.linePosition.detectLineCountChanges(this.quill, false);
-          this.uuidPreservation.restoreLineUuids();
         } else {
           // For modifications, standard handling
-          this.uuidPreservation.preserveLineUuids();
           this.cursorTracker.analyzeTextChange(delta, this.quill);
           this.linePosition.updateLineIndexAttributes(this.quill, false);
-          this.linePosition.detectLineCountChanges(this.quill, false);
-          this.uuidPreservation.restoreLineUuids();
         }
+        
+        // Detect line count changes and update line indices
+        this.linePosition.detectLineCountChanges(this.quill, false);
+        
+        // Restore UUIDs for existing lines
+        this.uuidPreservation.restoreLineUuids();
         
         // Ensure that every line has a UUID (generate if missing)
         this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
+        
+        // Update content cache for future change detection
+        this.cacheLineContents(this.quill.getLines(0));
         
         // Restore cursor position after changes
         this.cursorTracker.restoreCursorPosition(this.quill);
@@ -130,6 +145,63 @@ export class LineTrackerEventHandler {
     }
     
     this.isTextChange = false;
+  }
+
+  /**
+   * Handle line splits - keep the UUID for the original line, generate new UUIDs for the newly created lines
+   */
+  private handleLineSplit(lines: any[], splitLineIndex: number, currentLineCount: number): void {
+    console.log(`**** LineTrackerEventHandler **** Handling line split at index ${splitLineIndex}`);
+    
+    // The line at the split index should keep its original UUID (will be restored by UuidPreservation)
+    // The new line created after the split should get a new UUID
+    if (splitLineIndex >= 0 && splitLineIndex < lines.length - 1) {
+      const newLineIndex = splitLineIndex + 1;
+      const newLine = lines[newLineIndex];
+      
+      if (newLine && newLine.domNode) {
+        // Explicitly clear any inherited UUID to ensure we don't keep an old one
+        newLine.domNode.removeAttribute('data-line-uuid');
+        
+        // Generate and assign a new UUID
+        const newUuid = crypto.randomUUID();
+        newLine.domNode.setAttribute('data-line-uuid', newUuid);
+        newLine.domNode.setAttribute('data-line-index', String(newLineIndex + 1));
+        console.log(`**** LineTrackerEventHandler **** Assigned new UUID ${newUuid} to split line ${newLineIndex + 1}`);
+      }
+    }
+    
+    // Update line indices for all lines
+    this.linePosition.updateLineIndexAttributes(this.quill, false);
+  }
+
+  /**
+   * Handle new lines - generate new UUIDs for all newly added lines
+   */
+  private handleNewLines(lines: any[], startLineIndex: number, currentLineCount: number): void {
+    console.log(`**** LineTrackerEventHandler **** Handling new lines starting at index ${startLineIndex}`);
+    
+    // Identify new lines that need UUIDs
+    for (let i = Math.max(0, startLineIndex); i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Check if this is likely a new line by comparing with our cached content
+      const isNewLine = i >= this.lastLineCount || !this.contentCache.has(i);
+      
+      if (isNewLine && line && line.domNode) {
+        // Remove any existing UUID that might have been inherited
+        line.domNode.removeAttribute('data-line-uuid');
+        
+        // Generate and assign a new UUID
+        const newUuid = crypto.randomUUID();
+        line.domNode.setAttribute('data-line-uuid', newUuid);
+        line.domNode.setAttribute('data-line-index', String(i + 1));
+        console.log(`**** LineTrackerEventHandler **** Assigned new UUID ${newUuid} to new line ${i + 1}`);
+      }
+    }
+    
+    // Update line indices for all lines
+    this.linePosition.updateLineIndexAttributes(this.quill, false);
   }
 
   /**
@@ -150,47 +222,54 @@ export class LineTrackerEventHandler {
   }
 
   /**
-   * Analyze the type of structural change.
-   * Returns one of the operationTypes: SPLIT, NEW, MERGE, or MODIFY.
+   * Analyze the type of structural change with more detail.
+   * Returns the operation type and the affected line index.
    */
-  private analyzeStructuralChange(delta: any, currentLineCount: number): string {
-    if (!delta || !delta.ops) return this.operationTypes.MODIFY;
+  private analyzeStructuralChangeDetailed(delta: any, currentLineCount: number): { 
+    operationType: string; 
+    affectedLineIndex: number;
+  } {
+    if (!delta || !delta.ops) {
+      return { operationType: this.operationTypes.MODIFY, affectedLineIndex: -1 };
+    }
+    
+    let affectedLineIndex = -1;
+    let operationType = this.operationTypes.MODIFY;
+    
+    // Try to determine which line was affected based on delta
+    const selection = this.quill.getSelection();
+    if (selection) {
+      // Find the line index based on selection
+      const lines = this.quill.getLines(0, selection.index);
+      affectedLineIndex = lines.length - 1;
+    }
     
     if (currentLineCount > this.lastLineCount) {
-      // If line count increased, check delta operations for newline inserts.
+      // Find which operation added lines
+      let wasExactNewlineInsert = false;
+      
       for (const op of delta.ops) {
         if (op.insert && typeof op.insert === 'string') {
           if (op.insert === '\n') {
-            return this.operationTypes.SPLIT;
+            // This is a pure newline insertion (pressing Enter) -> split
+            operationType = this.operationTypes.SPLIT;
+            wasExactNewlineInsert = true;
           } else if (op.insert.includes('\n')) {
-            return this.operationTypes.NEW;
+            // This contains newlines along with other content -> new content
+            operationType = this.operationTypes.NEW;
           }
         }
       }
-      return this.operationTypes.NEW;
-    }
-    
-    if (currentLineCount < this.lastLineCount) {
-      return this.operationTypes.MERGE;
-    }
-    
-    return this.operationTypes.MODIFY;
-  }
-
-  /**
-   * Assign new UUIDs to newly created lines.
-   * This method updates the DOM attributes for lines from startIndex (lastLineCount) to endCount.
-   */
-  private assignNewUuidsToNewLines(lines: any[], startIndex: number, endCount: number): void {
-    console.log(`**** LineTrackerEventHandler **** Assigning new UUIDs to lines ${startIndex + 1} to ${endCount}`);
-    for (let i = startIndex; i < endCount; i++) {
-      if (i < lines.length && lines[i].domNode) {
-        const newUuid = crypto.randomUUID();
-        lines[i].domNode.setAttribute('data-line-uuid', newUuid);
-        lines[i].domNode.setAttribute('data-line-index', String(i + 1));
-        console.log(`**** LineTrackerEventHandler **** Assigned new UUID ${newUuid} to line ${i + 1}`);
+      
+      // If we couldn't determine precisely, use a fallback
+      if (!wasExactNewlineInsert && operationType !== this.operationTypes.NEW) {
+        operationType = this.operationTypes.NEW;
       }
+    } else if (currentLineCount < this.lastLineCount) {
+      operationType = this.operationTypes.MERGE;
     }
+    
+    return { operationType, affectedLineIndex };
   }
 
   /**
@@ -216,13 +295,6 @@ export class LineTrackerEventHandler {
 
   /**
    * Refresh line UUIDs from lineData.
-   * 
-   * Enhancements:
-   * 1. If a new line is detected in the editor (i.e. there's no corresponding entry in lineData), 
-   *    create a new lineData item and generate a new UUID.
-   * 2. If an existing lineData item is missing a UUID, generate one.
-   * 3. Retain UUIDs for lines that already have one.
-   * 4. Update the DOM with the correct data-line-uuid and data-line-index attributes.
    */
   public refreshLineUuids(lineData: any[]): void {
     if (!lineData || lineData.length === 0) return;
@@ -252,6 +324,8 @@ export class LineTrackerEventHandler {
       }
     }
     
+    // Update our content cache after refresh
+    this.cacheLineContents(lines);
     this.lastLineCount = lines.length;
   }
 }
