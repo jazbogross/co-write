@@ -19,8 +19,13 @@ export const useContentUpdates = (
   const isInitialLoadRef = useRef(true);
   const contentLoadedRef = useRef(false);
   
-  // Get editor content management utilities
-  const { updateEditorContent, isUpdatingEditorRef, markForFullContentUpdate } = useEditorContentManagement(setContent);
+  // Get editor content management utilities - fix: pass all required arguments
+  const { updateEditorContent, isUpdatingEditorRef, markForFullContentUpdate, needsFullContentUpdateRef } = useEditorContentManagement(
+    quillRef,
+    [], // Empty array as placeholder for lineData (not used directly in this hook)
+    () => {}, // Empty function as placeholder for updateLineContents (not used directly)
+    editorInitialized // Pass editorInitialized as the fourth required argument
+  );
   
   // Get content change handler - optimized to only track line changes, not every keystroke
   const { contentUpdateRef, handleChange, lastLineCountRef } = useContentChangeHandler(
