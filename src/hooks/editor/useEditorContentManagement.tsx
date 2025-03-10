@@ -165,16 +165,18 @@ export const useEditorContentManagement = (
       
       try {
         // Try plain text fallback on error
-        const textContent = typeof newContent === 'string' 
-          ? newContent 
-          : extractPlainTextFromDelta(newContent as DeltaContent) || JSON.stringify(newContent);
-        insertContentWithLineBreaks(editor, textContent);
+        if (editor) {
+          const textContent = typeof newContent === 'string' 
+            ? newContent 
+            : extractPlainTextFromDelta(newContent as DeltaContent) || JSON.stringify(newContent);
+          insertContentWithLineBreaks(editor, textContent);
+        }
       } catch (fallbackError) {
         console.error('📝 useEditorContentManagement: Fallback insert failed:', fallbackError);
       }
     } finally {
       // Turn off programmatic update mode
-      if (editor.lineTracking) {
+      if (editor && editor.lineTracking) {
         editor.lineTracking.setProgrammaticUpdate(false);
       }
       isUpdatingEditorRef.current = false;

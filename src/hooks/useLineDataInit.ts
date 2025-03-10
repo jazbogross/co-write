@@ -46,8 +46,12 @@ export const useLineDataInit = (
           const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin).map(line => {
             if (isAdmin) {
               // Safely find the matching line and check for draft
-              const matchingLine = allLines.find(l => l.id === line.uuid);
-              if (matchingLine && typeof matchingLine === 'object' && 'draft' in matchingLine && matchingLine.draft) {
+              const matchingLine = allLines.find(l => {
+                return typeof l === 'object' && l !== null && 'id' in l && l.id === line.uuid;
+              });
+              
+              if (matchingLine && typeof matchingLine === 'object' && matchingLine !== null && 
+                  'draft' in matchingLine && matchingLine.draft) {
                 // If there's a draft, use it instead of the main content
                 try {
                   const draftContent = JSON.parse(matchingLine.draft);

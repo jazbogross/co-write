@@ -31,7 +31,9 @@ export const saveDraft = async (
     const existingLineMap = new Map();
     if (existingLines) {
       existingLines.forEach(line => {
-        existingLineMap.set(line.id, line);
+        if (line && typeof line === 'object' && 'id' in line) {
+          existingLineMap.set(line.id, line);
+        }
       });
     }
     
