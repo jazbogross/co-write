@@ -65,7 +65,10 @@ export const useContentUpdates = (
       if (typeof newContent === 'string') {
         editor.setText(newContent);
       } else if (isDeltaObject(newContent)) {
-        editor.setContents(newContent);
+        // Create a compatible delta for Quill using its own Delta constructor
+        const Delta = editor.constructor.import('delta');
+        const compatibleDelta = new Delta(newContent.ops);
+        editor.setContents(compatibleDelta);
       }
       
       // If the content isn't empty, mark that we've loaded content

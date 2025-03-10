@@ -49,3 +49,8 @@ export interface QuillCompatibleDelta extends DeltaContent {
   changeLength?: () => number;
   length?: () => number;
 }
+
+// Export a type for Quill's own Delta static class
+export type DeltaStatic = QuillCompatibleDelta & {
+  new(ops?: DeltaOp[] | Record<string, any>): QuillCompatibleDelta;
+};
