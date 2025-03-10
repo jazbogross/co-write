@@ -1,3 +1,4 @@
+
 /**
  * LineTrackerEventHandler.ts - Handles event tracking for line changes
  */
@@ -12,13 +13,16 @@ export class LineTrackerEventHandler {
   private isTextChange: boolean = false;
   private lastLineCount: number = 0;
   private contentCache: Map<number, string> = new Map();
+  private lastOperationType: string | null = null;
+  private lastAffectedIndex: number = -1;
   
   // Define operation types for structural changes
   private operationTypes = {
     SPLIT: 'split',
     NEW: 'new',
     MERGE: 'merge',
-    MODIFY: 'modify'
+    MODIFY: 'modify',
+    ENTER_AT_ZERO: 'enter-at-position-0'
   };
 
   constructor(
@@ -103,6 +107,10 @@ export class LineTrackerEventHandler {
         const { operationType, affectedLineIndex } = this.analyzeStructuralChangeDetailed(delta, currentLineCount);
         console.log(`**** LineTrackerEventHandler **** Operation type detected: ${operationType} at line ${affectedLineIndex + 1}`);
         
+        // Store last operation for debugging
+        this.lastOperationType = operationType;
+        this.lastAffectedIndex = affectedLineIndex;
+        
         // Preserve existing UUIDs before any DOM manipulations
         this.uuidPreservation.preserveLineUuids();
         
@@ -111,6 +119,8 @@ export class LineTrackerEventHandler {
           this.handleLineSplit(lines, affectedLineIndex, currentLineCount);
         } else if (operationType === this.operationTypes.NEW) {
           this.handleNewLines(lines, affectedLineIndex, currentLineCount);
+        } else if (operationType === this.operationTypes.ENTER_AT_ZERO) {
+          this.handleEnterAtZero(lines, currentLineCount);
         } else if (operationType === this.operationTypes.MERGE) {
           // For merges, standard handling with preserved UUIDs is sufficient
           this.cursorTracker.analyzeTextChange(delta, this.quill);
@@ -130,6 +140,9 @@ export class LineTrackerEventHandler {
         // Ensure that every line has a UUID (generate if missing)
         this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
         
+        // Final check: Make sure all lines have different UUIDs
+        this.ensureUniqueUuids(lines);
+        
         // Update content cache for future change detection
         this.cacheLineContents(this.quill.getLines(0));
         
@@ -145,6 +158,63 @@ export class LineTrackerEventHandler {
     }
     
     this.isTextChange = false;
+  }
+
+  /**
+   * Ensure all lines have unique UUIDs
+   */
+  private ensureUniqueUuids(lines: any[]): void {
+    const seenUuids = new Set<string>();
+    const duplicates: number[] = [];
+    
+    // First pass: detect duplicates
+    lines.forEach((line, index) => {
+      if (line.domNode) {
+        const uuid = line.domNode.getAttribute('data-line-uuid');
+        if (uuid) {
+          if (seenUuids.has(uuid)) {
+            duplicates.push(index);
+          } else {
+            seenUuids.add(uuid);
+          }
+        }
+      }
+    });
+    
+    // Second pass: fix duplicates
+    if (duplicates.length > 0) {
+      console.log(`**** LineTrackerEventHandler **** Found ${duplicates.length} lines with duplicate UUIDs, fixing...`);
+      
+      duplicates.forEach(index => {
+        const line = lines[index];
+        if (line && line.domNode) {
+          const newUuid = crypto.randomUUID();
+          line.domNode.setAttribute('data-line-uuid', newUuid);
+          line.domNode.setAttribute('data-line-index', String(index + 1));
+          console.log(`**** LineTrackerEventHandler **** Fixed duplicate UUID at line ${index + 1}, assigned new UUID: ${newUuid}`);
+        }
+      });
+    }
+  }
+
+  /**
+   * Handle special case: Enter at position 0
+   * This creates a new blank line at the beginning
+   */
+  private handleEnterAtZero(lines: any[], currentLineCount: number): void {
+    console.log(`**** LineTrackerEventHandler **** Handling Enter at position 0`);
+    
+    // The first line should get a new UUID (the empty line)
+    if (lines.length > 0 && lines[0].domNode) {
+      // Generate and assign a new UUID for the first line
+      const newUuid = crypto.randomUUID();
+      lines[0].domNode.setAttribute('data-line-uuid', newUuid);
+      lines[0].domNode.setAttribute('data-line-index', String(1));
+      console.log(`**** LineTrackerEventHandler **** Assigned new UUID ${newUuid} to new first line`);
+    }
+    
+    // Update all line indices
+    this.linePosition.updateLineIndexAttributes(this.quill, false);
   }
 
   /**
@@ -187,8 +257,9 @@ export class LineTrackerEventHandler {
       
       // Check if this is likely a new line by comparing with our cached content
       const isNewLine = i >= this.lastLineCount || !this.contentCache.has(i);
+      const hasSameUuid = this.checkForUuidDuplication(line, lines);
       
-      if (isNewLine && line && line.domNode) {
+      if ((isNewLine || hasSameUuid) && line && line.domNode) {
         // Remove any existing UUID that might have been inherited
         line.domNode.removeAttribute('data-line-uuid');
         
@@ -202,6 +273,25 @@ export class LineTrackerEventHandler {
     
     // Update line indices for all lines
     this.linePosition.updateLineIndexAttributes(this.quill, false);
+  }
+
+  /**
+   * Check if a line has duplicated UUID with any other line
+   */
+  private checkForUuidDuplication(line: any, lines: any[]): boolean {
+    if (!line || !line.domNode) return false;
+    
+    const lineUuid = line.domNode.getAttribute('data-line-uuid');
+    if (!lineUuid) return false;
+    
+    let count = 0;
+    lines.forEach((otherLine: any) => {
+      if (otherLine.domNode && otherLine.domNode.getAttribute('data-line-uuid') === lineUuid) {
+        count++;
+      }
+    });
+    
+    return count > 1; // Return true if this UUID appears more than once
   }
 
   /**
@@ -244,6 +334,15 @@ export class LineTrackerEventHandler {
       affectedLineIndex = lines.length - 1;
     }
     
+    // Check for enter at position 0 (new line at beginning)
+    const isEnterAtZero = this.detectEnterAtZero(delta, affectedLineIndex);
+    if (isEnterAtZero) {
+      return { 
+        operationType: this.operationTypes.ENTER_AT_ZERO, 
+        affectedLineIndex: 0 
+      };
+    }
+    
     if (currentLineCount > this.lastLineCount) {
       // Find which operation added lines
       let wasExactNewlineInsert = false;
@@ -273,6 +372,21 @@ export class LineTrackerEventHandler {
   }
 
   /**
+   * Detect the special case of Enter at position 0
+   */
+  private detectEnterAtZero(delta: any, affectedLineIndex: number): boolean {
+    // Special case: Enter at index 0 creates a new empty line at the beginning
+    if (affectedLineIndex === 0 && delta.ops) {
+      for (const op of delta.ops) {
+        if (op.insert === '\n' && op.retain === undefined) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
    * Handle programmatic update mode.
    */
   public handleProgrammaticUpdate(
@@ -287,6 +401,11 @@ export class LineTrackerEventHandler {
       // When disabling, restore UUIDs and ensure all lines have them.
       this.uuidPreservation.restoreLineUuids();
       this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
+      
+      // Also ensure all UUIDs are unique
+      const lines = this.quill.getLines(0);
+      this.ensureUniqueUuids(lines);
+      
       if (!this.isTextChange) {
         this.cursorTracker.restoreCursorPosition(this.quill);
       }
@@ -324,8 +443,21 @@ export class LineTrackerEventHandler {
       }
     }
     
+    // Ensure all UUIDs are unique
+    this.ensureUniqueUuids(lines);
+    
     // Update our content cache after refresh
     this.cacheLineContents(lines);
     this.lastLineCount = lines.length;
+  }
+  
+  /**
+   * Get the last detected operation (for debugging)
+   */
+  public getLastOperation(): { type: string | null, affectedIndex: number } {
+    return {
+      type: this.lastOperationType,
+      affectedIndex: this.lastAffectedIndex
+    };
   }
 }

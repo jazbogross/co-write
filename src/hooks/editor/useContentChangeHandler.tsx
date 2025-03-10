@@ -74,13 +74,13 @@ export const useContentChangeHandler = (
         if (editor.lineTracking) {
           console.log(`📝 useContentChangeHandler: Deferring to LineTracking for UUID assignment`);
           
-          // Do nothing here - let LineTracking assign UUIDs
-          // The LineTrackerEventHandler will handle this
+          // Let LineTracking assign UUIDs and check for duplicates after a brief delay
           pendingUUIDAssignmentRef.current = true;
           
           // Schedule a check to verify UUIDs were assigned correctly
           setTimeout(() => {
-            verifyLineUUIDs(editor, lines);
+            const verifiedLines = editor.getLines(0);
+            verifyLineUUIDs(editor, verifiedLines);
             pendingUUIDAssignmentRef.current = false;
           }, 50);
         } else {
@@ -91,8 +91,11 @@ export const useContentChangeHandler = (
               // Get current UUID if it exists
               const currentUuid = line.domNode.getAttribute('data-line-uuid');
               
-              // Only assign a new UUID if one doesn't exist
-              if (!currentUuid) {
+              // Check if this UUID is already used by another line
+              const isDuplicateUuid = currentUuid ? isDuplicateUUID(lines, currentUuid, lastLineCountRef.current + index) : false;
+              
+              // Only assign a new UUID if one doesn't exist or is a duplicate
+              if (!currentUuid || isDuplicateUuid) {
                 const newUUID = uuidv4();
                 line.domNode.setAttribute('data-line-uuid', newUUID);
                 newUUIDs.push(newUUID);
@@ -133,23 +136,73 @@ export const useContentChangeHandler = (
     };
   }, [editorInitialized, quillRef, setContent, isProcessingLinesRef, isUpdatingEditorRef]);
 
-  // Helper function to verify that all lines have UUIDs after changes
-  const verifyLineUUIDs = (editor: any, lines: any[]) => {
-    let missingUUIDs = 0;
+  // Helper function to check if a UUID is duplicated across lines
+  const isDuplicateUUID = (lines: any[], uuid: string, currentLineIndex: number): boolean => {
+    let count = 0;
+    let firstIndex = -1;
     
     lines.forEach((line, index) => {
-      if (line.domNode && !line.domNode.getAttribute('data-line-uuid')) {
-        missingUUIDs++;
-        
-        // If a line is missing a UUID, generate one
-        const newUUID = uuidv4();
-        line.domNode.setAttribute('data-line-uuid', newUUID);
-        console.log(`📝 verifyLineUUIDs: Assigned missing UUID ${newUUID} to line ${index + 1}`);
+      if (line.domNode && line.domNode.getAttribute('data-line-uuid') === uuid) {
+        count++;
+        if (firstIndex === -1) {
+          firstIndex = index;
+        }
       }
     });
     
-    if (missingUUIDs > 0) {
-      console.log(`📝 verifyLineUUIDs: Found and fixed ${missingUUIDs} lines with missing UUIDs`);
+    // UUID is duplicated if it appears more than once
+    // OR if it appears exactly once but not at the current line (suggests inheritance)
+    return count > 1 || (count === 1 && firstIndex !== currentLineIndex);
+  };
+
+  // Helper function to verify that all lines have UUIDs after changes
+  const verifyLineUUIDs = (editor: any, lines: any[]) => {
+    const uuids = new Set<string>();
+    const duplicates = new Set<number>();
+    let missingUUIDs = 0;
+    
+    // First pass: collect UUIDs and identify lines with missing or duplicate UUIDs
+    lines.forEach((line, index) => {
+      if (line.domNode) {
+        const uuid = line.domNode.getAttribute('data-line-uuid');
+        
+        if (!uuid) {
+          missingUUIDs++;
+        } else if (uuids.has(uuid)) {
+          // Duplicate UUID found
+          duplicates.add(index);
+        } else {
+          uuids.add(uuid);
+        }
+      }
+    });
+    
+    // Second pass: fix missing or duplicate UUIDs
+    lines.forEach((line, index) => {
+      if (line.domNode) {
+        const needsNewUuid = !line.domNode.getAttribute('data-line-uuid') || duplicates.has(index);
+        
+        if (needsNewUuid) {
+          const newUUID = uuidv4();
+          line.domNode.setAttribute('data-line-uuid', newUUID);
+          console.log(`📝 verifyLineUUIDs: ${duplicates.has(index) ? 'Fixed duplicate' : 'Assigned missing'} UUID ${newUUID} to line ${index + 1}`);
+        }
+        
+        // Always ensure line index attribute is set
+        line.domNode.setAttribute('data-line-index', String(index + 1));
+      }
+    });
+    
+    const totalFixed = missingUUIDs + duplicates.size;
+    if (totalFixed > 0) {
+      console.log(`📝 verifyLineUUIDs: Fixed ${missingUUIDs} missing and ${duplicates.size} duplicate UUIDs`);
+      
+      // If we have LineTracking, update its UUID mapping
+      if (editor.lineTracking && typeof editor.lineTracking.forceRefreshUuids === 'function') {
+        setTimeout(() => {
+          editor.lineTracking.forceRefreshUuids();
+        }, 50);
+      }
     }
   };
 
@@ -158,6 +211,7 @@ export const useContentChangeHandler = (
     handleChange,
     lastLineCountRef,
     lastLineUUIDsRef,
-    pendingUUIDAssignmentRef
+    pendingUUIDAssignmentRef,
+    verifyLineUUIDs
   };
 };
