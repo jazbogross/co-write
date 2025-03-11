@@ -1,10 +1,9 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { LineData } from '@/types/lineTypes';
 import { createInitialLineData } from '@/utils/lineDataUtils';
 import { fetchAllLines, loadDrafts as loadDraftsService } from '@/services/lineDataService';
 import { processLinesData } from '@/utils/lineDataProcessing';
-import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+import { isDeltaObject, safelyParseDelta } from '@/utils/editor';
 
 /**
  * Hook for initializing line data with race condition protection
@@ -42,37 +41,35 @@ export const useLineDataInit = (
         if (allLines && allLines.length > 0 && Array.isArray(allLines)) {
           console.log('📊 useLineDataInit: Data fetched successfully. Lines:', allLines.length);
           
-          // For admins, prioritize draft content over main content if it exists
+          // Process lines with proper type checking and Delta handling
           const processedLines = processLinesData(allLines, contentToUuidMapRef, isAdmin).map(line => {
             if (isAdmin) {
-              // Safely find the matching line and check for draft
-              const matchingLine = allLines.find(l => {
-                // Type-safe check for object structure
-                return l !== null && 
-                       typeof l === 'object' && 
-                       'id' in l && 
-                       l.id === line.uuid;
-              });
+              const matchingLine = allLines.find(l => 
+                l && typeof l === 'object' && 'id' in l && l.id === line.uuid
+              );
               
-              if (matchingLine && 
-                  typeof matchingLine === 'object' && 
-                  'draft' in matchingLine && 
-                  matchingLine.draft) {
-                // If there's a draft, use it instead of the main content
-                try {
-                  const draftContent = typeof matchingLine.draft === 'string' 
-                    ? JSON.parse(matchingLine.draft) 
-                    : matchingLine.draft;
-                    
-                  return {
-                    ...line,
-                    content: draftContent,
-                    hasDraft: true,
-                    originalContent: line.content // Store original content
-                  };
-                } catch (e) {
-                  console.error('Error parsing draft content:', e);
-                  return line;
+              if (matchingLine && typeof matchingLine === 'object') {
+                if ('draft' in matchingLine && matchingLine.draft) {
+                  try {
+                    let draftContent;
+                    if (typeof matchingLine.draft === 'string') {
+                      // Try to parse as Delta first
+                      const parsedDelta = safelyParseDelta(matchingLine.draft);
+                      draftContent = parsedDelta || matchingLine.draft;
+                    } else {
+                      draftContent = matchingLine.draft;
+                    }
+
+                    return {
+                      ...line,
+                      content: draftContent,
+                      hasDraft: true,
+                      originalContent: line.content
+                    };
+                  } catch (e) {
+                    console.error('Error parsing draft content:', e);
+                    return line;
+                  }
                 }
               }
             }
