@@ -20,7 +20,7 @@ export const useEditorContentManagement = (
   const isUpdatingEditorRef = useRef(false);
   
   // Utilities for line matching
-  const { findBestMatchingLine } = useLineMatching();
+  const { findBestMatchingLine } = useLineMatching(null);
   
   useEffect(() => {
     if (!mounted) {

@@ -4,6 +4,7 @@ import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
 import { useContentChangeHandler } from './editor/useContentChangeHandler';
 import { isDeltaObject } from '@/utils/editor';
+import { Quill } from 'react-quill';
 
 export const useContentUpdates = (
   content: string | DeltaContent,
@@ -24,7 +25,8 @@ export const useContentUpdates = (
     editorInitialized,
     quillRef,
     setContent,
-    isProcessingLinesRef
+    isProcessingLinesRef,
+    isUpdatingEditorRef
   );
 
   // Mark for full content update
@@ -66,7 +68,7 @@ export const useContentUpdates = (
         editor.setText(newContent);
       } else if (isDeltaObject(newContent)) {
         // Create a compatible delta for Quill using its own Delta constructor
-        const Delta = editor.constructor.import('delta');
+        const Delta = Quill.import('delta');
         const compatibleDelta = new Delta(newContent.ops);
         editor.setContents(compatibleDelta);
       }
