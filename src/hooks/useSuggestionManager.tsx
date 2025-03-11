@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -55,6 +54,7 @@ export function useSuggestionManager(scriptId: string) {
         `)
         .eq('script_id', scriptId)
         .neq('status', 'draft')
+        .neq('status', 'unchanged')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
