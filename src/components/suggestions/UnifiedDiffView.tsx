@@ -11,66 +11,83 @@ interface UnifiedDiffViewProps {
 }
 
 export const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({ suggestion, originalContent = '' }) => {
-  // Normalize both original and suggestion content to plain text for comparison
-  const normalizedOriginal = typeof originalContent === 'string' 
-    ? originalContent
-    : isDeltaObject(originalContent) 
-      ? extractPlainTextFromDelta(originalContent)
-      : '';
+  // Parse and normalize content for comparison
+  const normalizeContent = (content: any): string => {
+    if (typeof content === 'string') {
+      try {
+        // Check if it's stringified JSON/Delta
+        const parsed = JSON.parse(content);
+        if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+          return extractPlainTextFromDelta(parsed);
+        }
+      } catch (e) {
+        // Not JSON, use as is
+        return content;
+      }
+      return content;
+    } else if (isDeltaObject(content)) {
+      return extractPlainTextFromDelta(content);
+    }
+    return String(content);
+  };
   
-  const normalizedSuggestion = typeof suggestion.content === 'string'
-    ? suggestion.content
-    : isDeltaObject(suggestion.content)
-      ? extractPlainTextFromDelta(suggestion.content)
-      : '';
+  const normalizedOriginal = normalizeContent(originalContent);
+  const normalizedSuggestion = normalizeContent(suggestion.content);
   
-  console.log('🔍 UnifiedDiffView normalized content:', {
-    originalType: typeof originalContent,
-    suggestionType: typeof suggestion.content,
-    normalizedOriginal: normalizedOriginal.substring(0, 50) + '...',
-    normalizedSuggestion: normalizedSuggestion.substring(0, 50) + '...'
+  console.log('UnifiedDiffView normalized content:', {
+    originalPreview: normalizedOriginal.substring(0, 50) + (normalizedOriginal.length > 50 ? '...' : ''),
+    suggestionPreview: normalizedSuggestion.substring(0, 50) + (normalizedSuggestion.length > 50 ? '...' : '')
   });
   
   // Generate a diff between the original and suggested content
   const diff = generateLineDiff(normalizedOriginal, normalizedSuggestion);
   
+  // Check if there are actually any changes
+  const hasChanges = diff.changeType !== 'unchanged';
+  
   return (
     <div className="border rounded-md mt-2">
       <div className="bg-gray-100 p-2 text-sm font-medium border-b">
-        Unified Diff View
+        {hasChanges ? 'Changes Found' : 'No Changes'}
       </div>
       <ScrollArea className="h-[200px]">
         <div className="p-2 font-mono text-sm whitespace-pre-wrap">
-          {diff.segments.map((segment, index) => {
-            let bgColor = '';
-            let prefix = ' ';
-            
-            switch (segment.type) {
-              case 'addition':
-                bgColor = 'bg-green-50';
-                prefix = '+';
-                break;
-              case 'deletion':
-                bgColor = 'bg-red-50';
-                prefix = '-';
-                break;
-              case 'unchanged':
-                bgColor = '';
-                prefix = ' ';
-                break;
-            }
-            
-            return (
-              <div key={index} className={`${bgColor} border-l-4 pl-1 ${
-                segment.type === 'addition' ? 'border-green-400' : 
-                segment.type === 'deletion' ? 'border-red-400' : 
-                'border-gray-200'
-              }`}>
-                <span className="text-gray-500 mr-2">{prefix}</span>
-                {segment.content}
-              </div>
-            );
-          })}
+          {hasChanges ? (
+            diff.segments.map((segment, index) => {
+              let bgColor = '';
+              let prefix = ' ';
+              
+              switch (segment.type) {
+                case 'addition':
+                  bgColor = 'bg-green-50';
+                  prefix = '+';
+                  break;
+                case 'deletion':
+                  bgColor = 'bg-red-50';
+                  prefix = '-';
+                  break;
+                case 'unchanged':
+                  bgColor = '';
+                  prefix = ' ';
+                  break;
+              }
+              
+              return (
+                <div key={index} className={`${bgColor} border-l-4 pl-1 ${
+                  segment.type === 'addition' ? 'border-green-400' : 
+                  segment.type === 'deletion' ? 'border-red-400' : 
+                  'border-gray-200'
+                }`}>
+                  <span className="text-gray-500 mr-2">{prefix}</span>
+                  {segment.content}
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-center py-4 text-gray-500">
+              The content is identical
+            </div>
+          )}
         </div>
       </ScrollArea>
     </div>

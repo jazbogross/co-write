@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Check, X } from 'lucide-react';
 import { GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 import { UnifiedDiffView } from './UnifiedDiffView';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 interface SuggestionDetailProps {
   suggestion: GroupedSuggestion;
@@ -20,9 +21,31 @@ export const SuggestionDetail: React.FC<SuggestionDetailProps> = ({
   onReject,
   onClose
 }) => {
+  // Parse and normalize content for display
+  const normalizeContentForDisplay = (content: any): string => {
+    if (typeof content === 'string') {
+      try {
+        // Check if it's stringified JSON/Delta
+        const parsed = JSON.parse(content);
+        if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+          return extractPlainTextFromDelta(parsed);
+        }
+      } catch (e) {
+        // Not JSON, use as is
+        return content;
+      }
+      return content;
+    } else if (isDeltaObject(content)) {
+      return extractPlainTextFromDelta(content);
+    }
+    return String(content);
+  };
+
+  const displayContent = normalizeContentForDisplay(suggestion.content);
+
   return (
     <>
-      <div className="flex items-center text-sm mb-2">
+      <div className="flex items-center text-sm mb-2 text-black">
         <span className="font-medium mr-2">Author:</span>
         {suggestion.user.username}
         
@@ -44,9 +67,9 @@ export const SuggestionDetail: React.FC<SuggestionDetailProps> = ({
       </div>
       
       <div className="bg-gray-50 p-3 rounded border mb-4">
-        <div className="text-sm font-medium mb-1">Content:</div>
-        <pre className="whitespace-pre-wrap font-mono text-sm bg-white p-2 rounded border">
-          {suggestion.content}
+        <div className="text-sm font-medium mb-1 text-black">Content:</div>
+        <pre className="whitespace-pre-wrap font-mono text-sm bg-white p-2 rounded border text-black">
+          {displayContent}
         </pre>
       </div>
       
@@ -59,7 +82,7 @@ export const SuggestionDetail: React.FC<SuggestionDetailProps> = ({
         <div className="flex justify-end space-x-2 mt-4">
           <Button
             variant="outline"
-            className="bg-red-50 hover:bg-red-100"
+            className="bg-red-50 hover:bg-red-100 text-black"
             onClick={() => onReject(suggestion.id)}
           >
             <X className="w-4 h-4 mr-1" />
@@ -67,7 +90,7 @@ export const SuggestionDetail: React.FC<SuggestionDetailProps> = ({
           </Button>
           <Button
             variant="outline"
-            className="bg-green-50 hover:bg-green-100"
+            className="bg-green-50 hover:bg-green-100 text-black"
             onClick={() => onApprove(suggestion.id)}
           >
             <Check className="w-4 h-4 mr-1" />
