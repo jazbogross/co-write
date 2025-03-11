@@ -1,10 +1,9 @@
-
 import { LineData } from '@/hooks/useLineData';
 import { normalizeContentForStorage } from './contentUtils';
 import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 export interface ChangeRecord {
-  type: 'modified' | 'added' | 'deleted';
+  type: 'modified' | 'added' | 'deleted' | 'unchanged';
   lineNumber: number;
   originalLineNumber?: number;
   content: string;
@@ -22,7 +21,7 @@ export const trackChanges = (
   const changes: ChangeRecord[] = [];
   const originalLines = originalContent.split('\n');
   
-  // Find modified lines and added lines
+  // Track all lines - both changed and unchanged
   for (let i = 0; i < lineData.length; i++) {
     const currentLine = lineData[i];
     
@@ -32,15 +31,25 @@ export const trackChanges = (
       : typeof currentLine.content === 'string' ? currentLine.content : '';
     
     if (i < originalLines.length) {
+      // Content to store regardless of change status
+      const contentToStore = normalizeContentForStorage(currentLine.content);
+      
+      // Try to find existing UUID and line number for this content
+      const existingData = existingContentMap.get(originalLines[i].trim());
+      
       if (currentContent.trim() !== originalLines[i].trim()) {
-        // Convert to proper format for storage
-        const contentToStore = normalizeContentForStorage(currentLine.content);
-          
-        // Try to find existing UUID and line number for this content
-        const existingData = existingContentMap.get(originalLines[i].trim());
-        
+        // Modified content
         changes.push({
           type: 'modified',
+          lineNumber: currentLine.lineNumber,
+          originalLineNumber: existingData ? existingData.lineNumber : i + 1,
+          content: contentToStore,
+          uuid: existingData ? existingData.uuid : currentLine.uuid
+        });
+      } else {
+        // Unchanged content - still track it
+        changes.push({
+          type: 'unchanged',
           lineNumber: currentLine.lineNumber,
           originalLineNumber: existingData ? existingData.lineNumber : i + 1,
           content: contentToStore,

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/hooks/useLineData';
 import { createContentMap, normalizeContentForStorage } from './contentUtils';
@@ -34,7 +33,7 @@ export const saveSuggestions = async (
     // Create a map of content to existing UUIDs and line numbers
     const existingContentMap = createContentMap(existingContent || []);
     
-    // Track all changes: additions, modifications
+    // Track all changes: additions, modifications, and unchanged lines
     const changes = trackChanges(lineData, originalContent, existingContentMap);
     
     // Track deleted lines
@@ -43,7 +42,10 @@ export const saveSuggestions = async (
       changes.push(...deletedLines);
     }
 
-    if (changes.length === 0) {
+    // Filter out unchanged lines for logging
+    const actualChanges = changes.filter(change => change.type !== 'unchanged');
+    
+    if (actualChanges.length === 0) {
       console.log('No changes detected to save as suggestions');
       return;
     }
@@ -68,11 +70,14 @@ const saveChangesToDatabase = async (
   userId: string | null
 ) => {
   for (const change of changes) {
-    // Compare the content with original content to detect unchanged lines
+    // Set the appropriate status based on change type
     let status = 'pending';
     
-    if (change.type === 'modified' && change.uuid) {
-      // Fetch the original content to compare
+    if (change.type === 'unchanged') {
+      status = 'unchanged';
+    } else if (change.type === 'modified' && change.uuid) {
+      // Double-check by comparing content if it's a modification
+      // This handles cases where trackChanges might have misclassified something
       const { data: originalData, error: originalError } = await supabase
         .from('script_content')
         .select('content')
@@ -87,7 +92,7 @@ const saveChangesToDatabase = async (
         // If content is unchanged, mark as 'unchanged'
         if (normalizedOriginal === normalizedNew) {
           status = 'unchanged';
-          console.log('Detected unchanged content for line with UUID:', change.uuid);
+          console.log('Verified unchanged content for line with UUID:', change.uuid);
         }
       }
     }
@@ -105,6 +110,8 @@ const saveChangesToDatabase = async (
         originalLineNumber: change.originalLineNumber
       }
     };
+
+    console.log(`Saving suggestion for line ${change.lineNumber} with status: ${status}`);
 
     const { error } = await supabase
       .from('script_suggestions')
