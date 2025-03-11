@@ -32,6 +32,7 @@ export const useEditorContentManagement = (
       return;
     }
 
+    // Convert string content to Delta or ensure we have a valid Delta object
     const contentToUpdate: DeltaContent = typeof newContent === 'string' 
       ? { ops: [{ insert: newContent }] } 
       : newContent;
@@ -108,7 +109,7 @@ export const useEditorContentManagement = (
         } else {
           // For string content, split by newlines and insert properly
           console.log(`📝 useEditorContentManagement: Setting content using string`);
-          const contentStr = typeof contentToUpdate === 'string' ? contentToUpdate : String(contentToUpdate);
+          const contentStr = typeof contentToUpdate === 'string' ? contentToUpdate : JSON.stringify(contentToUpdate);
           insertContentWithLineBreaks(editor, contentStr);
         }
         
@@ -169,7 +170,7 @@ export const useEditorContentManagement = (
         if (editor) {
           const textContent = typeof newContent === 'string' 
             ? newContent 
-            : extractPlainTextFromDelta(newContent as any) || JSON.stringify(newContent);
+            : extractPlainTextFromDelta(newContent as DeltaContent) || JSON.stringify(newContent);
           insertContentWithLineBreaks(editor, textContent);
         }
       } catch (fallbackError) {

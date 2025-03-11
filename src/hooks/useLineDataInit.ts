@@ -1,8 +1,8 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { LineData } from '@/types/lineTypes';
 import { supabase } from '@/integrations/supabase/client';
+import { isDeltaObject, safelyParseDelta } from '@/utils/editor';
 
 export const useLineDataInit = (
   scriptId: string, 
@@ -50,28 +50,55 @@ export const useLineDataInit = (
 
       // Update line data with drafts
       setLineData(prevData => {
+        // Convert drafts to LineData format
         const updatedLineData: LineData[] = drafts.map(draft => {
-          const matchingLine = prevData.find(line => line.lineNumber === draft.line_number);
+          // Parse the content from JSON if it's stored as a string
+          let draftContent: string | any = draft.content;
+          
+          if (typeof draftContent === 'string') {
+            try {
+              // Try to parse the content as JSON
+              const parsedContent = JSON.parse(draftContent);
+              if (isDeltaObject(parsedContent)) {
+                draftContent = parsedContent;
+              }
+            } catch (e) {
+              // If parsing fails, keep as string
+              console.log('useLineDataInit: Failed to parse draft content as JSON, keeping as string');
+            }
+          }
+          
+          // Find a matching line in the previous data by line number if it exists
+          const matchingLine = prevData.find(line => 
+            line.lineNumber === (typeof draft.line_number === 'number' ? draft.line_number : -1)
+          );
 
           // If there's a matching line, update it with the draft content
           if (matchingLine) {
             console.log(`useLineDataInit: Updating line ${draft.line_number} with draft content`);
-            contentToUuidMapRef.current.set(draft.content, matchingLine.uuid);
+            const contentStr = typeof draftContent === 'string' ? 
+              draftContent : JSON.stringify(draftContent);
+            contentToUuidMapRef.current.set(contentStr, matchingLine.uuid);
+            
             return {
               ...matchingLine,
-              content: draft.content,
+              content: draftContent,
               hasDraft: true,
-              editedBy: matchingLine.editedBy.includes(userId) ? matchingLine.editedBy : [...matchingLine.editedBy, userId]
+              editedBy: matchingLine.editedBy.includes(userId) ? 
+                matchingLine.editedBy : [...matchingLine.editedBy, userId]
             };
           } else {
             // If there's no matching line, create a new line with the draft content
             console.log(`useLineDataInit: Creating new line ${draft.line_number} with draft content`);
             const newUuid = uuidv4();
-            contentToUuidMapRef.current.set(draft.content, newUuid);
+            const contentStr = typeof draftContent === 'string' ? 
+              draftContent : JSON.stringify(draftContent);
+            contentToUuidMapRef.current.set(contentStr, newUuid);
+            
             return {
               uuid: newUuid,
-              lineNumber: draft.line_number,
-              content: draft.content,
+              lineNumber: typeof draft.line_number === 'number' ? draft.line_number : 0,
+              content: draftContent,
               originalAuthor: userId,
               editedBy: [],
               hasDraft: true
@@ -127,17 +154,44 @@ export const useLineDataInit = (
       }
 
       // Process line data
-      const processedLines = scriptContent.map((line, index) => {
+      const processedLines = scriptContent.map((line: any, index: number) => {
         if (!line) return null;
         
         const uuid = line.id || uuidv4();
         
+        // Parse content from JSON if stored as a string
+        let lineContent: string | any = line.content;
+        if (typeof lineContent === 'string') {
+          try {
+            // Try to parse as JSON to get Delta objects
+            const parsedContent = JSON.parse(lineContent);
+            if (isDeltaObject(parsedContent)) {
+              lineContent = parsedContent;
+            }
+          } catch (e) {
+            // Keep as string if parsing fails
+          }
+        }
+        
+        // Convert edited_by from JSON array to string array
+        let editedBy: string[] = [];
+        if (line.edited_by) {
+          try {
+            const parsedEditedBy = Array.isArray(line.edited_by) ? 
+              line.edited_by : JSON.parse(line.edited_by);
+            editedBy = parsedEditedBy.map((id: any) => String(id));
+          } catch (e) {
+            console.error('useLineDataInit: Error parsing edited_by:', e);
+            editedBy = [];
+          }
+        }
+        
         const newLine: LineData = {
           uuid: uuid,
           lineNumber: line.line_number || index + 1,
-          content: line.content || '',
+          content: lineContent,
           originalAuthor: line.original_author || userId || 'system',
-          editedBy: line.edited_by ? Array.isArray(line.edited_by) ? line.edited_by : [] : [],
+          editedBy: editedBy,
           hasDraft: false
         };
 
