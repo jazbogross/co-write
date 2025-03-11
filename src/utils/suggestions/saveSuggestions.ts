@@ -43,16 +43,23 @@ export const saveSuggestions = async (
     // Track deleted lines
     if (lineData.length < (existingContent?.length || 0)) {
       const deletedLines = trackDeletedLines(lineData, existingContent || []);
-      changes.push(...deletedLines);
+      
+      // Ensure deletedLines is an array before concat
+      if (Array.isArray(deletedLines)) {
+        // Ensure changes is also an array before concat
+        if (Array.isArray(changes)) {
+          changes.push(...deletedLines);
+        }
+      }
     }
 
-    // Ensure changes is an array
+    // Safety check to ensure changes is an array
     if (!Array.isArray(changes)) {
       console.error('Expected changes to be an array but got:', typeof changes);
       return;
     }
 
-    // Filter out unchanged lines for logging
+    // Filter out only the actual changes for logging
     const actualChanges = changes.filter(change => change.type !== 'unchanged');
     
     if (actualChanges.length === 0) {
@@ -89,26 +96,6 @@ const saveChangesToDatabase = async (
     
     if (change.type === 'unchanged') {
       status = 'unchanged';
-    } else if (change.type === 'modified' && change.uuid) {
-      // Double-check by comparing content if it's a modification
-      // This handles cases where trackChanges might have misclassified something
-      const { data: originalData, error: originalError } = await supabase
-        .from('script_content')
-        .select('content')
-        .eq('id', change.uuid)
-        .maybeSingle(); // Using maybeSingle instead of single to prevent errors
-        
-      if (!originalError && originalData) {
-        // Normalize both contents for comparison
-        const normalizedOriginal = normalizeContent(originalData.content);
-        const normalizedNew = normalizeContent(change.content);
-        
-        // If content is unchanged, mark as 'unchanged'
-        if (normalizedOriginal === normalizedNew) {
-          status = 'unchanged';
-          console.log('Verified unchanged content for line with UUID:', change.uuid);
-        }
-      }
     }
     
     const suggestionData = {
@@ -133,24 +120,4 @@ const saveChangesToDatabase = async (
 
     if (error) throw error;
   }
-};
-
-// Helper function to normalize content for comparison
-const normalizeContent = (content: any): string => {
-  if (typeof content === 'string') {
-    try {
-      // Check if it's stringified JSON/Delta
-      const parsed = JSON.parse(content);
-      if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
-        return extractPlainTextFromDelta(parsed);
-      }
-    } catch (e) {
-      // Not JSON, use as is
-      return content;
-    }
-    return content;
-  } else if (isDeltaObject(content)) {
-    return extractPlainTextFromDelta(content);
-  }
-  return String(content);
 };

@@ -23,40 +23,50 @@ const fetchOriginalContent = async (scriptId: string): Promise<{ line_number: nu
     return []; // Return empty array instead of throwing an error
   }
   
-  const { data, error } = await supabase
-    .from('script_content')
-    .select('line_number, content, id')
-    .eq('script_id', scriptId)
-    .order('line_number', { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from('script_content')
+      .select('line_number, content, id')
+      .eq('script_id', scriptId)
+      .order('line_number', { ascending: true });
+      
+    if (error) {
+      console.error('Error fetching original content:', error);
+      return []; // Return empty array on error
+    }
     
-  if (error) {
-    console.error('Error fetching original content:', error);
-    return []; // Return empty array on error
+    console.log('fetchOriginalContent: Data received:', JSON.stringify(data, null, 2));
+    return data || [];
+  } catch (e) {
+    console.error('Error in fetchOriginalContent:', e);
+    return [];
   }
-  
-  console.log('fetchOriginalContent: Data received:', JSON.stringify(data, null, 2));
-  return data || [];
 };
 
 /**
- * Helper function to normalize a string by trimming whitespace and removing trailing newline.
+ * Normalize content for proper comparison regardless of string escape format
  */
-const normalizeLineText = (text: string): string => {
-  return text.replace(/\n$/, '').trim();
+const normalizeForComparison = (content: string): string => {
+  try {
+    // If it's already a JSON string, parse it and re-stringify to ensure consistent format
+    const parsed = JSON.parse(content);
+    
+    // For Delta objects, extract text content for comparison
+    if (typeof parsed === 'object' && parsed !== null && 'ops' in parsed) {
+      return extractPlainTextFromDelta(parsed).trim();
+    }
+    
+    // For other JSON objects, just use consistent stringification
+    return JSON.stringify(parsed);
+  } catch (e) {
+    // Not a valid JSON string, return as-is
+    return content.trim();
+  }
 };
 
 /**
  * Compares current edited line data against the original content fetched directly
  * from the 'script_content' table.
- *
- * Note: The extra backslashes you see in the logged content (e.g.
- * "{\"ops\":[{\"insert\":\"again for you\\n\"}]}")
- * are simply escape characters from JSON.stringify and are normal.
- *
- * @param lineData - The current edited line data.
- * @param scriptId - The script identifier used to fetch the original content.
- * @param existingContentMap - A Map keyed by normalized original text, containing {uuid, lineNumber}.
- * @returns A Promise resolving to an array of ChangeRecord objects.
  */
 export const trackChanges = async (
   lineData: LineData[],
@@ -69,11 +79,9 @@ export const trackChanges = async (
     
     // Sort the original records by line_number.
     const sortedOriginal = originalRecords.sort((a, b) => a.line_number - b.line_number);
-    // Build an array of normalized original texts.
-    const originalLines = sortedOriginal.map(record => normalizeLineText(record.content));
-
+    
     console.log('--- trackChanges ---');
-    console.log('Original lines from DB:', originalLines);
+    console.log('Original lines from DB:', sortedOriginal.length);
     console.log('Current lineData length:', lineData.length);
 
     const changes: ChangeRecord[] = [];
@@ -81,42 +89,45 @@ export const trackChanges = async (
     // Process every line in the current lineData.
     for (let i = 0; i < lineData.length; i++) {
       const currentLine = lineData[i];
-
-      // Get the plain text for comparison.
-      const currentContent = isDeltaObject(currentLine.content)
-        ? normalizeLineText(extractPlainTextFromDelta(currentLine.content))
-        : normalizeLineText(typeof currentLine.content === 'string' ? currentLine.content : '');
-
-      console.log(`Comparing line ${i + 1}: current="${currentContent}" vs original="${originalLines[i] || '[none]'}"`);
-
+      
       // Prepare the content to store.
       const contentToStore = normalizeContentForStorage(currentLine.content);
-      console.log(`Line ${i + 1} content to store: ${contentToStore}`);
-
-      // Look up any existing data using the normalized original text.
-      const existingData = i < originalLines.length ? existingContentMap.get(originalLines[i]) : undefined;
-
-      if (i < originalLines.length) {
-        if (currentContent !== originalLines[i]) {
+      
+      // Get the original content for this line if it exists
+      const originalContent = i < sortedOriginal.length ? sortedOriginal[i].content : null;
+      
+      if (i < sortedOriginal.length) {
+        // Both lines exist - compare their content
+        const currentNormalized = normalizeForComparison(contentToStore);
+        const originalNormalized = normalizeForComparison(originalContent || '');
+        
+        console.log(`Line ${i + 1} comparison:`, {
+          current: currentNormalized.substring(0, 20) + '...',
+          original: originalNormalized.substring(0, 20) + '...',
+          isEqual: currentNormalized === originalNormalized
+        });
+        
+        if (currentNormalized !== originalNormalized) {
           changes.push({
             type: 'modified',
             lineNumber: currentLine.lineNumber,
-            originalLineNumber: existingData ? existingData.lineNumber : i + 1,
+            originalLineNumber: sortedOriginal[i].line_number,
             content: contentToStore,
-            uuid: existingData ? existingData.uuid : currentLine.uuid
+            uuid: sortedOriginal[i].id
           });
           console.log(`Line ${i + 1} marked as MODIFIED`);
         } else {
           changes.push({
             type: 'unchanged',
             lineNumber: currentLine.lineNumber,
-            originalLineNumber: existingData ? existingData.lineNumber : i + 1,
+            originalLineNumber: sortedOriginal[i].line_number,
             content: contentToStore,
-            uuid: existingData ? existingData.uuid : currentLine.uuid
+            uuid: sortedOriginal[i].id
           });
           console.log(`Line ${i + 1} marked as UNCHANGED`);
         }
       } else {
+        // This line doesn't exist in the original content - it's an addition
         changes.push({
           type: 'added',
           lineNumber: currentLine.lineNumber,
@@ -137,10 +148,6 @@ export const trackChanges = async (
 
 /**
  * Identifies deleted lines by comparing current line UUIDs with the original records.
- *
- * @param lineData - The current edited line data.
- * @param originalRecords - The original line records fetched from the DB.
- * @returns An array of ChangeRecord objects for deleted lines.
  */
 export const trackDeletedLines = (
   lineData: LineData[],
