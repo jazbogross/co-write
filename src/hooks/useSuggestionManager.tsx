@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -130,7 +131,7 @@ export function useSuggestionManager(scriptId: string) {
           .from('script_suggestions')
           .select('*')
           .eq('id', id)
-          .single();
+          .maybeSingle(); // Use maybeSingle instead of single
 
         if (suggestionError) throw suggestionError;
         if (!suggestionData) throw new Error('Suggestion not found');
@@ -142,14 +143,18 @@ export function useSuggestionManager(scriptId: string) {
             .from('script_content')
             .select('edited_by')
             .eq('id', suggestionData.line_uuid)
-            .single();
+            .maybeSingle(); // Use maybeSingle instead of single
             
           if (contentError) throw contentError;
           
           // Make sure we have an array
           let editedByArray = [];
           if (contentData && contentData.edited_by) {
-            editedByArray = Array.isArray(contentData.edited_by) ? contentData.edited_by : [];
+            editedByArray = Array.isArray(contentData.edited_by) ? 
+              contentData.edited_by : 
+              (typeof contentData.edited_by === 'string' ? 
+                JSON.parse(contentData.edited_by) : 
+                []);
             
             // Only add the user if not already in the array
             if (!editedByArray.includes(suggestionData.user_id)) {
