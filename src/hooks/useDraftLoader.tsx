@@ -4,7 +4,7 @@ import { isDeltaObject, combineDeltaContents, extractPlainTextFromDelta } from '
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
 
-export interface DraftLoaderProps {
+interface DraftLoaderProps {
   editorInitialized: boolean;
   draftLoadAttempted: boolean;
   lineData: LineData[];
@@ -22,7 +22,7 @@ export const useDraftLoader = ({
   updateEditorContent
 }: DraftLoaderProps) => {
   const [draftApplied, setDraftApplied] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Use loading state instead
   const lastLineDataRef = useRef<LineData[]>([]);
 
   // Keep an eye on lineData
@@ -94,7 +94,7 @@ export const useDraftLoader = ({
     } finally {
       setLoading(false);
     }
-  }, [lineData, quillRef, updateEditorContent, loading]);
+  }, [lineData, quillRef, updateEditorContent]);
 
   // Main draft application effect
   useEffect(() => {

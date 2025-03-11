@@ -17,7 +17,7 @@ import { toast } from "sonner";
 const ScriptEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { toast: uiToast } = useToast();
+  const { toast } = useToast();
   const [script, setScript] = useState<{
     title: string;
     admin_id: string;
@@ -33,7 +33,7 @@ const ScriptEdit = () => {
     const loadScript = async () => {
       try {
         if (!id) {
-          uiToast({
+          toast({
             title: "Error",
             description: "No script ID provided",
             variant: "destructive",
@@ -42,12 +42,14 @@ const ScriptEdit = () => {
           return;
         }
 
+        // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           navigate("/auth");
           return;
         }
 
+        // Get script data (without content - we'll get that from script_content)
         const { data: scriptData, error: scriptError } = await supabase
           .from("scripts")
           .select("title, admin_id, github_owner, github_repo")
@@ -56,7 +58,7 @@ const ScriptEdit = () => {
 
         if (scriptError) throw scriptError;
         if (!scriptData) {
-          uiToast({
+          toast({
             title: "Error",
             description: "Script not found",
             variant: "destructive",
@@ -65,6 +67,7 @@ const ScriptEdit = () => {
           return;
         }
 
+        // Get GitHub token if admin
         if (user.id === scriptData.admin_id) {
           const { data: profileData } = await supabase
             .from("profiles")
@@ -77,6 +80,7 @@ const ScriptEdit = () => {
           }
         }
 
+        // Fetch script content from script_content table
         const { data: contentData, error: contentError } = await supabase
           .from("script_content")
           .select("content")
@@ -84,6 +88,7 @@ const ScriptEdit = () => {
           .order("line_number", { ascending: true });
 
         if (!contentError && contentData && contentData.length > 0) {
+          // Combine the content from all lines
           const combinedContent = contentData.map(line => line.content).join("\n");
           setOriginalContent(combinedContent);
           console.log("Original content loaded:", combinedContent.substring(0, 100) + "...");
@@ -97,7 +102,7 @@ const ScriptEdit = () => {
         setLoading(false);
       } catch (error) {
         console.error("Error loading script:", error);
-        uiToast({
+        toast({
           title: "Error",
           description: "Failed to load script",
           variant: "destructive",
@@ -107,19 +112,22 @@ const ScriptEdit = () => {
     };
 
     loadScript();
-  }, [id, navigate, uiToast]);
+  }, [id, navigate, toast]);
 
   const handleSuggestChange = async (updatedContent: string | DeltaContent) => {
     if (!script || !id || !isAdmin) return;
 
     try {
+      // If we have a GitHub token and repo info, commit to GitHub
       if (githubToken && script.github_owner && script.github_repo) {
+        // Convert content to JSON string if it's an object
         const contentToSave = typeof updatedContent === 'string' 
           ? updatedContent 
           : JSON.stringify(updatedContent, null, 2);
 
         console.log("Committing content to GitHub:", contentToSave.substring(0, 100) + "...");
         
+        // Call the Supabase function to commit changes to GitHub
         const { data, error } = await supabase.functions.invoke("commit-script-changes", {
           body: {
             scriptId: id,
@@ -130,18 +138,19 @@ const ScriptEdit = () => {
 
         if (error) {
           console.error("Error committing to GitHub:", error);
-          toast("Failed to commit changes to GitHub");
+          toast.error("Failed to commit changes to GitHub");
           return;
         }
 
         console.log("Successfully committed to GitHub:", data);
-        toast("Changes saved and committed to GitHub");
+        toast.success("Changes saved and committed to GitHub");
       } else {
-        toast("Changes saved successfully");
+        // Just save locally without GitHub commit
+        toast.success("Changes saved successfully");
       }
     } catch (error) {
       console.error("Error saving changes:", error);
-      toast("Failed to save changes");
+      toast.error("Failed to save changes");
     }
   };
 
