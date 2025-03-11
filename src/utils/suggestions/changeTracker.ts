@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/hooks/useLineData';
 import { normalizeContentForStorage } from './contentUtils';
@@ -18,8 +19,8 @@ export interface ChangeRecord {
 const fetchOriginalContent = async (scriptId: string): Promise<{ line_number: number; content: string; id: string }[]> => {
   console.log(`fetchOriginalContent: Received scriptId: "${scriptId}" (type: ${typeof scriptId})`);
   if (!scriptId || scriptId.trim() === "") {
-    console.error("fetchOriginalContent: scriptId is empty");
-    throw new Error("scriptId is empty");
+    console.warn("fetchOriginalContent: scriptId is empty, returning empty array");
+    return []; // Return empty array instead of throwing an error
   }
   
   const { data, error } = await supabase
@@ -30,7 +31,7 @@ const fetchOriginalContent = async (scriptId: string): Promise<{ line_number: nu
     
   if (error) {
     console.error('Error fetching original content:', error);
-    throw error;
+    return []; // Return empty array on error
   }
   
   console.log('fetchOriginalContent: Data received:', JSON.stringify(data, null, 2));
@@ -62,70 +63,76 @@ export const trackChanges = async (
   scriptId: string,
   existingContentMap: Map<string, { uuid: string; lineNumber: number }>
 ): Promise<ChangeRecord[]> => {
-  // Fetch the original records from the database.
-  const originalRecords = await fetchOriginalContent(scriptId);
-  
-  // Sort the original records by line_number.
-  const sortedOriginal = originalRecords.sort((a, b) => a.line_number - b.line_number);
-  // Build an array of normalized original texts.
-  const originalLines = sortedOriginal.map(record => normalizeLineText(record.content));
+  try {
+    // Fetch the original records from the database.
+    const originalRecords = await fetchOriginalContent(scriptId);
+    
+    // Sort the original records by line_number.
+    const sortedOriginal = originalRecords.sort((a, b) => a.line_number - b.line_number);
+    // Build an array of normalized original texts.
+    const originalLines = sortedOriginal.map(record => normalizeLineText(record.content));
 
-  console.log('--- trackChanges ---');
-  console.log('Original lines from DB:', originalLines);
+    console.log('--- trackChanges ---');
+    console.log('Original lines from DB:', originalLines);
+    console.log('Current lineData length:', lineData.length);
 
-  const changes: ChangeRecord[] = [];
+    const changes: ChangeRecord[] = [];
 
-  // Process every line in the current lineData.
-  for (let i = 0; i < lineData.length; i++) {
-    const currentLine = lineData[i];
+    // Process every line in the current lineData.
+    for (let i = 0; i < lineData.length; i++) {
+      const currentLine = lineData[i];
 
-    // Get the plain text for comparison.
-    const currentContent = isDeltaObject(currentLine.content)
-      ? normalizeLineText(extractPlainTextFromDelta(currentLine.content))
-      : normalizeLineText(typeof currentLine.content === 'string' ? currentLine.content : '');
+      // Get the plain text for comparison.
+      const currentContent = isDeltaObject(currentLine.content)
+        ? normalizeLineText(extractPlainTextFromDelta(currentLine.content))
+        : normalizeLineText(typeof currentLine.content === 'string' ? currentLine.content : '');
 
-    console.log(`Comparing line ${i + 1}: current="${currentContent}" vs original="${originalLines[i] || '[none]'}"`);
+      console.log(`Comparing line ${i + 1}: current="${currentContent}" vs original="${originalLines[i] || '[none]'}"`);
 
-    // Prepare the content to store.
-    const contentToStore = normalizeContentForStorage(currentLine.content);
-    console.log(`Line ${i + 1} content to store: ${contentToStore}`);
+      // Prepare the content to store.
+      const contentToStore = normalizeContentForStorage(currentLine.content);
+      console.log(`Line ${i + 1} content to store: ${contentToStore}`);
 
-    // Look up any existing data using the normalized original text.
-    const existingData = i < originalLines.length ? existingContentMap.get(originalLines[i]) : undefined;
+      // Look up any existing data using the normalized original text.
+      const existingData = i < originalLines.length ? existingContentMap.get(originalLines[i]) : undefined;
 
-    if (i < originalLines.length) {
-      if (currentContent !== originalLines[i]) {
-        changes.push({
-          type: 'modified',
-          lineNumber: currentLine.lineNumber,
-          originalLineNumber: existingData ? existingData.lineNumber : i + 1,
-          content: contentToStore,
-          uuid: existingData ? existingData.uuid : currentLine.uuid
-        });
-        console.log(`Line ${i + 1} marked as MODIFIED`);
+      if (i < originalLines.length) {
+        if (currentContent !== originalLines[i]) {
+          changes.push({
+            type: 'modified',
+            lineNumber: currentLine.lineNumber,
+            originalLineNumber: existingData ? existingData.lineNumber : i + 1,
+            content: contentToStore,
+            uuid: existingData ? existingData.uuid : currentLine.uuid
+          });
+          console.log(`Line ${i + 1} marked as MODIFIED`);
+        } else {
+          changes.push({
+            type: 'unchanged',
+            lineNumber: currentLine.lineNumber,
+            originalLineNumber: existingData ? existingData.lineNumber : i + 1,
+            content: contentToStore,
+            uuid: existingData ? existingData.uuid : currentLine.uuid
+          });
+          console.log(`Line ${i + 1} marked as UNCHANGED`);
+        }
       } else {
         changes.push({
-          type: 'unchanged',
+          type: 'added',
           lineNumber: currentLine.lineNumber,
-          originalLineNumber: existingData ? existingData.lineNumber : i + 1,
           content: contentToStore,
-          uuid: existingData ? existingData.uuid : currentLine.uuid
+          uuid: currentLine.uuid
         });
-        console.log(`Line ${i + 1} marked as UNCHANGED`);
+        console.log(`Line ${i + 1} marked as ADDED`);
       }
-    } else {
-      changes.push({
-        type: 'added',
-        lineNumber: currentLine.lineNumber,
-        content: contentToStore,
-        uuid: currentLine.uuid
-      });
-      console.log(`Line ${i + 1} marked as ADDED`);
     }
+    
+    console.log('Final change records:', JSON.stringify(changes, null, 2));
+    return changes;
+  } catch (error) {
+    console.error('Error in trackChanges:', error);
+    return []; // Return empty array instead of letting the error propagate
   }
-  
-  console.log('Final change records:', JSON.stringify(changes, null, 2));
-  return changes;
 };
 
 /**
@@ -141,7 +148,7 @@ export const trackDeletedLines = (
 ): ChangeRecord[] => {
   const deletedLines: ChangeRecord[] = [];
   
-  if (!originalRecords) return deletedLines;
+  if (!originalRecords || !Array.isArray(originalRecords)) return deletedLines;
   
   // Build a set of current line UUIDs.
   const currentLineUUIDs = new Set(lineData.map(line => line.uuid));
