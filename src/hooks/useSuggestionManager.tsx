@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -115,39 +116,70 @@ export function useSuggestionManager(scriptId: string) {
     
     setIsProcessing(true);
     try {
+      console.log(`Starting approval process for ${ids.length} suggestions`);
+      
       for (const id of ids) {
         console.log(`Processing suggestion approval for ID: ${id}`);
         
+        // 1. Fetch the suggestion data
         const { data: suggestionData, error: suggestionError } = await supabase
           .from('script_suggestions')
           .select('*')
           .eq('id', id)
           .maybeSingle();
 
-        if (suggestionError) throw suggestionError;
-        if (!suggestionData) throw new Error('Suggestion not found');
+        if (suggestionError) {
+          console.error('Error fetching suggestion:', suggestionError);
+          throw suggestionError;
+        }
+        
+        if (!suggestionData) {
+          console.error('Suggestion not found');
+          throw new Error('Suggestion not found');
+        }
 
         console.log('Suggestion data:', suggestionData);
 
+        // 2. Process based on whether it's updating an existing line or adding a new one
         if (suggestionData.line_uuid) {
+          // Case: Update existing line
           console.log(`Updating existing line ${suggestionData.line_uuid}`);
           
+          // 2a. Fetch current content to manage edited_by array
           const { data: contentData, error: contentError } = await supabase
             .from('script_content')
             .select('edited_by')
             .eq('id', suggestionData.line_uuid)
             .maybeSingle();
             
-          if (contentError) throw contentError;
+          if (contentError) {
+            console.error('Error fetching content data:', contentError);
+            throw contentError;
+          }
           
+          // 2b. Prepare edited_by array (ensuring it's an array)
           let editedByArray = [];
           if (contentData && contentData.edited_by) {
-            editedByArray = Array.isArray(contentData.edited_by) ? 
-              contentData.edited_by : 
-              (typeof contentData.edited_by === 'string' ? 
-                JSON.parse(contentData.edited_by) : 
-                []);
+            try {
+              // Handle possible formats of edited_by
+              if (Array.isArray(contentData.edited_by)) {
+                editedByArray = [...contentData.edited_by];
+              } else if (typeof contentData.edited_by === 'string') {
+                editedByArray = JSON.parse(contentData.edited_by);
+              } else if (typeof contentData.edited_by === 'object') {
+                editedByArray = Object.values(contentData.edited_by);
+              }
+              
+              // Ensure it's actually an array
+              if (!Array.isArray(editedByArray)) {
+                editedByArray = [];
+              }
+            } catch (e) {
+              console.error('Error parsing edited_by:', e);
+              editedByArray = [];
+            }
             
+            // Add user if not already included
             if (!editedByArray.includes(suggestionData.user_id)) {
               editedByArray.push(suggestionData.user_id);
             }
@@ -155,6 +187,9 @@ export function useSuggestionManager(scriptId: string) {
             editedByArray = [suggestionData.user_id];
           }
           
+          console.log(`Updating script_content with edited_by:`, editedByArray);
+          
+          // 2c. Update the content
           const { error: updateError } = await supabase
             .from('script_content')
             .update({ 
@@ -171,10 +206,13 @@ export function useSuggestionManager(scriptId: string) {
           
           console.log(`Successfully updated line ${suggestionData.line_uuid}`);
         } else if (suggestionData.line_number) {
+          // Case: Add new line
           console.log(`Adding new line at position ${suggestionData.line_number}`);
           
+          // Generate a UUID for the new line
           const lineUuid = crypto.randomUUID();
           
+          // Insert new line
           const { error: insertError } = await supabase
             .from('script_content')
             .insert({
@@ -192,34 +230,49 @@ export function useSuggestionManager(scriptId: string) {
           }
           
           console.log(`Successfully added new line with UUID ${lineUuid}`);
+          
+          // Update the suggestion with the new line UUID for future reference
+          const { error: updateSuggestionError } = await supabase
+            .from('script_suggestions')
+            .update({ line_uuid: lineUuid })
+            .eq('id', id);
+            
+          if (updateSuggestionError) {
+            console.error('Error updating suggestion with new line UUID:', updateSuggestionError);
+            // Non-critical error, can continue
+          }
         } else {
           console.error('Invalid suggestion data - no line_uuid or line_number');
           throw new Error('Invalid suggestion data - missing line information');
         }
 
+        // 3. Update suggestion status
         const { error: statusError } = await supabase
           .from('script_suggestions')
           .update({ status: 'approved' })
           .eq('id', id);
 
-        if (statusError) throw statusError;
+        if (statusError) {
+          console.error('Error updating suggestion status:', statusError);
+          throw statusError;
+        }
+        
+        console.log(`Successfully approved suggestion ${id}`);
       }
 
-      setSuggestions(suggestions.map(suggestion => 
-        ids.includes(suggestion.id) 
-          ? { ...suggestion, status: 'approved' } 
-          : suggestion
-      ));
-      
+      // 4. Update local state
       const updatedSuggestions = suggestions.map(suggestion => 
         ids.includes(suggestion.id) 
           ? { ...suggestion, status: 'approved' } 
           : suggestion
       );
       
+      setSuggestions(updatedSuggestions);
+      
       const grouped = SuggestionGroupManager.groupByUser(updatedSuggestions);
       setGroupedSuggestions(grouped);
 
+      // 5. Notify user
       toast({
         title: "Success",
         description: ids.length > 1 
@@ -227,6 +280,7 @@ export function useSuggestionManager(scriptId: string) {
           : "Suggestion approved and changes applied",
       });
       
+      // 6. Reload suggestions to ensure UI is up to date
       await loadSuggestions();
     } catch (error) {
       console.error('Error approving suggestion:', error);
