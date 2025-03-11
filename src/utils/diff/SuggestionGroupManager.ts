@@ -17,6 +17,7 @@ export interface GroupedSuggestion {
   rejection_reason?: string;
   line_uuid?: string;
   line_number?: number;
+  original_content?: string;
   user: SuggestionUser;
   consecutive_group?: number;
 }
@@ -64,6 +65,7 @@ export class SuggestionGroupManager {
         rejection_reason: suggestion.rejection_reason,
         line_uuid: suggestion.line_uuid,
         line_number: suggestion.line_number || suggestion.metadata?.lineNumber,
+        original_content: suggestion.original_content,
         user: userGroup.user
       };
       
