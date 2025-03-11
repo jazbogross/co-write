@@ -45,7 +45,7 @@ export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
         <div className="flex items-center space-x-2">
           <User className="h-4 w-4" />
           <span className="font-medium">{group.user.username}</span>
-          <Badge variant="outline" className="ml-2">
+          <Badge variant="outline" className="ml-2 text-black">
             {group.suggestions.length} suggestion{group.suggestions.length !== 1 ? 's' : ''}
           </Badge>
           {pendingCount > 0 && (
