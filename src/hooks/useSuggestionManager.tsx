@@ -15,14 +15,17 @@ export function useSuggestionManager(scriptId: string) {
   const [originalContent, setOriginalContent] = useState<string | any>('');
   const { toast } = useToast();
 
+  // Helper function to normalize content
   const normalizeContent = (content: any): string => {
     if (typeof content === 'string') {
       try {
+        // Check if it's stringified JSON/Delta
         const parsed = JSON.parse(content);
         if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
           return extractPlainTextFromDelta(parsed);
         }
       } catch (e) {
+        // Not JSON, use as is
         return content;
       }
       return content;
@@ -34,6 +37,7 @@ export function useSuggestionManager(scriptId: string) {
 
   const loadSuggestions = async () => {
     try {
+      // First, fetch all suggestions
       const { data, error } = await supabase
         .from('script_suggestions')
         .select(`
@@ -51,11 +55,13 @@ export function useSuggestionManager(scriptId: string) {
         `)
         .eq('script_id', scriptId)
         .neq('status', 'draft')
-        .neq('status', 'unchanged')
+        .neq('status', 'unchanged')  // Filter out unchanged suggestions
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
+      // If we have suggestions with line_uuids, fetch the original content
+      // for each unique line_uuid from script_content
       if (data && data.length > 0) {
         const lineUuids = data
           .filter(item => item.line_uuid)
@@ -69,6 +75,7 @@ export function useSuggestionManager(scriptId: string) {
             
           if (contentError) throw contentError;
           
+          // Create a map of line_uuid to original content
           const originalContentMap = new Map();
           if (contentData) {
             contentData.forEach(item => {
@@ -76,6 +83,7 @@ export function useSuggestionManager(scriptId: string) {
             });
           }
           
+          // Enhance each suggestion with the original content
           const enhancedData = data.map(suggestion => ({
             ...suggestion,
             original_content: suggestion.line_uuid ? 
@@ -84,6 +92,7 @@ export function useSuggestionManager(scriptId: string) {
           
           setSuggestions(enhancedData);
           
+          // Group suggestions by user
           const grouped = SuggestionGroupManager.groupByUser(enhancedData);
           setGroupedSuggestions(grouped);
         } else {
@@ -116,70 +125,38 @@ export function useSuggestionManager(scriptId: string) {
     
     setIsProcessing(true);
     try {
-      console.log(`Starting approval process for ${ids.length} suggestions`);
-      
       for (const id of ids) {
-        console.log(`Processing suggestion approval for ID: ${id}`);
-        
-        // 1. Fetch the suggestion data
+        // Get the suggestion details first
         const { data: suggestionData, error: suggestionError } = await supabase
           .from('script_suggestions')
           .select('*')
           .eq('id', id)
-          .maybeSingle();
+          .maybeSingle(); // Use maybeSingle instead of single
 
-        if (suggestionError) {
-          console.error('Error fetching suggestion:', suggestionError);
-          throw suggestionError;
-        }
-        
-        if (!suggestionData) {
-          console.error('Suggestion not found');
-          throw new Error('Suggestion not found');
-        }
+        if (suggestionError) throw suggestionError;
+        if (!suggestionData) throw new Error('Suggestion not found');
 
-        console.log('Suggestion data:', suggestionData);
-
-        // 2. Process based on whether it's updating an existing line or adding a new one
+        // Update the script_content with the suggestion
         if (suggestionData.line_uuid) {
-          // Case: Update existing line
-          console.log(`Updating existing line ${suggestionData.line_uuid}`);
-          
-          // 2a. Fetch current content to manage edited_by array
+          // Get the current content to inspect existing edited_by
           const { data: contentData, error: contentError } = await supabase
             .from('script_content')
             .select('edited_by')
             .eq('id', suggestionData.line_uuid)
-            .maybeSingle();
+            .maybeSingle(); // Use maybeSingle instead of single
             
-          if (contentError) {
-            console.error('Error fetching content data:', contentError);
-            throw contentError;
-          }
+          if (contentError) throw contentError;
           
-          // 2b. Prepare edited_by array (ensuring it's an array)
+          // Make sure we have an array
           let editedByArray = [];
           if (contentData && contentData.edited_by) {
-            try {
-              // Handle possible formats of edited_by
-              if (Array.isArray(contentData.edited_by)) {
-                editedByArray = [...contentData.edited_by];
-              } else if (typeof contentData.edited_by === 'string') {
-                editedByArray = JSON.parse(contentData.edited_by);
-              } else if (typeof contentData.edited_by === 'object') {
-                editedByArray = Object.values(contentData.edited_by);
-              }
-              
-              // Ensure it's actually an array
-              if (!Array.isArray(editedByArray)) {
-                editedByArray = [];
-              }
-            } catch (e) {
-              console.error('Error parsing edited_by:', e);
-              editedByArray = [];
-            }
+            editedByArray = Array.isArray(contentData.edited_by) ? 
+              contentData.edited_by : 
+              (typeof contentData.edited_by === 'string' ? 
+                JSON.parse(contentData.edited_by) : 
+                []);
             
-            // Add user if not already included
+            // Only add the user if not already in the array
             if (!editedByArray.includes(suggestionData.user_id)) {
               editedByArray.push(suggestionData.user_id);
             }
@@ -187,101 +164,49 @@ export function useSuggestionManager(scriptId: string) {
             editedByArray = [suggestionData.user_id];
           }
           
-          console.log(`Updating script_content with edited_by:`, editedByArray);
-          
-          // 2c. Update the content
           const { error: updateError } = await supabase
             .from('script_content')
             .update({ 
               content: suggestionData.content,
-              line_number: suggestionData.line_number,
               edited_by: editedByArray
             })
             .eq('id', suggestionData.line_uuid);
 
-          if (updateError) {
-            console.error('Error updating script_content:', updateError);
-            throw updateError;
-          }
-          
-          console.log(`Successfully updated line ${suggestionData.line_uuid}`);
-        } else if (suggestionData.line_number) {
-          // Case: Add new line
-          console.log(`Adding new line at position ${suggestionData.line_number}`);
-          
-          // Generate a UUID for the new line
-          const lineUuid = crypto.randomUUID();
-          
-          // Insert new line
-          const { error: insertError } = await supabase
-            .from('script_content')
-            .insert({
-              id: lineUuid,
-              script_id: scriptId,
-              content: suggestionData.content,
-              line_number: suggestionData.line_number,
-              original_author: suggestionData.user_id,
-              edited_by: [suggestionData.user_id]
-            });
-            
-          if (insertError) {
-            console.error('Error inserting new line:', insertError);
-            throw insertError;
-          }
-          
-          console.log(`Successfully added new line with UUID ${lineUuid}`);
-          
-          // Update the suggestion with the new line UUID for future reference
-          const { error: updateSuggestionError } = await supabase
-            .from('script_suggestions')
-            .update({ line_uuid: lineUuid })
-            .eq('id', id);
-            
-          if (updateSuggestionError) {
-            console.error('Error updating suggestion with new line UUID:', updateSuggestionError);
-            // Non-critical error, can continue
-          }
-        } else {
-          console.error('Invalid suggestion data - no line_uuid or line_number');
-          throw new Error('Invalid suggestion data - missing line information');
+          if (updateError) throw updateError;
         }
 
-        // 3. Update suggestion status
+        // Update suggestion status
         const { error: statusError } = await supabase
           .from('script_suggestions')
           .update({ status: 'approved' })
           .eq('id', id);
 
-        if (statusError) {
-          console.error('Error updating suggestion status:', statusError);
-          throw statusError;
-        }
-        
-        console.log(`Successfully approved suggestion ${id}`);
+        if (statusError) throw statusError;
       }
 
-      // 4. Update local state
+      // Update the local state
+      setSuggestions(suggestions.map(suggestion => 
+        ids.includes(suggestion.id) 
+          ? { ...suggestion, status: 'approved' } 
+          : suggestion
+      ));
+      
+      // Re-group suggestions
       const updatedSuggestions = suggestions.map(suggestion => 
         ids.includes(suggestion.id) 
           ? { ...suggestion, status: 'approved' } 
           : suggestion
       );
       
-      setSuggestions(updatedSuggestions);
-      
       const grouped = SuggestionGroupManager.groupByUser(updatedSuggestions);
       setGroupedSuggestions(grouped);
 
-      // 5. Notify user
       toast({
         title: "Success",
         description: ids.length > 1 
           ? `${ids.length} suggestions approved` 
           : "Suggestion approved and changes applied",
       });
-      
-      // 6. Reload suggestions to ensure UI is up to date
-      await loadSuggestions();
     } catch (error) {
       console.error('Error approving suggestion:', error);
       toast({
@@ -309,12 +234,14 @@ export function useSuggestionManager(scriptId: string) {
 
       if (error) throw error;
 
+      // Update the local state
       setSuggestions(suggestions.map(suggestion =>
         suggestion.id === id
           ? { ...suggestion, status: 'rejected', rejection_reason: reason }
           : suggestion
       ));
       
+      // Re-group suggestions
       const updatedSuggestions = suggestions.map(suggestion =>
         suggestion.id === id
           ? { ...suggestion, status: 'rejected', rejection_reason: reason }
@@ -328,8 +255,6 @@ export function useSuggestionManager(scriptId: string) {
         title: "Success",
         description: "Suggestion rejected",
       });
-      
-      await loadSuggestions();
     } catch (error) {
       console.error('Error rejecting suggestion:', error);
       toast({
@@ -343,6 +268,7 @@ export function useSuggestionManager(scriptId: string) {
   };
 
   const handleExpandSuggestion = async (id: string) => {
+    // Find the suggestion in our grouped data
     let foundSuggestion: GroupedSuggestion | null = null;
     
     for (const group of groupedSuggestions) {
@@ -356,6 +282,8 @@ export function useSuggestionManager(scriptId: string) {
     if (!foundSuggestion) return;
     setExpandedSuggestion(foundSuggestion);
     
+    // If the suggestion has a line_uuid, we've already fetched the original content
+    // during loadSuggestions, so we can use it directly
     if (foundSuggestion.line_uuid && foundSuggestion.original_content) {
       setOriginalContent(foundSuggestion.original_content);
     } else {

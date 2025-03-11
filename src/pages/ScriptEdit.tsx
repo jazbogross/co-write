@@ -37,8 +37,6 @@ const ScriptEdit = () => {
           return;
         }
 
-        console.log("Loading script with ID:", id);
-
         // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
