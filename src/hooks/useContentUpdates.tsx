@@ -20,7 +20,12 @@ export const useContentUpdates = (
   const contentLoadedRef = useRef(false);
   
   // Get editor content management utilities
-  const { updateEditorContent, isUpdatingEditorRef, markForFullContentUpdate } = useEditorContentManagement(setContent);
+  const editorContentManagement = useEditorContentManagement(content);
+  const { 
+    applyContentToEditor, 
+    isUpdatingEditorRef, 
+    markForFullContentUpdate 
+  } = editorContentManagement;
   
   // Get content change handler - optimized to only track line changes, not every keystroke
   const { contentUpdateRef, handleChange, lastLineCountRef } = useContentChangeHandler(
@@ -61,7 +66,7 @@ export const useContentUpdates = (
       }
       
       // Update the content
-      updateEditorContent(editor, newContent, forceUpdate);
+      applyContentToEditor(editor, newContent);
       
       // If the content isn't empty, mark that we've loaded content
       if (typeof newContent === 'string' && newContent.length > 0) {
@@ -81,7 +86,7 @@ export const useContentUpdates = (
       setLineCount(lines.length);
       lastLineCountRef.current = lines.length;
     }
-  }, [quillRef, markForFullContentUpdate, updateEditorContent, setLineCount, lastLineCountRef, content]);
+  }, [quillRef, markForFullContentUpdate, applyContentToEditor, setLineCount, lastLineCountRef, content]);
   
   // Explicitly capture current editor state for saving
   const captureCurrentContent = useCallback(() => {

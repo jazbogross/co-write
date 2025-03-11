@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LineData } from '@/hooks/useLineData';
 import { isDeltaObject, combineDeltaContents, extractPlainTextFromDelta } from '@/utils/editor';
@@ -81,11 +82,11 @@ export const useDraftLoader = ({
         const verifyLines = editor.getLines(0);
         console.log(`📙 useDraftLoader: Applied content, expected ${currentLineData.length} lines, found ${verifyLines.length} lines`);
         
+        setDraftApplied(true);
       } else {
         throw new Error('📙 useDraftLoader: Failed to create combined Delta.');
       }
 
-      setDraftApplied(true);
       console.log('📙 useDraftLoader: Draft application complete');
     } catch (error) {
       console.error('📙 useDraftLoader: Error applying drafts:', error);
@@ -94,7 +95,7 @@ export const useDraftLoader = ({
     } finally {
       setLoading(false);
     }
-  }, [lineData, quillRef, updateEditorContent]);
+  }, [lineData, quillRef, updateEditorContent, loading]);
 
   // Main draft application effect
   useEffect(() => {
@@ -106,7 +107,9 @@ export const useDraftLoader = ({
       return;
     }
 
-    applyDrafts();
+    applyDrafts().catch(err => {
+      console.error('📙 useDraftLoader: Failed to apply drafts:', err);
+    });
 
   }, [
     editorInitialized,

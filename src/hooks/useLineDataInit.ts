@@ -104,7 +104,7 @@ export const useLineDataInit = (
     };
 
     fetchLineData();
-  }, [scriptId, userId, initialized, isAdmin]);
+  }, [scriptId, userId, initialized, isAdmin, lineData.length]);
 
   const loadDrafts = async (userId: string | null) => {
     console.log('📊 useLineDataInit: loadDrafts called for user:', userId);
