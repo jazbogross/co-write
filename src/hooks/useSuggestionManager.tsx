@@ -37,6 +37,7 @@ export function useSuggestionManager(scriptId: string) {
 
   const loadSuggestions = async () => {
     try {
+      // First, fetch all suggestions
       const { data, error } = await supabase
         .from('script_suggestions')
         .select(`
@@ -47,7 +48,6 @@ export function useSuggestionManager(scriptId: string) {
           line_uuid,
           line_number,
           metadata,
-          original_content,
           user_id,
           profiles (
             username
@@ -59,11 +59,50 @@ export function useSuggestionManager(scriptId: string) {
 
       if (error) throw error;
       
-      setSuggestions(data || []);
-      
-      // Group suggestions by user
-      const grouped = SuggestionGroupManager.groupByUser(data || []);
-      setGroupedSuggestions(grouped);
+      // If we have suggestions with line_uuids, fetch the original content
+      // for each unique line_uuid from script_content
+      if (data && data.length > 0) {
+        const lineUuids = data
+          .filter(item => item.line_uuid)
+          .map(item => item.line_uuid);
+        
+        if (lineUuids.length > 0) {
+          const { data: contentData, error: contentError } = await supabase
+            .from('script_content')
+            .select('id, content')
+            .in('id', lineUuids);
+            
+          if (contentError) throw contentError;
+          
+          // Create a map of line_uuid to original content
+          const originalContentMap = new Map();
+          if (contentData) {
+            contentData.forEach(item => {
+              originalContentMap.set(item.id, item.content);
+            });
+          }
+          
+          // Enhance each suggestion with the original content
+          const enhancedData = data.map(suggestion => ({
+            ...suggestion,
+            original_content: suggestion.line_uuid ? 
+              originalContentMap.get(suggestion.line_uuid) : null
+          }));
+          
+          setSuggestions(enhancedData);
+          
+          // Group suggestions by user
+          const grouped = SuggestionGroupManager.groupByUser(enhancedData);
+          setGroupedSuggestions(grouped);
+        } else {
+          setSuggestions(data);
+          const grouped = SuggestionGroupManager.groupByUser(data);
+          setGroupedSuggestions(grouped);
+        }
+      } else {
+        setSuggestions([]);
+        setGroupedSuggestions([]);
+      }
     } catch (error) {
       console.error('Error loading suggestions:', error);
       toast({
@@ -238,33 +277,10 @@ export function useSuggestionManager(scriptId: string) {
     if (!foundSuggestion) return;
     setExpandedSuggestion(foundSuggestion);
     
-    // If the suggestion has a line_uuid, fetch the original content
-    if (foundSuggestion.line_uuid) {
-      try {
-        const { data, error } = await supabase
-          .from('script_content')
-          .select('content')
-          .eq('id', foundSuggestion.line_uuid)
-          .single();
-          
-        if (error) throw error;
-        
-        if (data) {
-          console.log('Original content fetched:', {
-            type: typeof data.content,
-            isDelta: isDeltaObject(data.content),
-            preview: typeof data.content === 'string' 
-              ? data.content.substring(0, 30) 
-              : JSON.stringify(data.content).substring(0, 30)
-          });
-          
-          // Keep the original format (Delta or string)
-          setOriginalContent(data.content);
-        }
-      } catch (error) {
-        console.error('Error fetching original content:', error);
-        setOriginalContent('');
-      }
+    // If the suggestion has a line_uuid, we've already fetched the original content
+    // during loadSuggestions, so we can use it directly
+    if (foundSuggestion.line_uuid && foundSuggestion.original_content) {
+      setOriginalContent(foundSuggestion.original_content);
     } else {
       setOriginalContent('');
     }
