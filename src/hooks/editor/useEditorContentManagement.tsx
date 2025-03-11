@@ -1,4 +1,3 @@
-
 import { useCallback, useRef } from 'react';
 import { DeltaContent } from '@/utils/editor/types';
 import { isDeltaObject, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
@@ -23,7 +22,6 @@ export const useEditorContentManagement = (
     newContent: string | DeltaContent, 
     forceUpdate: boolean = false
   ) => {
-    // Prevent recursive updates
     if (isUpdatingEditorRef.current && !forceUpdate) {
       return;
     }
@@ -32,6 +30,8 @@ export const useEditorContentManagement = (
       console.error('📝 useEditorContentManagement: Editor not available');
       return;
     }
+
+    const contentToUpdate = typeof newContent === 'string' ? { ops: [{ insert: newContent }] } : newContent;
     
     // Skip empty content updates unless forced
     if (!forceUpdate && 
@@ -88,29 +88,27 @@ export const useEditorContentManagement = (
       if (shouldDoFullUpdate) {
         console.log(`📝 useEditorContentManagement: Performing full content update, length=${currentLength}`);
         
-        // Delete all content before setting new content
         editor.deleteText(0, currentLength);
         
-        if (isDeltaObject(newContent)) {
+        if (isDeltaObject(contentToUpdate)) {
           // If it's a Delta object, use setContents directly
-          const delta = safelyParseDelta(newContent);
+          const delta = safelyParseDelta(contentToUpdate);
           if (delta) {
             console.log(`📝 useEditorContentManagement: Setting content using Delta with ${delta.ops.length} ops`);
             editor.setContents(delta);
           } else {
             // Fallback to plain text if Delta parsing fails
             console.log(`📝 useEditorContentManagement: Delta parsing failed, using plain text fallback`);
-            const textContent = extractPlainTextFromDelta(newContent);
+            const textContent = extractPlainTextFromDelta(contentToUpdate);
             insertContentWithLineBreaks(editor, textContent || '');
           }
         } else {
           // For string content, split by newlines and insert properly
           console.log(`📝 useEditorContentManagement: Setting content using string`);
-          const contentStr = typeof newContent === 'string' ? newContent : String(newContent);
+          const contentStr = typeof contentToUpdate === 'string' ? contentToUpdate : String(contentToUpdate);
           insertContentWithLineBreaks(editor, contentStr);
         }
         
-        // Reset the full update flag after completing a full update
         needsFullUpdateRef.current = false;
       }
       
@@ -148,9 +146,9 @@ export const useEditorContentManagement = (
           console.log(`📝 useEditorContentManagement: Verification after update (attempt ${currentAttempt}): found ${verifyLines.length} lines`);
           
           // If Delta content should have multiple lines but we only have one, something went wrong
-          if (isDeltaObject(newContent) && 
-              ('ops' in newContent) && newContent.ops && 
-              newContent.ops.length > 1 && verifyLines.length <= 1) {
+          if (isDeltaObject(contentToUpdate) && 
+              ('ops' in contentToUpdate) && contentToUpdate.ops && 
+              contentToUpdate.ops.length > 1 && verifyLines.length <= 1) {
             console.log(`📝 useEditorContentManagement: Content update verification failed, will retry on next update`);
             needsFullUpdateRef.current = true;
           }

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,14 +41,12 @@ const ScriptEdit = () => {
           return;
         }
 
-        // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           navigate("/auth");
           return;
         }
 
-        // Get script data (without content - we'll get that from script_content)
         const { data: scriptData, error: scriptError } = await supabase
           .from("scripts")
           .select("title, admin_id, github_owner, github_repo")
@@ -67,7 +64,6 @@ const ScriptEdit = () => {
           return;
         }
 
-        // Get GitHub token if admin
         if (user.id === scriptData.admin_id) {
           const { data: profileData } = await supabase
             .from("profiles")
@@ -80,7 +76,6 @@ const ScriptEdit = () => {
           }
         }
 
-        // Fetch script content from script_content table
         const { data: contentData, error: contentError } = await supabase
           .from("script_content")
           .select("content")
@@ -88,7 +83,6 @@ const ScriptEdit = () => {
           .order("line_number", { ascending: true });
 
         if (!contentError && contentData && contentData.length > 0) {
-          // Combine the content from all lines
           const combinedContent = contentData.map(line => line.content).join("\n");
           setOriginalContent(combinedContent);
           console.log("Original content loaded:", combinedContent.substring(0, 100) + "...");
@@ -118,16 +112,13 @@ const ScriptEdit = () => {
     if (!script || !id || !isAdmin) return;
 
     try {
-      // If we have a GitHub token and repo info, commit to GitHub
       if (githubToken && script.github_owner && script.github_repo) {
-        // Convert content to JSON string if it's an object
         const contentToSave = typeof updatedContent === 'string' 
           ? updatedContent 
           : JSON.stringify(updatedContent, null, 2);
 
         console.log("Committing content to GitHub:", contentToSave.substring(0, 100) + "...");
         
-        // Call the Supabase function to commit changes to GitHub
         const { data, error } = await supabase.functions.invoke("commit-script-changes", {
           body: {
             scriptId: id,
@@ -138,19 +129,22 @@ const ScriptEdit = () => {
 
         if (error) {
           console.error("Error committing to GitHub:", error);
-          toast.error("Failed to commit changes to GitHub");
+          toast("Failed to commit changes to GitHub", {
+            description: error.message
+          });
           return;
         }
 
         console.log("Successfully committed to GitHub:", data);
-        toast.success("Changes saved and committed to GitHub");
+        toast("Changes saved and committed to GitHub");
       } else {
-        // Just save locally without GitHub commit
-        toast.success("Changes saved successfully");
+        toast("Changes saved successfully");
       }
     } catch (error) {
       console.error("Error saving changes:", error);
-      toast.error("Failed to save changes");
+      toast("Failed to save changes", {
+        description: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
     }
   };
 
