@@ -1,8 +1,10 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { SuggestionGroupManager, UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
-import { isDeltaObject } from '@/utils/editor';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import { generateLineDiff } from '@/utils/diff/contentDiff';
 
 export function useSuggestionManager(scriptId: string) {
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -12,6 +14,26 @@ export function useSuggestionManager(scriptId: string) {
   const [expandedSuggestion, setExpandedSuggestion] = useState<GroupedSuggestion | null>(null);
   const [originalContent, setOriginalContent] = useState<string | any>('');
   const { toast } = useToast();
+
+  // Helper function to normalize content
+  const normalizeContent = (content: any): string => {
+    if (typeof content === 'string') {
+      try {
+        // Check if it's stringified JSON/Delta
+        const parsed = JSON.parse(content);
+        if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+          return extractPlainTextFromDelta(parsed);
+        }
+      } catch (e) {
+        // Not JSON, use as is
+        return content;
+      }
+      return content;
+    } else if (isDeltaObject(content)) {
+      return extractPlainTextFromDelta(content);
+    }
+    return String(content);
+  };
 
   const loadSuggestions = async () => {
     try {

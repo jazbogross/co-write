@@ -25,7 +25,7 @@ export const SuggestionsPanel: React.FC<SuggestionsPanelProps> = ({
           {isOpen ? <ChevronRight /> : <ChevronLeft />}
         </button>
         {isOpen && (
-          <div className="p-4 flex-1 overflow-hidden flex flex-col bg-white">
+          <div className="p-4 flex-1 overflow-hidden flex flex-col bg-white text-black">
             <Tabs defaultValue="user" className="flex-1 flex flex-col">
               <TabsList className="mb-4">
                 <TabsTrigger value="user" className="flex items-center">

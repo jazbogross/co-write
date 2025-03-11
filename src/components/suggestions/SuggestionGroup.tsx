@@ -1,10 +1,11 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 import { SuggestionGroupItem } from './SuggestionGroupItem';
-import { ChevronDown, ChevronUp, User, CheckCircle, XCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, User, CheckCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { generateLineDiff } from '@/utils/diff/contentDiff';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 interface SuggestionGroupProps {
   group: UserGroup;
@@ -20,6 +21,43 @@ export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
   onExpandItem
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [filteredGroups, setFilteredGroups] = useState<GroupedSuggestion[][]>([]);
+  
+  useEffect(() => {
+    const processedGroups = group.consecutiveGroups.map(consecutiveGroup => {
+      return consecutiveGroup.filter(suggestion => {
+        if (suggestion.status !== 'pending') return true;
+        
+        const normalizeContent = (content: any): string => {
+          if (typeof content === 'string') {
+            try {
+              const parsed = JSON.parse(content);
+              if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+                return extractPlainTextFromDelta(parsed);
+              }
+            } catch (e) {
+              return content;
+            }
+            return content;
+          } else if (isDeltaObject(content)) {
+            return extractPlainTextFromDelta(content);
+          }
+          return String(content);
+        };
+
+        const suggestedContent = normalizeContent(suggestion.content);
+        const originalContent = suggestion.line_uuid 
+          ? normalizeContent(suggestion.original_content || '')
+          : '';
+
+        const diff = generateLineDiff(originalContent, suggestedContent);
+        
+        return diff.changeType !== 'unchanged';
+      });
+    }).filter(group => group.length > 0);
+    
+    setFilteredGroups(processedGroups);
+  }, [group.consecutiveGroups]);
   
   const pendingCount = group.suggestions.filter(s => s.status === 'pending').length;
   const approvedCount = group.suggestions.filter(s => s.status === 'approved').length;
@@ -31,8 +69,36 @@ export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
   
   const handleApproveAll = () => {
     const pendingSuggestionIds = group.suggestions
-      .filter(s => s.status === 'pending')
+      .filter(s => {
+        if (s.status !== 'pending') return false;
+        
+        const normalizeContent = (content: any): string => {
+          if (typeof content === 'string') {
+            try {
+              const parsed = JSON.parse(content);
+              if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+                return extractPlainTextFromDelta(parsed);
+              }
+            } catch (e) {
+              return content;
+            }
+            return content;
+          } else if (isDeltaObject(content)) {
+            return extractPlainTextFromDelta(content);
+          }
+          return String(content);
+        };
+
+        const suggestedContent = normalizeContent(s.content);
+        const originalContent = s.line_uuid 
+          ? normalizeContent(s.original_content || '')
+          : '';
+
+        const diff = generateLineDiff(originalContent, suggestedContent);
+        return diff.changeType !== 'unchanged';
+      })
       .map(s => s.id);
+      
     onApprove(pendingSuggestionIds);
   };
   
@@ -86,26 +152,32 @@ export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
       
       {isExpanded && (
         <div className="p-3 space-y-3">
-          {group.consecutiveGroups.map((consecutiveGroup, groupIndex) => (
-            <div key={groupIndex} className="border-l-2 border-gray-300 pl-3">
-              <div className="text-sm text-gray-500 mb-2">
-                {consecutiveGroup.length > 1 
-                  ? `Lines ${consecutiveGroup[0].line_number}-${consecutiveGroup[consecutiveGroup.length-1].line_number}` 
-                  : consecutiveGroup[0].line_number 
-                    ? `Line ${consecutiveGroup[0].line_number}` 
-                    : 'Line Unknown'}
-              </div>
-              {consecutiveGroup.map(suggestion => (
-                <SuggestionGroupItem
-                  key={suggestion.id}
-                  suggestion={suggestion}
-                  onApprove={ids => onApprove([suggestion.id])}
-                  onReject={() => onReject(suggestion.id)}
-                  onExpand={() => onExpandItem(suggestion.id)}
-                />
-              ))}
+          {filteredGroups.length === 0 ? (
+            <div className="text-center py-4 text-gray-500">
+              No pending changes to show
             </div>
-          ))}
+          ) : (
+            filteredGroups.map((consecutiveGroup, groupIndex) => (
+              <div key={groupIndex} className="border-l-2 border-gray-300 pl-3">
+                <div className="text-sm text-gray-500 mb-2">
+                  {consecutiveGroup.length > 1 
+                    ? `Lines ${consecutiveGroup[0].line_number}-${consecutiveGroup[consecutiveGroup.length-1].line_number}` 
+                    : consecutiveGroup[0].line_number 
+                      ? `Line ${consecutiveGroup[0].line_number}` 
+                      : 'Line Unknown'}
+                </div>
+                {consecutiveGroup.map(suggestion => (
+                  <SuggestionGroupItem
+                    key={suggestion.id}
+                    suggestion={suggestion}
+                    onApprove={ids => onApprove([suggestion.id])}
+                    onReject={() => onReject(suggestion.id)}
+                    onExpand={() => onExpandItem(suggestion.id)}
+                  />
+                ))}
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>
