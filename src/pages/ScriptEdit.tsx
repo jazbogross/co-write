@@ -11,6 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DeltaContent } from "@/utils/editor/types";
+import { toast } from "sonner";
 
 const ScriptEdit = () => {
   const { id } = useParams();
@@ -19,10 +21,13 @@ const ScriptEdit = () => {
   const [script, setScript] = useState<{
     title: string;
     admin_id: string;
+    github_owner: string;
+    github_repo: string;
   } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [originalContent, setOriginalContent] = useState("");
+  const [githubToken, setGithubToken] = useState<string | null>(null);
 
   useEffect(() => {
     const loadScript = async () => {
@@ -47,7 +52,7 @@ const ScriptEdit = () => {
         // Get script data (without content - we'll get that from script_content)
         const { data: scriptData, error: scriptError } = await supabase
           .from("scripts")
-          .select("title, admin_id")
+          .select("title, admin_id, github_owner, github_repo")
           .eq("id", id)
           .single();
 
@@ -60,6 +65,19 @@ const ScriptEdit = () => {
           });
           navigate("/profile");
           return;
+        }
+
+        // Get GitHub token if admin
+        if (user.id === scriptData.admin_id) {
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("github_access_token")
+            .eq("id", user.id)
+            .single();
+
+          if (profileData?.github_access_token) {
+            setGithubToken(profileData.github_access_token);
+          }
         }
 
         // Fetch script content from script_content table
@@ -96,14 +114,44 @@ const ScriptEdit = () => {
     loadScript();
   }, [id, navigate, toast]);
 
-  const handleSuggestChange = async () => {
-    if (!script || !id) return;
+  const handleSuggestChange = async (updatedContent: string | DeltaContent) => {
+    if (!script || !id || !isAdmin) return;
 
-    // All content updates happen directly on script_content through the TextEditor
-    toast({
-      title: "Success",
-      description: "Changes saved successfully",
-    });
+    try {
+      // If we have a GitHub token and repo info, commit to GitHub
+      if (githubToken && script.github_owner && script.github_repo) {
+        // Convert content to JSON string if it's an object
+        const contentToSave = typeof updatedContent === 'string' 
+          ? updatedContent 
+          : JSON.stringify(updatedContent, null, 2);
+
+        console.log("Committing content to GitHub:", contentToSave.substring(0, 100) + "...");
+        
+        // Call the Supabase function to commit changes to GitHub
+        const { data, error } = await supabase.functions.invoke("commit-script-changes", {
+          body: {
+            scriptId: id,
+            content: contentToSave,
+            githubAccessToken: githubToken
+          }
+        });
+
+        if (error) {
+          console.error("Error committing to GitHub:", error);
+          toast.error("Failed to commit changes to GitHub");
+          return;
+        }
+
+        console.log("Successfully committed to GitHub:", data);
+        toast.success("Changes saved and committed to GitHub");
+      } else {
+        // Just save locally without GitHub commit
+        toast.success("Changes saved successfully");
+      }
+    } catch (error) {
+      console.error("Error saving changes:", error);
+      toast.error("Failed to save changes");
+    }
   };
 
   if (loading) {

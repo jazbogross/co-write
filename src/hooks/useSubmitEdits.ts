@@ -99,7 +99,10 @@ export const useSubmitEdits = (
       const lineDataToSave = captured?.lineData || lineData;
       
       if (isAdmin) {
+        // Save to database first
         await saveLinesToDatabase(scriptId, lineDataToSave, contentToSave);
+        
+        // Then notify parent component for GitHub commit if needed
         onSuggestChange(contentToSave);
         toast.success('Changes saved successfully!');
       } else {

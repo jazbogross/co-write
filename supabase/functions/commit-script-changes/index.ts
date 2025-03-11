@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { Octokit } from 'https://esm.sh/@octokit/rest'
@@ -94,7 +95,7 @@ serve(async (req) => {
         repo: script.github_repo,
         base_tree: commit.tree.sha,
         tree: [{
-          path: 'script.txt',
+          path: 'script.json', // Changed from script.txt to script.json
           mode: '100644',
           type: 'blob',
           sha: blob.sha
@@ -105,7 +106,7 @@ serve(async (req) => {
       const { data: newCommit } = await octokit.rest.git.createCommit({
         owner: script.github_owner,
         repo: script.github_repo,
-        message: 'Update script content',
+        message: 'Update script content with formatted JSON',
         tree: tree.sha,
         parents: [ref.object.sha]
       })
@@ -118,16 +119,11 @@ serve(async (req) => {
         sha: newCommit.sha
       })
 
-      // Update the script content in Supabase
-      const { error: updateError } = await supabaseClient
-        .from('scripts')
-        .update({ content })
-        .eq('id', scriptId)
-
-      if (updateError) {
-        console.error('Error updating script content:', updateError)
-        throw updateError
-      }
+      // Log success information
+      console.log('Successfully committed JSON content to GitHub', {
+        repo: `${script.github_owner}/${script.github_repo}`,
+        commit: newCommit.sha
+      })
 
       return new Response(
         JSON.stringify({ success: true, sha: newCommit.sha }),
