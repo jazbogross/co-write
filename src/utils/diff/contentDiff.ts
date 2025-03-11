@@ -29,23 +29,25 @@ export interface LineDiff {
 const normalizeContent = (content: string | DeltaContent | null): string => {
   if (!content) return '';
   
+  // Handle Delta objects
   if (isDeltaObject(content)) {
     return extractPlainTextFromDelta(content);
   }
   
+  // Handle stringified Delta objects
   if (typeof content === 'string') {
     try {
-      // Check if it's a stringified Delta object
       const parsed = JSON.parse(content);
-      if (parsed && parsed.ops && Array.isArray(parsed.ops)) {
+      if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
         return extractPlainTextFromDelta(parsed);
       }
     } catch (e) {
-      // Not JSON, treat as plain string
+      // Not a valid JSON string, treat as plain text
     }
     return content;
   }
   
+  // Fallback for any other type
   return String(content);
 };
 

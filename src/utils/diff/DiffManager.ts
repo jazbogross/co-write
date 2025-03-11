@@ -7,6 +7,7 @@ import { generateLineDiff, LineDiff } from './contentDiff';
 import { LineDiffMap, ChangedLine, DiffSummary } from './diffManagerTypes';
 import { groupConsecutiveChanges } from './lineGrouping';
 import { detectFormattingChanges } from './changeDetection';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 export class DiffManager {
   /**
@@ -28,11 +29,37 @@ export class DiffManager {
             suggestedContent: suggestedLine.content
         });
 
-        if (!originalLine || originalLine.content !== suggestedLine.content) {
+        // Normalize content for comparison
+        const normalizeContent = (content: any): string => {
+            if (content == null) return "";
+            
+            if (typeof content === 'string') {
+                try {
+                    // Check if it's stringified JSON/Delta
+                    const parsed = JSON.parse(content);
+                    if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+                        return extractPlainTextFromDelta(parsed);
+                    }
+                } catch (e) {
+                    // Not JSON, use as is
+                    return content;
+                }
+                return content;
+            } else if (isDeltaObject(content)) {
+                return extractPlainTextFromDelta(content);
+            }
+            return String(content);
+        };
+
+        const normalizedOriginal = normalizeContent(originalLine?.content);
+        const normalizedSuggested = normalizeContent(suggestedLine.content);
+
+        // Only generate diff if content actually differs
+        if (!originalLine || normalizedOriginal !== normalizedSuggested) {
             console.log("🔴 Change Detected - Calling generateLineDiff() for:", {
                 uuid: suggestedLine.uuid,
-                original: originalLine?.content || "(empty)",
-                modified: suggestedLine.content
+                original: normalizedOriginal || "(empty)",
+                modified: normalizedSuggested
             });
 
             diffMap[suggestedLine.uuid] = generateLineDiff(originalLine?.content || "", suggestedLine.content);
@@ -40,8 +67,7 @@ export class DiffManager {
     });
 
     return diffMap;
-}
-
+  }
 
   
   /**
@@ -111,5 +137,3 @@ export class DiffManager {
   static detectFormattingChanges = detectFormattingChanges;
 
 }
-
-

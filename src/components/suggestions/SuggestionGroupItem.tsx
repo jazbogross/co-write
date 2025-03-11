@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 import { Button } from '@/components/ui/button';
 import { Check, X, Maximize2 } from 'lucide-react';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 interface SuggestionGroupItemProps {
   suggestion: GroupedSuggestion;
@@ -30,10 +31,32 @@ export const SuggestionGroupItem: React.FC<SuggestionGroupItemProps> = ({
     }
   };
 
+  // Parse and normalize content for display
+  const normalizeContentForDisplay = (content: any): string => {
+    if (typeof content === 'string') {
+      try {
+        // Check if it's stringified JSON/Delta
+        const parsed = JSON.parse(content);
+        if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+          return extractPlainTextFromDelta(parsed);
+        }
+      } catch (e) {
+        // Not JSON, use as is
+        return content;
+      }
+      return content;
+    } else if (isDeltaObject(content)) {
+      return extractPlainTextFromDelta(content);
+    }
+    return String(content);
+  };
+
+  const displayContent = normalizeContentForDisplay(suggestion.content);
+
   return (
     <div className={`rounded p-2 mb-2 ${getStatusColor(suggestion.status)}`}>
       <div className="flex justify-between items-start">
-        <div className="text-sm">
+        <div className="text-sm text-black">
           {suggestion.line_number && (
             <span className="text-xs text-gray-500">
               Line {suggestion.line_number}
@@ -79,10 +102,10 @@ export const SuggestionGroupItem: React.FC<SuggestionGroupItemProps> = ({
         )}
       </div>
       
-      <pre className="whitespace-pre-wrap font-mono text-sm mt-2 overflow-x-auto max-h-24 bg-white bg-opacity-60 p-1 rounded text-xs">
-        {suggestion.content.length > 200 
-          ? `${suggestion.content.substring(0, 200)}...` 
-          : suggestion.content}
+      <pre className="whitespace-pre-wrap font-mono text-sm mt-2 overflow-x-auto max-h-24 bg-white bg-opacity-60 p-1 rounded text-xs text-black">
+        {displayContent.length > 200 
+          ? `${displayContent.substring(0, 200)}...` 
+          : displayContent}
       </pre>
       
       {suggestion.rejection_reason && (

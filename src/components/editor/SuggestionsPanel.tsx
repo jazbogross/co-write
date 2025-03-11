@@ -17,15 +17,15 @@ export const SuggestionsPanel: React.FC<SuggestionsPanelProps> = ({
 }) => {
   return (
     <div className={`transition-all duration-300 ${isOpen ? 'w-[400px]' : 'w-12'}`}>
-      <div className="h-full bg-gray-800 border-l border-gray-700 flex flex-col">
+      <div className="h-full bg-gray-800 border-l border-gray-700 flex flex-col text-black">
         <button
           onClick={onToggle}
-          className="w-full p-3 flex items-center justify-center hover:bg-gray-700 transition-colors"
+          className="w-full p-3 flex items-center justify-center hover:bg-gray-700 transition-colors text-white"
         >
           {isOpen ? <ChevronRight /> : <ChevronLeft />}
         </button>
         {isOpen && (
-          <div className="p-4 flex-1 overflow-hidden flex flex-col">
+          <div className="p-4 flex-1 overflow-hidden flex flex-col bg-white">
             <Tabs defaultValue="user" className="flex-1 flex flex-col">
               <TabsList className="mb-4">
                 <TabsTrigger value="user" className="flex items-center">
