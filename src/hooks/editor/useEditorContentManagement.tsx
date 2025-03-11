@@ -33,9 +33,7 @@ export const useEditorContentManagement = (
     }
 
     // Convert string content to Delta or ensure we have a valid Delta object
-    const contentToUpdate: DeltaContent = typeof newContent === 'string' 
-      ? { ops: [{ insert: newContent }] } 
-      : newContent;
+    let contentToUpdate = newContent;
     
     // Skip empty content updates unless forced
     if (!forceUpdate && 
@@ -103,13 +101,13 @@ export const useEditorContentManagement = (
           } else {
             // Fallback to plain text if Delta parsing fails
             console.log(`📝 useEditorContentManagement: Delta parsing failed, using plain text fallback`);
-            const textContent = extractPlainTextFromDelta(contentToUpdate);
+            const textContent = extractPlainTextFromDelta(contentToUpdate as DeltaContent);
             insertContentWithLineBreaks(editor, textContent || '');
           }
         } else {
           // For string content, split by newlines and insert properly
           console.log(`📝 useEditorContentManagement: Setting content using string`);
-          const contentStr = typeof contentToUpdate === 'string' ? contentToUpdate : JSON.stringify(contentToUpdate);
+          const contentStr = String(contentToUpdate);
           insertContentWithLineBreaks(editor, contentStr);
         }
         

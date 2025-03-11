@@ -70,12 +70,7 @@ export const TextEditorContainer: React.FC<TextEditorContainerProps> = ({
     lineData,
     quillRef,
     content,
-    updateEditorContent: (content, forceUpdate) => {
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        updateEditorContent(editor, content, forceUpdate);
-      }
-    }
+    updateEditorContent
   });
 
   React.useEffect(() => {

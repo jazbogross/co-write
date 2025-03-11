@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LineData } from '@/hooks/useLineData';
 import { isDeltaObject, combineDeltaContents, extractPlainTextFromDelta } from '@/utils/editor';
@@ -11,7 +10,7 @@ export interface DraftLoaderProps {
   lineData: LineData[];
   quillRef: React.RefObject<ReactQuill>;
   content: string | DeltaContent;
-  updateEditorContent: (editor: any, content: string | DeltaContent, forceUpdate?: boolean) => void;
+  updateEditorContent: (content: string | DeltaContent, forceUpdate?: boolean) => void;
 }
 
 export const useDraftLoader = ({
@@ -68,7 +67,7 @@ export const useDraftLoader = ({
         console.log('📙 useDraftLoader: Final Delta ops count:', combinedDelta.ops.length);
 
         // Force update to ensure content is actually applied
-        updateEditorContent(editor, combinedDelta, true);
+        updateEditorContent(combinedDelta, true);
 
         // Wait for content update to complete before refreshing UUIDs
         await new Promise(resolve => setTimeout(resolve, 50));

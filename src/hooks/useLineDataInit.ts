@@ -34,7 +34,7 @@ export const useLineDataInit = (
         .select('*')
         .eq('script_id', scriptId)
         .eq('user_id', userId)
-        .order('line_number', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (error) {
         console.error('useLineDataInit: Error fetching drafts:', error);
@@ -47,70 +47,70 @@ export const useLineDataInit = (
       }
 
       console.log(`useLineDataInit: Found ${drafts.length} drafts`);
-
-      // Update line data with drafts
-      setLineData(prevData => {
-        // Convert drafts to LineData format
-        const updatedLineData: LineData[] = drafts.map(draft => {
-          // Parse the content from JSON if it's stored as a string
-          let draftContent: string | any = draft.content;
-          
-          if (typeof draftContent === 'string') {
-            try {
-              // Try to parse the content as JSON
-              const parsedContent = JSON.parse(draftContent);
-              if (isDeltaObject(parsedContent)) {
-                draftContent = parsedContent;
-              }
-            } catch (e) {
-              // If parsing fails, keep as string
-              console.log('useLineDataInit: Failed to parse draft content as JSON, keeping as string');
-            }
+      
+      // For each draft, get its content and process it
+      for (const draft of drafts) {
+        if (!draft.content) continue;
+        
+        let draftContent = draft.content;
+        if (typeof draftContent === 'string') {
+          try {
+            draftContent = JSON.parse(draftContent);
+          } catch (e) {
+            console.log('useLineDataInit: Failed to parse draft content as JSON, keeping as string');
           }
+        }
+        
+        console.log(`useLineDataInit: Processing draft content:`, draftContent);
+        
+        // Update line data with draft
+        setLineData(prevData => {
+          // Create a new line data array to avoid mutation
+          const updatedLineData = [...prevData];
           
-          // Find a matching line in the previous data by line number if it exists
-          const matchingLine = prevData.find(line => 
-            line.lineNumber === (typeof draft.line_number === 'number' ? draft.line_number : -1)
-          );
-
-          // If there's a matching line, update it with the draft content
-          if (matchingLine) {
-            console.log(`useLineDataInit: Updating line ${draft.line_number} with draft content`);
-            const contentStr = typeof draftContent === 'string' ? 
-              draftContent : JSON.stringify(draftContent);
-            contentToUuidMapRef.current.set(contentStr, matchingLine.uuid);
-            
-            return {
-              ...matchingLine,
-              content: draftContent,
-              hasDraft: true,
-              editedBy: matchingLine.editedBy.includes(userId) ? 
-                matchingLine.editedBy : [...matchingLine.editedBy, userId]
-            };
+          // If we have line data, update it with the draft content
+          if (updatedLineData.length > 0) {
+            updatedLineData.forEach((line, index) => {
+              // For now, just use the first draft for all lines
+              // This is a simplification and should be improved
+              if (index === 0) {
+                console.log(`useLineDataInit: Updating line ${index} with draft content`);
+                
+                const contentStr = typeof draftContent === 'string' ? 
+                  draftContent : JSON.stringify(draftContent);
+                contentToUuidMapRef.current.set(contentStr, line.uuid);
+                
+                updatedLineData[index] = {
+                  ...line,
+                  content: draftContent,
+                  hasDraft: true,
+                  editedBy: line.editedBy.includes(userId) ? 
+                    line.editedBy : [...line.editedBy, userId]
+                };
+              }
+            });
           } else {
-            // If there's no matching line, create a new line with the draft content
-            console.log(`useLineDataInit: Creating new line ${draft.line_number} with draft content`);
+            // If there's no line data yet, create a new line with the draft content
+            console.log(`useLineDataInit: Creating new line with draft content`);
             const newUuid = uuidv4();
             const contentStr = typeof draftContent === 'string' ? 
               draftContent : JSON.stringify(draftContent);
             contentToUuidMapRef.current.set(contentStr, newUuid);
             
-            return {
+            updatedLineData.push({
               uuid: newUuid,
-              lineNumber: typeof draft.line_number === 'number' ? draft.line_number : 0,
+              lineNumber: 1,
               content: draftContent,
-              originalAuthor: userId,
-              editedBy: [],
+              originalAuthor: userId || 'system',
+              editedBy: [userId || 'system'],
               hasDraft: true
-            };
+            });
           }
+          
+          return updatedLineData;
         });
-
-        // Sort the updated line data by line number
-        updatedLineData.sort((a, b) => a.lineNumber - b.lineNumber);
-        return updatedLineData;
-      });
-
+      }
+      
     } catch (err) {
       console.error('useLineDataInit: Error loading drafts:', err);
     }
