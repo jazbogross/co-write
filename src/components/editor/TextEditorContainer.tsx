@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { TextEditorToolbar } from './TextEditorToolbar';
 import { TextEditorMain } from './TextEditorMain';
@@ -52,6 +53,7 @@ export const TextEditorContainer: React.FC<TextEditorContainerProps> = ({
     captureEditorContent,
     formats,
     modules,
+    draftLoadAttempted,
   } = useTextEditor(
     originalContent,
     scriptId,
@@ -64,6 +66,7 @@ export const TextEditorContainer: React.FC<TextEditorContainerProps> = ({
 
   const { draftApplied, applyDrafts } = useDraftLoader({
     editorInitialized,
+    draftLoadAttempted,
     lineData,
     quillRef,
     content,

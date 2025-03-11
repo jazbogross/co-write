@@ -14,7 +14,7 @@ export const useLineData = (
   scriptId: string, 
   originalContent: string, 
   userId: string | null,
-  isAdmin: boolean = false // Added isAdmin parameter with default false
+  isAdmin: boolean = false
 ) => {
   console.log('🔠 useLineData: Hook called with', { scriptId, userId, isAdmin });
   
@@ -36,7 +36,7 @@ export const useLineData = (
   } = useLineDataInit(scriptId, originalContent, userId, isAdmin);
   
   const { matchAndAssignLines } = useLineMatching(userId);
-  const { loadDraftsForCurrentUser } = useDrafts();
+  const { loadDraftsForCurrentUser: loadDraftsFn } = useDrafts();
   const { initializeEditor } = useEditorInit(lineData, isDataReady);
 
   const updateLineContents = useCallback((newContents: any[], quill: any) => {
@@ -176,17 +176,18 @@ export const useLineData = (
     });
   }, [userId, contentToUuidMapRef]);
 
-  // Updated to use the new consolidated loadDrafts function
-  const loadUserDrafts = useCallback(() => {
+  // Adapter function for loadDraftsForCurrentUser
+  const loadUserDrafts = useCallback(async () => {
     console.log('🔠 useLineData: loadUserDrafts called');
-    return loadDraftsForCurrentUser(
-      scriptId, 
-      userId, 
-      setLineData, 
-      contentToUuidMapRef,
-      loadDrafts // Pass the implementation from useLineDataInit
-    );
-  }, [scriptId, userId, loadDraftsForCurrentUser, contentToUuidMapRef, loadDrafts, setLineData]);
+    if (userId) {
+      return loadDrafts(
+        scriptId, 
+        userId, 
+        setLineData, 
+        contentToUuidMapRef
+      );
+    }
+  }, [scriptId, userId, loadDrafts, contentToUuidMapRef, setLineData]);
 
   return { 
     lineData, 

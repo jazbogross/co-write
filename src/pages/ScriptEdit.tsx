@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +17,7 @@ import { toast } from "sonner";
 const ScriptEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
   const [script, setScript] = useState<{
     title: string;
     admin_id: string;
@@ -32,7 +33,7 @@ const ScriptEdit = () => {
     const loadScript = async () => {
       try {
         if (!id) {
-          toast({
+          uiToast({
             title: "Error",
             description: "No script ID provided",
             variant: "destructive",
@@ -55,7 +56,7 @@ const ScriptEdit = () => {
 
         if (scriptError) throw scriptError;
         if (!scriptData) {
-          toast({
+          uiToast({
             title: "Error",
             description: "Script not found",
             variant: "destructive",
@@ -96,7 +97,7 @@ const ScriptEdit = () => {
         setLoading(false);
       } catch (error) {
         console.error("Error loading script:", error);
-        toast({
+        uiToast({
           title: "Error",
           description: "Failed to load script",
           variant: "destructive",
@@ -106,7 +107,7 @@ const ScriptEdit = () => {
     };
 
     loadScript();
-  }, [id, navigate, toast]);
+  }, [id, navigate, uiToast]);
 
   const handleSuggestChange = async (updatedContent: string | DeltaContent) => {
     if (!script || !id || !isAdmin) return;
@@ -129,9 +130,7 @@ const ScriptEdit = () => {
 
         if (error) {
           console.error("Error committing to GitHub:", error);
-          toast("Failed to commit changes to GitHub", {
-            description: error.message
-          });
+          toast("Failed to commit changes to GitHub");
           return;
         }
 
@@ -142,9 +141,7 @@ const ScriptEdit = () => {
       }
     } catch (error) {
       console.error("Error saving changes:", error);
-      toast("Failed to save changes", {
-        description: error instanceof Error ? error.message : 'Unknown error occurred'
-      });
+      toast("Failed to save changes");
     }
   };
 

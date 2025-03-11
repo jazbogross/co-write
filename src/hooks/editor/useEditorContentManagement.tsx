@@ -1,3 +1,4 @@
+
 import { useCallback, useRef } from 'react';
 import { DeltaContent } from '@/utils/editor/types';
 import { isDeltaObject, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
@@ -31,7 +32,9 @@ export const useEditorContentManagement = (
       return;
     }
 
-    const contentToUpdate = typeof newContent === 'string' ? { ops: [{ insert: newContent }] } : newContent;
+    const contentToUpdate: DeltaContent = typeof newContent === 'string' 
+      ? { ops: [{ insert: newContent }] } 
+      : newContent;
     
     // Skip empty content updates unless forced
     if (!forceUpdate && 

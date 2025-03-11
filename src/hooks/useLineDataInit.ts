@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { LineData } from '@/types/lineTypes';
@@ -29,7 +30,7 @@ export const useLineDataInit = (
 
     try {
       const { data: drafts, error } = await supabase
-        .from('line_drafts')
+        .from('script_drafts')
         .select('*')
         .eq('script_id', scriptId)
         .eq('user_id', userId)
@@ -98,7 +99,7 @@ export const useLineDataInit = (
       console.log(`useLineDataInit: Loading initial content for script ${scriptId}`);
 
       // Fetch initial content from script_content table
-      const { data: lineData, error } = await supabase
+      const { data: scriptContent, error } = await supabase
         .from('script_content')
         .select('*')
         .eq('script_id', scriptId)
@@ -109,7 +110,7 @@ export const useLineDataInit = (
         return;
       }
 
-      if (!lineData || lineData.length === 0) {
+      if (!scriptContent || scriptContent.length === 0) {
         console.log('useLineDataInit: No script content found, using original content');
         // If no data in script_content, create a single line with the original content
         const initialLine: LineData = {
@@ -125,20 +126,18 @@ export const useLineDataInit = (
         return;
       }
 
-      const lines = lineData;
-
       // Process line data
-      const processedLines = lines.map((l, index) => {
-        if (!l) return null;
+      const processedLines = scriptContent.map((line, index) => {
+        if (!line) return null;
         
-        const matchingLine = lineData.find(existing => existing.lineNumber === l.line_number);
+        const uuid = line.id || uuidv4();
         
-        const newLine = {
-          uuid: matchingLine?.uuid || uuidv4(),
-          lineNumber: l.line_number || index + 1,
-          content: matchingLine?.content || l.content || '',
-          originalAuthor: matchingLine?.originalAuthor || userId || 'system',
-          editedBy: matchingLine?.editedBy || [],
+        const newLine: LineData = {
+          uuid: uuid,
+          lineNumber: line.line_number || index + 1,
+          content: line.content || '',
+          originalAuthor: line.original_author || userId || 'system',
+          editedBy: line.edited_by ? Array.isArray(line.edited_by) ? line.edited_by : [] : [],
           hasDraft: false
         };
 
@@ -158,7 +157,7 @@ export const useLineDataInit = (
     return () => {
       // Any cleanup logic here
     };
-  }, [scriptId, originalContent]);
+  }, [scriptId, originalContent, userId]);
 
   return { 
     lineData, 

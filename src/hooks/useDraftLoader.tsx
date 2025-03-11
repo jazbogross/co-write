@@ -1,16 +1,17 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LineData } from '@/hooks/useLineData';
 import { isDeltaObject, combineDeltaContents, extractPlainTextFromDelta } from '@/utils/editor';
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
 
-interface DraftLoaderProps {
+export interface DraftLoaderProps {
   editorInitialized: boolean;
   draftLoadAttempted: boolean;
   lineData: LineData[];
   quillRef: React.RefObject<ReactQuill>;
   content: string | DeltaContent;
-  updateEditorContent: (content: string | DeltaContent, forceUpdate?: boolean) => void;
+  updateEditorContent: (editor: any, content: string | DeltaContent, forceUpdate?: boolean) => void;
 }
 
 export const useDraftLoader = ({
@@ -22,7 +23,7 @@ export const useDraftLoader = ({
   updateEditorContent
 }: DraftLoaderProps) => {
   const [draftApplied, setDraftApplied] = useState(false);
-  const [loading, setLoading] = useState(false); // Use loading state instead
+  const [loading, setLoading] = useState(false);
   const lastLineDataRef = useRef<LineData[]>([]);
 
   // Keep an eye on lineData
@@ -67,7 +68,7 @@ export const useDraftLoader = ({
         console.log('📙 useDraftLoader: Final Delta ops count:', combinedDelta.ops.length);
 
         // Force update to ensure content is actually applied
-        updateEditorContent(combinedDelta, true);
+        updateEditorContent(editor, combinedDelta, true);
 
         // Wait for content update to complete before refreshing UUIDs
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -94,7 +95,7 @@ export const useDraftLoader = ({
     } finally {
       setLoading(false);
     }
-  }, [lineData, quillRef, updateEditorContent]);
+  }, [lineData, quillRef, updateEditorContent, loading]);
 
   // Main draft application effect
   useEffect(() => {

@@ -1,5 +1,6 @@
 
 import React from 'react';
+import ReactQuill from 'react-quill';
 import { TextEditorContainer } from './editor/TextEditorContainer';
 import { DeltaContent } from '@/utils/editor/types';
 import 'react-quill/dist/quill.snow.css';

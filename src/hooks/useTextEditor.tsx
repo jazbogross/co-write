@@ -118,7 +118,7 @@ export const useTextEditor = (
     updateEditorContent,
     flushContentToLineData,
     captureCurrentContent,
-    captureEditorContent,  // Expose the new function
+    captureEditorContent,
     formats,
     modules,
     draftLoadAttempted,
