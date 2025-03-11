@@ -4,7 +4,7 @@ import { LineData } from '@/types/lineTypes';
 import { createInitialLineData } from '@/utils/lineDataUtils';
 import { fetchAllLines, loadDrafts as loadDraftsService } from '@/services/lineDataService';
 import { processLinesData } from '@/utils/lineDataProcessing';
-import { DeltaContent, extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 /**
  * Hook for initializing line data with race condition protection
@@ -48,15 +48,15 @@ export const useLineDataInit = (
               // Safely find the matching line and check for draft
               const matchingLine = allLines.find(l => {
                 // Type-safe check for object structure
-                return l !== null && typeof l === 'object' && 
-                       'id' in (l as any) && (l as any).id === line.uuid;
+                return typeof l === 'object' && l !== null && 
+                       'id' in l && l.id === line.uuid;
               });
               
-              if (matchingLine && typeof matchingLine === 'object' && 
-                  'draft' in (matchingLine as any) && (matchingLine as any).draft) {
+              if (matchingLine && typeof matchingLine === 'object' && matchingLine !== null && 
+                  'draft' in matchingLine && matchingLine.draft) {
                 // If there's a draft, use it instead of the main content
                 try {
-                  const draftContent = JSON.parse((matchingLine as any).draft as string);
+                  const draftContent = JSON.parse(matchingLine.draft as string);
                   return {
                     ...line,
                     content: draftContent,

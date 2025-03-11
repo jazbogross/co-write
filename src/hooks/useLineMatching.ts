@@ -5,8 +5,7 @@ import {
   handleSpecialOperations,
   matchNonEmptyLines,
   matchRemainingLines,
-  generateStatsTemplate,
-  findBestMatchingLine
+  generateStatsTemplate
 } from '@/hooks/lineMatching';
 import { isContentEmpty, getPlainTextContent } from '@/hooks/lineMatching/contentUtils';
 
@@ -102,29 +101,5 @@ export const useLineMatching = (userId: string | null) => {
     return { newData, stats };
   }, [userId]);
 
-  // Re-export the findBestMatchingLine function
-  const findBestLine = useCallback((
-    content: any,
-    lineIndex: number,
-    prevLineData: LineData[],
-    excludeIndices: Set<number>,
-    contentToUuidMap?: Map<string, string>,
-    positionBasedFallback: boolean = true,
-    domUuidMap?: Map<number, string>
-  ) => {
-    return findBestMatchingLine(
-      content, 
-      lineIndex, 
-      prevLineData, 
-      excludeIndices,
-      contentToUuidMap,
-      positionBasedFallback,
-      domUuidMap
-    );
-  }, []);
-
-  return { 
-    matchAndAssignLines,
-    findBestMatchingLine: findBestLine
-  };
+  return { matchAndAssignLines };
 };

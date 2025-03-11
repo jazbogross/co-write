@@ -38,20 +38,16 @@ export const TextEditorActions: React.FC<TextEditorActionsProps> = ({
             isAdmin ? "Save Changes" : "Suggest Changes"
           )}
         </Button>
-        
-        {/* Only show save draft button for non-admin users */}
-        {!isAdmin && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="justify-end flex items-center"
-            onClick={onSave}
-            disabled={isSubmitting}
-          >
-            <Save className="mr-1 h-4 w-4" />
-            {isSubmitting ? "Saving..." : "Save Draft"}
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="justify-end flex items-center"
+          onClick={onSave}
+          disabled={isSubmitting}
+        >
+          <Save className="mr-1 h-4 w-4" />
+          {isSubmitting ? "Saving..." : "Save Draft"}
+        </Button>
       </div>
     </div>
   );
