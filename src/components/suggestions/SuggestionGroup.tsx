@@ -47,7 +47,7 @@ export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
 
         const suggestedContent = normalizeContent(suggestion.content);
         const originalContent = suggestion.line_uuid 
-          ? normalizeContent(suggestion.content || '')
+          ? normalizeContent(suggestion.original_content || '')
           : '';
 
         const diff = generateLineDiff(originalContent, suggestedContent);
@@ -91,7 +91,7 @@ export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
 
         const suggestedContent = normalizeContent(s.content);
         const originalContent = s.line_uuid 
-          ? normalizeContent(s.content || '')
+          ? normalizeContent(s.original_content || '')
           : '';
 
         const diff = generateLineDiff(originalContent, suggestedContent);

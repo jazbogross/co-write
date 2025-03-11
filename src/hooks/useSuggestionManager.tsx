@@ -47,6 +47,7 @@ export function useSuggestionManager(scriptId: string) {
           line_uuid,
           line_number,
           metadata,
+          original_content,
           user_id,
           profiles (
             username
