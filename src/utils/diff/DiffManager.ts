@@ -13,6 +13,7 @@ export class DiffManager {
    * Generate diff between original lines and suggested content
    */
   static generateDiff(originalLines: LineData[], suggestedLines: LineData[]): LineDiffMap {
+    console.log("🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠 Generating Diff Map");
     const diffMap: LineDiffMap = {};
     const originalLineMap = new Map(originalLines.map(line => [line.uuid, line]));
 
