@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 import { SuggestionGroupItem } from './SuggestionGroupItem';
-import { ChevronDown, ChevronUp, User, CheckCircle, XCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, User, CheckCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { generateLineDiff } from '@/utils/diff/contentDiff';
@@ -27,7 +27,32 @@ export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
     const processedGroups = group.consecutiveGroups.map(consecutiveGroup => {
       return consecutiveGroup.filter(suggestion => {
         if (suggestion.status !== 'pending') return true;
-        return true;
+        
+        const normalizeContent = (content: any): string => {
+          if (typeof content === 'string') {
+            try {
+              const parsed = JSON.parse(content);
+              if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+                return extractPlainTextFromDelta(parsed);
+              }
+            } catch (e) {
+              return content;
+            }
+            return content;
+          } else if (isDeltaObject(content)) {
+            return extractPlainTextFromDelta(content);
+          }
+          return String(content);
+        };
+
+        const suggestedContent = normalizeContent(suggestion.content);
+        const originalContent = suggestion.line_uuid 
+          ? normalizeContent(suggestion.original_content || '')
+          : '';
+
+        const diff = generateLineDiff(originalContent, suggestedContent);
+        
+        return diff.changeType !== 'unchanged';
       });
     }).filter(group => group.length > 0);
     
@@ -44,8 +69,36 @@ export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
   
   const handleApproveAll = () => {
     const pendingSuggestionIds = group.suggestions
-      .filter(s => s.status === 'pending')
+      .filter(s => {
+        if (s.status !== 'pending') return false;
+        
+        const normalizeContent = (content: any): string => {
+          if (typeof content === 'string') {
+            try {
+              const parsed = JSON.parse(content);
+              if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
+                return extractPlainTextFromDelta(parsed);
+              }
+            } catch (e) {
+              return content;
+            }
+            return content;
+          } else if (isDeltaObject(content)) {
+            return extractPlainTextFromDelta(content);
+          }
+          return String(content);
+        };
+
+        const suggestedContent = normalizeContent(s.content);
+        const originalContent = s.line_uuid 
+          ? normalizeContent(s.original_content || '')
+          : '';
+
+        const diff = generateLineDiff(originalContent, suggestedContent);
+        return diff.changeType !== 'unchanged';
+      })
       .map(s => s.id);
+      
     onApprove(pendingSuggestionIds);
   };
   
