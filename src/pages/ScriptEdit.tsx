@@ -114,6 +114,8 @@ const ScriptEdit = () => {
     return null;
   }
 
+  console.log("Rendering TextEditor with scriptId:", id);
+
   return (
     <div className="container min-w-sreen">
       <Card>
