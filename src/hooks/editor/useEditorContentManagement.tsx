@@ -18,6 +18,12 @@ export const useEditorContentManagement = (initialContent: string | object) => {
   // Store the last applied content for comparison
   const lastAppliedContentRef = useRef<string>('');
   
+  // Flag to track if an editor update is in progress
+  const isUpdatingEditorRef = useRef<boolean>(false);
+  
+  // Flag to force a full content update
+  const needsFullUpdateRef = useRef<boolean>(false);
+  
   // Update content state
   const updateContent = useCallback((newContent: string | object) => {
     if (!newContent) {
@@ -53,6 +59,12 @@ export const useEditorContentManagement = (initialContent: string | object) => {
     }
   }, []);
   
+  // Mark content for a full update (used when initializing or forcing an update)
+  const markForFullContentUpdate = useCallback(() => {
+    console.log('Marking content for full update');
+    needsFullUpdateRef.current = true;
+  }, []);
+  
   // For direct string to editor application
   const applyContentToEditor = useCallback((editor: any, newContent: string | object) => {
     if (!editor) {
@@ -66,6 +78,9 @@ export const useEditorContentManagement = (initialContent: string | object) => {
     }
     
     try {
+      // Set updating flag to prevent feedback loops
+      isUpdatingEditorRef.current = true;
+      
       // Get appropriate Delta object
       let deltaContent: any;
       
@@ -94,11 +109,12 @@ export const useEditorContentManagement = (initialContent: string | object) => {
       const currentText = JSON.stringify(currentContent);
       const newText = JSON.stringify(deltaContent);
       
-      // Only apply if different
-      if (currentText !== newText) {
-        console.log('Applying new content to editor');
+      // Apply if forced or content is different
+      if (needsFullUpdateRef.current || currentText !== newText) {
+        console.log('Applying new content to editor (forced update:', needsFullUpdateRef.current, ')');
         editor.setContents(deltaContent);
         lastAppliedContentRef.current = newText;
+        needsFullUpdateRef.current = false;
         return true;
       } else {
         console.log('Content unchanged, not reapplying to editor');
@@ -107,6 +123,9 @@ export const useEditorContentManagement = (initialContent: string | object) => {
     } catch (e) {
       console.error('Error applying content to editor:', e);
       return false;
+    } finally {
+      // Reset updating flag
+      isUpdatingEditorRef.current = false;
     }
   }, []);
   
@@ -114,6 +133,8 @@ export const useEditorContentManagement = (initialContent: string | object) => {
     content,
     updateContent,
     applyContentToEditor,
-    lastAppliedContentRef
+    lastAppliedContentRef,
+    isUpdatingEditorRef,
+    markForFullContentUpdate
   };
 };
