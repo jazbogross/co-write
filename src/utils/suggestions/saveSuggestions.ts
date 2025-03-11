@@ -19,6 +19,10 @@ export const saveSuggestions = async (
       throw new Error('User ID is required to save suggestions');
     }
     
+    if (!scriptId || scriptId.trim() === '') {
+      throw new Error('Script ID is required');
+    }
+    
     // First, get the existing script content to track UUIDs and line numbers
     const { data: existingContent, error: contentError } = await supabase
       .from('script_content')
@@ -34,12 +38,18 @@ export const saveSuggestions = async (
     const existingContentMap = createContentMap(existingContent || []);
     
     // Track all changes: additions, modifications, and unchanged lines
-    const changes = trackChanges(lineData, originalContent, existingContentMap);
+    const changes = await trackChanges(lineData, scriptId, existingContentMap);
     
     // Track deleted lines
-    if (lineData.length < originalContent.split('\n').length) {
+    if (lineData.length < (existingContent?.length || 0)) {
       const deletedLines = trackDeletedLines(lineData, existingContent || []);
       changes.push(...deletedLines);
+    }
+
+    // Ensure changes is an array
+    if (!Array.isArray(changes)) {
+      console.error('Expected changes to be an array but got:', typeof changes);
+      return;
     }
 
     // Filter out unchanged lines for logging
@@ -47,12 +57,11 @@ export const saveSuggestions = async (
     
     if (actualChanges.length === 0) {
       console.log('No changes detected to save as suggestions');
-      return;
+    } else {
+      console.log('Detected changes:', actualChanges);
     }
 
-    console.log('Detected changes with preserved UUIDs:', changes);
-
-    // Submit all changes as suggestions
+    // Submit all changes as suggestions, including unchanged ones
     await saveChangesToDatabase(changes, scriptId, userId);
     
   } catch (error) {
@@ -69,6 +78,11 @@ const saveChangesToDatabase = async (
   scriptId: string,
   userId: string | null
 ) => {
+  if (!Array.isArray(changes)) {
+    console.error('Expected changes to be an array but got:', typeof changes);
+    return;
+  }
+
   for (const change of changes) {
     // Set the appropriate status based on change type
     let status = 'pending';

@@ -168,7 +168,7 @@ export const useEditorContentManagement = (
         if (editor) {
           const textContent = typeof newContent === 'string' 
             ? newContent 
-            : extractPlainTextFromDelta(newContent) || JSON.stringify(newContent);
+            : extractPlainTextFromDelta(newContent as any) || JSON.stringify(newContent);
           insertContentWithLineBreaks(editor, textContent);
         }
       } catch (fallbackError) {

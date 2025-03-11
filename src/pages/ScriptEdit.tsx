@@ -27,6 +27,16 @@ const ScriptEdit = () => {
   useEffect(() => {
     const loadScript = async () => {
       try {
+        if (!id) {
+          toast({
+            title: "Error",
+            description: "No script ID provided",
+            variant: "destructive",
+          });
+          navigate("/profile");
+          return;
+        }
+
         // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
@@ -84,7 +94,7 @@ const ScriptEdit = () => {
     };
 
     loadScript();
-  }, [id, navigate]);
+  }, [id, navigate, toast]);
 
   const handleSuggestChange = async () => {
     if (!script || !id) return;
