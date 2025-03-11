@@ -55,7 +55,7 @@ export function useSuggestionManager(scriptId: string) {
         `)
         .eq('script_id', scriptId)
         .neq('status', 'draft')
-        .neq('status', 'unchanged')
+        .neq('status', 'unchanged')  // Filter out unchanged suggestions
         .order('created_at', { ascending: false });
 
       if (error) throw error;
