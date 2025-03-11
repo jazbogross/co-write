@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 import { SuggestionGroupItem } from './SuggestionGroupItem';
@@ -62,6 +63,11 @@ export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
   const pendingCount = group.suggestions.filter(s => s.status === 'pending').length;
   const approvedCount = group.suggestions.filter(s => s.status === 'approved').length;
   const rejectedCount = group.suggestions.filter(s => s.status === 'rejected').length;
+  
+  // Hide this group if there are no pending suggestions
+  if (pendingCount === 0) {
+    return null;
+  }
   
   const handleToggleExpand = () => {
     setIsExpanded(!isExpanded);

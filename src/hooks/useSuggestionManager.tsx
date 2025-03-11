@@ -138,6 +138,7 @@ export function useSuggestionManager(scriptId: string) {
 
         // Update the script_content with the suggestion
         if (suggestionData.line_uuid) {
+          // This is a modification to an existing line
           // Get the current content to inspect existing edited_by
           const { data: contentData, error: contentError } = await supabase
             .from('script_content')
@@ -147,7 +148,7 @@ export function useSuggestionManager(scriptId: string) {
             
           if (contentError) throw contentError;
           
-          // Make sure we have an array
+          // Make sure we have an array for edited_by
           let editedByArray = [];
           if (contentData && contentData.edited_by) {
             editedByArray = Array.isArray(contentData.edited_by) ? 
@@ -164,6 +165,7 @@ export function useSuggestionManager(scriptId: string) {
             editedByArray = [suggestionData.user_id];
           }
           
+          // Update the script_content with the new content and edited_by
           const { error: updateError } = await supabase
             .from('script_content')
             .update({ 
@@ -173,6 +175,24 @@ export function useSuggestionManager(scriptId: string) {
             .eq('id', suggestionData.line_uuid);
 
           if (updateError) throw updateError;
+        } else if (suggestionData.line_number) {
+          // This is a new line insertion
+          // Generate a new UUID for the line if needed
+          const lineUuid = suggestionData.line_uuid || crypto.randomUUID();
+          
+          // Insert the new line into script_content
+          const { error: insertError } = await supabase
+            .from('script_content')
+            .insert({
+              id: lineUuid,
+              script_id: scriptId,
+              content: suggestionData.content,
+              line_number: suggestionData.line_number,
+              original_author: suggestionData.user_id,
+              edited_by: [suggestionData.user_id]
+            });
+            
+          if (insertError) throw insertError;
         }
 
         // Update suggestion status
@@ -207,6 +227,9 @@ export function useSuggestionManager(scriptId: string) {
           ? `${ids.length} suggestions approved` 
           : "Suggestion approved and changes applied",
       });
+      
+      // Reload suggestions to ensure UI is up to date
+      await loadSuggestions();
     } catch (error) {
       console.error('Error approving suggestion:', error);
       toast({
@@ -255,6 +278,9 @@ export function useSuggestionManager(scriptId: string) {
         title: "Success",
         description: "Suggestion rejected",
       });
+      
+      // Reload suggestions to ensure UI is up to date
+      await loadSuggestions();
     } catch (error) {
       console.error('Error rejecting suggestion:', error);
       toast({
