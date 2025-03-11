@@ -40,6 +40,7 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
     
     // Generate diff using DiffManager
     const diffMap = DiffManager.generateDiff([originalLine], [suggestedLine]);
+    console.log("🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠 Diff Map:", diffMap);
     
     // Extract the changes - this is simplified for this component
     // In a real app, we'd properly convert LineDiff to DiffChange[]
