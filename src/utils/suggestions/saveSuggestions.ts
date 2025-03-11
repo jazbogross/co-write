@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/hooks/useLineData';
 import { createContentMap, normalizeContentForStorage } from './contentUtils';
@@ -76,7 +77,7 @@ const saveChangesToDatabase = async (
         .from('script_content')
         .select('content')
         .eq('id', change.uuid)
-        .single();
+        .maybeSingle(); // Using maybeSingle instead of single to prevent errors
         
       if (!originalError && originalData) {
         // Normalize both contents for comparison
