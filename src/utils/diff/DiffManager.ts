@@ -14,21 +14,33 @@ export class DiffManager {
    */
   static generateDiff(originalLines: LineData[], suggestedLines: LineData[]): LineDiffMap {
     const diffMap: LineDiffMap = {};
-
     const originalLineMap = new Map(originalLines.map(line => [line.uuid, line]));
-    
+
     suggestedLines.forEach((suggestedLine) => {
         if (!suggestedLine.uuid) return; // Skip if no UUID
 
         const originalLine = originalLineMap.get(suggestedLine.uuid);
+        
+        console.log("🟡 Debug - Checking line:", {
+            uuid: suggestedLine.uuid,
+            originalContent: originalLine?.content,
+            suggestedContent: suggestedLine.content
+        });
+
         if (!originalLine || originalLine.content !== suggestedLine.content) {
-            // Only include in diff if content has changed
+            console.log("🔴 Change Detected - Calling generateLineDiff() for:", {
+                uuid: suggestedLine.uuid,
+                original: originalLine?.content || "(empty)",
+                modified: suggestedLine.content
+            });
+
             diffMap[suggestedLine.uuid] = generateLineDiff(originalLine?.content || "", suggestedLine.content);
         }
     });
 
     return diffMap;
 }
+
 
   
   /**
@@ -45,12 +57,17 @@ export class DiffManager {
     // Process each line diff
     Object.entries(diffMap).forEach(([lineUuid, diff]) => {
       if (diff.changeType === 'unchanged') return;
-      
+
+      console.log(`🟠 Processing Changed Line: ${lineUuid}`, {
+          changeType: diff.changeType,
+          originalContent: originalLines.find(line => line.uuid === lineUuid)?.content,
+          suggestedContent: suggestedLines.find(line => line.uuid === lineUuid)?.content
+      });
+    
       // Find the corresponding line data
       const originalLine = originalLines.find(line => line.uuid === lineUuid);
       const suggestedLine = suggestedLines.find(line => line.uuid === lineUuid);
-      
-      // Skip if we can't determine line number
+    
       if (!originalLine && !suggestedLine) return;
       
       // Count by change type
@@ -91,4 +108,7 @@ export class DiffManager {
   // Re-export utility functions for convenience
   static groupConsecutiveChanges = groupConsecutiveChanges;
   static detectFormattingChanges = detectFormattingChanges;
+
 }
+
+
