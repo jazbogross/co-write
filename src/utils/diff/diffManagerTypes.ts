@@ -60,5 +60,4 @@ export interface DiffSummary {
   changedLines: ChangedLine[];
 }
 
-// Re-export with correct export type syntax
-export type { LineDiff, DiffSegment, DiffChangeType as DiffChangeTypeEnum };
+// No type re-exports here to avoid conflicts

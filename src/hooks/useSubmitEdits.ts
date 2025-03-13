@@ -141,7 +141,7 @@ export const useSubmitEdits = ({
     try {
       setIsSaving(true);
       
-      // Normalize content
+      // Normalize content for Supabase JSON compatibility
       const normalizedContent = normalizeContentForStorage(content);
       
       // Save to script_drafts table
@@ -150,7 +150,7 @@ export const useSubmitEdits = ({
         .upsert({
           script_id: scriptId,
           user_id: userId,
-          draft_content: content,
+          draft_content: normalizedContent,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'script_id,user_id'
