@@ -1,11 +1,89 @@
 
 import { useState, useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
-import { saveDraft, captureContentFromDOM } from '@/utils/saveDraftUtils';
-import { saveLinesToDatabase } from '@/utils/saveLineUtils';
-import { saveSuggestions, saveLineDrafts } from '@/utils/suggestions';
+import { captureContentFromDOM, extractQuillContent } from '@/utils/saveDraftUtils';
+import { supabase } from '@/integrations/supabase/client';
+import { saveSuggestions } from '@/utils/suggestions';
 import { toast } from 'sonner';
 import { DeltaContent } from '@/utils/editor/types';
+
+// Utility function to save lines to database
+const saveLinesToDatabase = async (
+  scriptId: string,
+  lineData: LineData[],
+  content: string | DeltaContent
+): Promise<boolean> => {
+  try {
+    // For the simplified Delta approach, we don't need lineData
+    // Convert Delta to a format suitable for database storage
+    const contentToSave = typeof content === 'string'
+      ? { ops: [{ insert: content }] }
+      : content;
+    
+    // Update script_content
+    const { error } = await supabase
+      .from('script_content')
+      .upsert({
+        script_id: scriptId,
+        content_delta: contentToSave,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'script_id'
+      });
+    
+    if (error) {
+      console.error('Error saving content:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in saveLinesToDatabase:', error);
+    return false;
+  }
+};
+
+// Utility function to save draft
+const saveDraft = async (
+  scriptId: string,
+  lineData: LineData[],
+  content: any,
+  userId: string,
+  quill: any = null
+): Promise<boolean> => {
+  try {
+    // Get the most up-to-date content from the editor if available
+    const currentContent = quill ? extractQuillContent(quill) : content;
+    
+    // Ensure we have valid content
+    if (!currentContent) {
+      console.error('No content to save');
+      return false;
+    }
+    
+    // Save to script_drafts table
+    const { error } = await supabase
+      .from('script_drafts')
+      .upsert({
+        script_id: scriptId,
+        user_id: userId,
+        draft_content: currentContent,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'script_id,user_id'
+      });
+    
+    if (error) {
+      console.error('Error saving draft:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in saveDraft:', error);
+    return false;
+  }
+};
 
 export const useSubmitEdits = (
   isAdmin: boolean,
@@ -30,11 +108,8 @@ export const useSubmitEdits = (
     
     // Fallback to using the provided content and lineData
     console.log('📋 useSubmitEdits: Using provided content for save');
-    return { 
-      content, 
-      lineData 
-    };
-  }, [quill, content, lineData]);
+    return content;
+  }, [quill, content]);
 
   const saveToSupabase = useCallback(async (currentContent?: string | DeltaContent) => {
     if (!scriptId || !userId) {
@@ -47,26 +122,14 @@ export const useSubmitEdits = (
       console.log(`📋 useSubmitEdits: Saving drafts for ${isAdmin ? 'admin' : 'non-admin'} user`, userId);
       
       // Capture the most up-to-date content
-      const captured = captureCurrentContent();
-      const contentToSave = currentContent || captured?.content || content;
-      const lineDataToSave = captured?.lineData || lineData;
+      const contentToSave = currentContent || captureCurrentContent() || content;
       
       console.log('📋 useSubmitEdits: Saving content type:', typeof contentToSave);
-      console.log('📋 useSubmitEdits: Number of line data items:', lineDataToSave.length);
-      
-      // Log the first few line data items for debugging
-      lineDataToSave.slice(0, 3).forEach((line, i) => {
-        console.log(`📋 Line ${i+1}:`, {
-          uuid: line.uuid,
-          lineNumber: line.lineNumber,
-          contentType: typeof line.content
-        });
-      });
       
       if (isAdmin) {
-        await saveDraft(scriptId, lineDataToSave, contentToSave, userId, quill);
+        await saveDraft(scriptId, lineData, contentToSave, userId, quill);
       } else {
-        await saveLineDrafts(scriptId, lineDataToSave, "", userId);
+        await saveDraft(scriptId, lineData, contentToSave, userId, quill);
       }
       
       toast.success('Draft saved successfully!');
@@ -94,13 +157,11 @@ export const useSubmitEdits = (
       console.log(`📋 useSubmitEdits: Submitting changes for ${isAdmin ? 'admin' : 'non-admin'} user`);
       
       // Capture the most up-to-date content
-      const captured = captureCurrentContent();
-      const contentToSave = currentContent || captured?.content || content;
-      const lineDataToSave = captured?.lineData || lineData;
+      const contentToSave = currentContent || captureCurrentContent() || content;
       
       if (isAdmin) {
         // Save to database first
-        await saveLinesToDatabase(scriptId, lineDataToSave, contentToSave);
+        await saveLinesToDatabase(scriptId, lineData, contentToSave);
         
         // Then notify parent component for GitHub commit if needed
         onSuggestChange(contentToSave);
@@ -109,7 +170,7 @@ export const useSubmitEdits = (
         if (!userId) {
           throw new Error('User ID is required to submit suggestions');
         }
-        await saveSuggestions(scriptId, lineDataToSave, "", userId);
+        await saveSuggestions(scriptId, lineData, "", userId);
         toast.success('Suggestions submitted for approval!');
       }
     } catch (error) {

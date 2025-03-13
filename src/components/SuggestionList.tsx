@@ -6,6 +6,7 @@ import { RejectionDialog } from './suggestions/RejectionDialog';
 import { SuggestionGroup } from './suggestions/SuggestionGroup';
 import { SuggestionDetail } from './suggestions/SuggestionDetail';
 import { useSuggestionManager } from '@/hooks/useSuggestionManager';
+import { UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 
 interface SuggestionListProps {
   scriptId: string;
@@ -39,7 +40,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
           {groupedSuggestions.length === 0 ? (
             <p className="text-center text-muted-foreground">No suggestions yet</p>
           ) : (
-            groupedSuggestions.map((group) => (
+            groupedSuggestions.map((group: UserGroup) => (
               <SuggestionGroup
                 key={group.user.id}
                 group={group}

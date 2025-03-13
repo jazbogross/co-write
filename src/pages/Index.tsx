@@ -1,39 +1,40 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Github } from 'lucide-react';
-import { Repository } from "@/components/profile/types";
 
-interface Script {
-  id: string;
-  title: string;
-  created_at: string;
-  admin_id: string;
-  github_repo: string | null;
-  github_owner: string | null;
-  profiles?: {
-    username: string;
-  } | null;
-}
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
+import { Script } from "@/types/repository";
+import { useNavigate } from "react-router-dom";
 
 export default function Index() {
-  const [publicScripts, setPublicScripts] = useState<Script[]>([]);
-  const [userSuggestions, setUserSuggestions] = useState<any[]>([]);
-  const navigate = useNavigate();
+  const [scripts, setScripts] = useState<Script[]>([]);
   const [loading, setLoading] = useState(true);
+  const [title, setTitle] = useState("");
+  const [isPrivate, setIsPrivate] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    loadData();
+    checkAuth();
+    loadScripts();
   }, []);
 
-  const loadData = async () => {
+  const checkAuth = async () => {
+    const { data } = await supabase.auth.getUser();
+    if (data.user) {
+      setUser(data.user);
+    }
+  };
+
+  const loadScripts = async () => {
     try {
-      // Load public scripts
-      const {
-        data: scripts
-      } = await supabase.from('scripts').select(`
+      setLoading(true);
+      const { data: scriptData, error } = await supabase
+        .from("scripts")
+        .select(`
           id,
           title,
           created_at,
@@ -43,133 +44,145 @@ export default function Index() {
           profiles (
             username
           )
-        `).eq('is_private', false).order('created_at', {
-        ascending: false
-      });
-      if (scripts) {
-        setPublicScripts(scripts);
-      }
+        `)
+        .order("created_at", { ascending: false });
 
-      // Load user's suggestions if logged in
-      const {
-        data: {
-          session
+      if (error) throw error;
+
+      // Transform the data to include proper username handling
+      const transformedScripts = scriptData.map(script => ({
+        id: script.id,
+        title: script.title,
+        admin_id: script.admin_id,
+        github_repo: script.github_repo || "",
+        github_owner: script.github_owner || "",
+        created_at: script.created_at,
+        is_private: script.is_private,
+        profiles: {
+          username: script.profiles?.username || "Unknown user"
         }
-      } = await supabase.auth.getSession();
-      if (session?.user) {
-        const {
-          data: suggestions
-        } = await supabase.from('script_suggestions').select(`
-            id,
-            content,
-            status,
-            created_at,
-            scripts (
-              title
-            )
-          `).eq('user_id', session.user.id).order('created_at', {
-          ascending: false
-        });
-        if (suggestions) {
-          setUserSuggestions(suggestions);
-        }
-      }
-      setLoading(false);
+      }));
+
+      setScripts(transformedScripts);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error("Error loading scripts:", error);
+      toast.error("Failed to load scripts");
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    navigate('/auth');
+  const handleCreate = async () => {
+    if (!title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+
+    if (!user) {
+      toast.error("You must be logged in to create a script");
+      navigate("/auth");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("scripts")
+        .insert({
+          title,
+          admin_id: user.id,
+          is_private: isPrivate,
+        })
+        .select();
+
+      if (error) throw error;
+
+      if (data && data[0]) {
+        toast.success("Script created successfully");
+        setTitle("");
+        loadScripts();
+        
+        // Navigate to edit page
+        navigate(`/script/${data[0].id}`);
+      }
+    } catch (error) {
+      console.error("Error creating script:", error);
+      toast.error("Failed to create script");
+    }
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
+  return (
+    <div className="container py-8">
+      <h1 className="text-3xl font-bold mb-8">All Scripts</h1>
 
-  return <div className="container px-4 py-6 md:py-8">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold">Collaborative Script Writing</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/profile')}>
-            Profile
-          </Button>
-          <Button variant="outline" onClick={handleSignOut}>
-            Sign Out
-          </Button>
+      {user && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Create New Script</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-4">
+              <div className="flex-1">
+                <Input
+                  placeholder="Script title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="mb-2"
+                />
+              </div>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-sm">
+                  <input
+                    type="checkbox"
+                    checked={isPrivate}
+                    onChange={(e) => setIsPrivate(e.target.checked)}
+                    className="mr-2"
+                  />
+                  Private
+                </label>
+              </div>
+              <Button onClick={handleCreate}>Create</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {loading ? (
+        <div className="text-center py-8">Loading scripts...</div>
+      ) : scripts.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">No scripts found</p>
+          {!user && (
+            <p className="mt-4">
+              <Link to="/auth" className="text-primary hover:underline">
+                Sign in
+              </Link>{" "}
+              to create your own scripts
+            </p>
+          )}
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 md:gap-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Public Scripts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {publicScripts.map(script => <Card key={script.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">{script.title}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Created by {script.profiles?.username || 'Unknown user'} on{' '}
-                          {new Date(script.created_at).toLocaleDateString()}
-                        </p>
-                        {script.github_owner && script.github_repo && <a href={`https://github.com/${script.github_owner}/${script.github_repo}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-blue-500 hover:text-blue-600 mt-1">
-                            <Github className="h-4 w-4" />
-                            View on GitHub
-                          </a>}
-                      </div>
-                      <Button variant="outline" onClick={() => navigate(`/scripts/${script.id}`)}>
-                        View
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>)}
-              {publicScripts.length === 0 && <p className="text-center text-muted-foreground py-4">
-                  No public scripts available
-                </p>}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>My Suggestions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {userSuggestions.map(suggestion => <Card key={suggestion.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">
-                          {suggestion.scripts?.title || 'Untitled Script'}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          Status: <span className="capitalize">{suggestion.status}</span>
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Suggested on{' '}
-                          {new Date(suggestion.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Button variant="outline" onClick={() => navigate(`/scripts/${suggestion.scripts?.id}`)}>
-                        View
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>)}
-              {userSuggestions.length === 0 && <p className="text-center text-muted-foreground py-4">
-                  You haven't made any suggestions yet
-                </p>}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>;
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {scripts.map((script) => (
+            <Card key={script.id} className="overflow-hidden">
+              <CardHeader className="p-4">
+                <CardTitle className="text-xl">{script.title}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  By {script.profiles.username}
+                </p>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <p className="text-xs text-muted-foreground mb-4">
+                  Created on{" "}
+                  {new Date(script.created_at).toLocaleDateString()}
+                </p>
+                <Button asChild className="w-full">
+                  <Link to={`/script/${script.id}`}>View Script</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

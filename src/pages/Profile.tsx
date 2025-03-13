@@ -1,89 +1,159 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { UserProfileCard } from "@/components/profile/UserProfileCard";
-import { ScriptsCard } from "@/components/profile/ScriptsCard";
-import { GitHubConnectionChecker } from "@/components/profile/GitHubConnectionChecker";
-import { Repository } from "@/components/profile/types";
 
-type Script = {
-  id: string;
-  title: string;
-  created_at: string;
-  is_private: boolean;
-};
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const [profile, setProfile] = useState<{ email: string; username: string }>({
+    email: "",
+    username: "",
+  });
   const [loading, setLoading] = useState(true);
-  const [profileData, setProfileData] = useState<{ email: string; username: string } | null>(null);
-  const [scripts, setScripts] = useState<Script[]>([]);
+  const [updateLoading, setUpdateLoading] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const installationId = params.get("installation_id");
+    const getProfile = async () => {
+      try {
+        setLoading(true);
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    if (installationId) {
-      localStorage.setItem("github_app_installation_id", installationId);
-      toast({
-        title: "Success",
-        description: "GitHub App installed successfully",
-      });
-      navigate(window.location.pathname, { replace: true });
-    }
-  }, [navigate, toast]);
+        if (userError) throw userError;
+        if (!user) {
+          navigate("/auth");
+          return;
+        }
 
-  useEffect(() => {
-    async function loadProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
-      
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", user.id)
+          .single();
+
+        if (error && error.code !== "PGRST116") {
+          throw error;
+        }
+
+        // If profile exists, set the profile state
+        if (data) {
+          setProfile({
+            email: user.email || "",
+            username: data.username || "",
+          });
+        } else {
+          // If profile doesn't exist yet
+          setProfile({
+            email: user.email || "",
+            username: user.email?.split("@")[0] || "",
+          });
+        }
+      } catch (error) {
+        console.error("Error loading profile:", error);
+        toast.error("Failed to load profile");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getProfile();
+  }, [navigate]);
+
+  const handleUpdateProfile = async () => {
+    try {
+      setUpdateLoading(true);
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
       if (!user) {
         navigate("/auth");
         return;
       }
 
-      const { data: profile } = await supabase
+      const { error } = await supabase
         .from("profiles")
-        .select("email, username")
-        .eq("id", user.id)
-        .single();
+        .upsert({ id: user.id, username: profile.username });
 
-      if (profile) {
-        setProfileData(profile);
-      }
-      
-      const { data: userScripts } = await supabase
-        .from("scripts")
-        .select("id, title, created_at, is_private")
-        .eq("admin_id", user.id)
-        .order("created_at", { ascending: false });
+      if (error) throw error;
 
-      if (userScripts) {
-        setScripts(userScripts);
-      }
-      
-      setLoading(false);
+      toast.success("Profile updated successfully");
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      toast.error("Failed to update profile");
+    } finally {
+      setUpdateLoading(false);
     }
+  };
 
-    loadProfile();
-  }, [navigate]);
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate("/auth");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      toast.error("Failed to sign out");
+    }
+  };
 
-  if (loading || !profileData) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  if (loading) {
+    return <div className="container py-8 text-center">Loading profile...</div>;
   }
 
   return (
-    <div className="container max-w-2xl py-10">
-      <div className="space-y-8">
-        <UserProfileCard profileData={profileData} />
-        <div className="card p-6 border rounded-lg bg-card">
-          <h3 className="text-lg font-semibold mb-4">GitHub Connection</h3>
-          <GitHubConnectionChecker />
-        </div>
-        <ScriptsCard scripts={scripts} />
-      </div>
+    <div className="container py-8">
+      <Card className="max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle>User Profile</CardTitle>
+          <CardDescription>Manage your account details</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1">
+            <label htmlFor="email" className="text-sm font-medium">
+              Email
+            </label>
+            <Input
+              id="email"
+              type="email"
+              value={profile.email}
+              disabled
+              className="bg-gray-50"
+            />
+            <p className="text-sm text-gray-500">Your email cannot be changed</p>
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="username" className="text-sm font-medium">
+              Username
+            </label>
+            <Input
+              id="username"
+              value={profile.username}
+              onChange={(e) =>
+                setProfile({ ...profile, username: e.target.value })
+              }
+              placeholder="Enter your username"
+            />
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <Button variant="outline" onClick={handleSignOut}>
+            Sign Out
+          </Button>
+          <Button onClick={handleUpdateProfile} disabled={updateLoading}>
+            {updateLoading ? "Updating..." : "Update Profile"}
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

@@ -1,31 +1,23 @@
 
-/**
- * SuggestionGroupManager.ts - Manages grouping of suggestions by various criteria
- */
-import { DiffManager } from './DiffManager';
-import { ChangedLine } from './diffManagerTypes';
-
-export interface SuggestionUser {
-  id: string;
-  username: string;
-}
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 export interface GroupedSuggestion {
   id: string;
-  content: string;
-  status: 'pending' | 'approved' | 'rejected' | 'draft';
+  content: any;
+  original_content?: any;
+  status: string;
   rejection_reason?: string;
-  line_uuid?: string;
-  line_number?: number;
-  original_content?: string | null;
-  user: SuggestionUser;
-  consecutive_group?: number;
+  created_at: string;
+  user_id: string;
 }
 
 export interface UserGroup {
-  user: SuggestionUser;
+  user: {
+    id: string;
+    username: string;
+  };
+  count: number;
   suggestions: GroupedSuggestion[];
-  consecutiveGroups: GroupedSuggestion[][];
 }
 
 export class SuggestionGroupManager {
@@ -33,145 +25,81 @@ export class SuggestionGroupManager {
    * Group suggestions by user
    */
   static groupByUser(suggestions: any[]): UserGroup[] {
-    if (!suggestions || suggestions.length === 0) return [];
+    if (!suggestions || suggestions.length === 0) {
+      return [];
+    }
     
-    // Create a map of users to their suggestions
-    const userMap = new Map<string, UserGroup>();
+    // Group by user_id
+    const userGroups = new Map<string, UserGroup>();
     
     suggestions.forEach(suggestion => {
       const userId = suggestion.user_id;
-      const username = suggestion.profiles?.username || 'Unknown User';
+      const username = suggestion.profiles?.username || 'Unknown user';
       
-      // Initialize user group if it doesn't exist
-      if (!userMap.has(userId)) {
-        userMap.set(userId, {
+      // Skip suggestions without a user
+      if (!userId) return;
+      
+      // Get or create user group
+      if (!userGroups.has(userId)) {
+        userGroups.set(userId, {
           user: {
             id: userId,
             username
           },
-          suggestions: [],
-          consecutiveGroups: []
+          count: 0,
+          suggestions: []
         });
       }
       
-      // Add suggestion to user's group
-      const userGroup = userMap.get(userId)!;
+      const group = userGroups.get(userId)!;
       
-      // Transform suggestion to our internal format
-      const groupedSuggestion: GroupedSuggestion = {
+      // Add suggestion to group
+      group.suggestions.push({
         id: suggestion.id,
-        content: suggestion.content,
+        content: suggestion.delta_diff || suggestion.content,
+        original_content: suggestion.original_content,
         status: suggestion.status,
         rejection_reason: suggestion.rejection_reason,
-        line_uuid: suggestion.line_uuid,
-        line_number: suggestion.line_number || suggestion.metadata?.lineNumber,
-        original_content: suggestion.original_content,
-        user: userGroup.user
-      };
-      
-      userGroup.suggestions.push(groupedSuggestion);
-    });
-    
-    // Process consecutive groups for each user
-    userMap.forEach(userGroup => {
-      userGroup.consecutiveGroups = this.groupConsecutiveSuggestions(userGroup.suggestions);
-    });
-    
-    return Array.from(userMap.values());
-  }
-  
-  /**
-   * Group consecutive suggestions within a user's suggestions
-   */
-  static groupConsecutiveSuggestions(suggestions: GroupedSuggestion[]): GroupedSuggestion[][] {
-    if (!suggestions || suggestions.length === 0) return [];
-    
-    // First, filter out suggestions without line numbers and sort by line number
-    const sortedSuggestions = suggestions
-      .filter(s => s.line_number !== undefined)
-      .sort((a, b) => (a.line_number || 0) - (b.line_number || 0));
-    
-    if (sortedSuggestions.length === 0) return [];
-    
-    const groups: GroupedSuggestion[][] = [];
-    let currentGroup: GroupedSuggestion[] = [sortedSuggestions[0]];
-    
-    // Assign group index to first suggestion
-    sortedSuggestions[0].consecutive_group = 0;
-    
-    for (let i = 1; i < sortedSuggestions.length; i++) {
-      const prevSuggestion = sortedSuggestions[i - 1];
-      const currentSuggestion = sortedSuggestions[i];
-      
-      // Check if current suggestion is consecutive to previous
-      if (currentSuggestion.line_number === (prevSuggestion.line_number || 0) + 1) {
-        // Add to current group
-        currentGroup.push(currentSuggestion);
-        // Assign same group index
-        currentSuggestion.consecutive_group = groups.length;
-      } else {
-        // Start a new group
-        groups.push(currentGroup);
-        currentGroup = [currentSuggestion];
-        // Assign new group index
-        currentSuggestion.consecutive_group = groups.length;
-      }
-    }
-    
-    // Add the last group
-    if (currentGroup.length > 0) {
-      groups.push(currentGroup);
-    }
-    
-    // Handle any ungrouped suggestions (without line numbers)
-    const ungroupedSuggestions = suggestions.filter(s => s.line_number === undefined);
-    if (ungroupedSuggestions.length > 0) {
-      // Each ungrouped suggestion gets its own group
-      ungroupedSuggestions.forEach(suggestion => {
-        suggestion.consecutive_group = groups.length;
-        groups.push([suggestion]);
+        created_at: suggestion.created_at,
+        user_id: userId
       });
-    }
+      
+      // Increment count
+      group.count++;
+    });
     
-    return groups;
+    // Convert map to array and sort by most recent suggestion
+    return Array.from(userGroups.values())
+      .sort((a, b) => {
+        const aDate = new Date(a.suggestions[0].created_at).getTime();
+        const bDate = new Date(b.suggestions[0].created_at).getTime();
+        return bDate - aDate; // Most recent first
+      });
   }
   
   /**
-   * Check if suggestions are related (e.g., part of the same feature change)
+   * Get content text for display
    */
-  static areSuggestionsRelated(suggestionA: GroupedSuggestion, suggestionB: GroupedSuggestion): boolean {
-    // Suggestions by the same user are related
-    if (suggestionA.user.id === suggestionB.user.id) {
-      // If they have consecutive group assigned and they're in the same group
-      if (suggestionA.consecutive_group !== undefined && 
-          suggestionB.consecutive_group !== undefined &&
-          suggestionA.consecutive_group === suggestionB.consecutive_group) {
-        return true;
+  static getContentText(content: any): string {
+    if (!content) return '';
+    
+    if (isDeltaObject(content)) {
+      return extractPlainTextFromDelta(content);
+    }
+    
+    if (typeof content === 'string') {
+      try {
+        const parsed = JSON.parse(content);
+        if (isDeltaObject(parsed)) {
+          return extractPlainTextFromDelta(parsed);
+        }
+      } catch (e) {
+        // Not JSON, use as is
       }
       
-      // Check time proximity (would require timestamp data)
-      // Check content similarity (would require NLP analysis)
+      return content;
     }
     
-    return false;
-  }
-  
-  /**
-   * Transform ChangedLines (from DiffManager) to GroupedSuggestions
-   */
-  static changedLinesToSuggestions(changedLines: ChangedLine[], userId: string, username: string): GroupedSuggestion[] {
-    return changedLines.map(line => ({
-      id: line.lineUuid, // Using lineUuid as the suggestion ID
-      content: typeof line.suggestedContent === 'string' 
-        ? line.suggestedContent 
-        : JSON.stringify(line.suggestedContent),
-      status: 'pending',
-      line_uuid: line.lineUuid,
-      line_number: line.lineNumber,
-      user: {
-        id: userId,
-        username
-      }
-    }));
+    return String(content);
   }
 }

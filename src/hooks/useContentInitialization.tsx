@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
-import { reconstructContent } from '@/utils/editor';
+import { isDeltaObject } from '@/utils/editor';
 
 /**
  * Custom hook for handling content initialization in the editor
@@ -39,29 +39,25 @@ export const useContentInitialization = ({
       return;
     }
     
-    // Use direct content if provided, otherwise reconstruct from line data
-    const content = initialContent || (lineData.length > 0 
-      ? reconstructContent(lineData) 
-      : '');
-      
-    console.log(`📝 useContentInitialization: Initializing content (attempt ${contentInitAttempts + 1})`, 
-                `lineData length: ${lineData.length}`);
-    
-    // Save cursor position if we have lineTracking
-    if (editor.lineTracking && typeof editor.lineTracking.saveCursorPosition === 'function') {
-      editor.lineTracking.saveCursorPosition();
+    // Use direct content if provided, otherwise use line data
+    let content;
+    if (initialContent) {
+      content = initialContent;
+    } else if (lineData.length > 0) {
+      // Use the first line's content (Delta object)
+      content = lineData[0].content;
+    } else {
+      // Default empty content
+      content = { ops: [{ insert: '\n' }] };
     }
+      
+    console.log(`📝 useContentInitialization: Initializing content (attempt ${contentInitAttempts + 1})`);
     
     // Apply content update
     updateEditorContent(editor, content, true);
     
     // Mark as initialized
     setContentInitialized(true);
-    
-    // Restore cursor position if we have lineTracking
-    if (editor.lineTracking && typeof editor.lineTracking.restoreCursorPosition === 'function') {
-      editor.lineTracking.restoreCursorPosition();
-    }
     
     console.log('📝 useContentInitialization: Content initialization complete');
   }, [
@@ -85,20 +81,20 @@ export const useContentInitialization = ({
     const editor = quill.getEditor();
     if (!editor) return;
     
-    // Save cursor position if we have lineTracking
-    if (editor.lineTracking && typeof editor.lineTracking.saveCursorPosition === 'function') {
-      editor.lineTracking.saveCursorPosition();
-    }
-    
     console.log('📝 useContentInitialization: Reinitializing content forcefully');
     
-    // Forcefully update content
-    updateEditorContent(editor, initialContent || reconstructContent(lineData), true);
-    
-    // Restore cursor position if we have lineTracking
-    if (editor.lineTracking && typeof editor.lineTracking.restoreCursorPosition === 'function') {
-      editor.lineTracking.restoreCursorPosition();
+    // Use direct content or first line's content
+    let content;
+    if (initialContent) {
+      content = initialContent;
+    } else if (lineData.length > 0) {
+      content = lineData[0].content;
+    } else {
+      content = { ops: [{ insert: '\n' }] };
     }
+    
+    // Forcefully update content
+    updateEditorContent(editor, content, true);
   }, [quill, editorInitialized, lineData, initialContent, updateEditorContent]);
 
   // Automatically initialize content when editor is ready

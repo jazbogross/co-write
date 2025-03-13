@@ -2,12 +2,21 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, X } from 'lucide-react';
-import { GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
-import { UnifiedDiffView } from './UnifiedDiffView';
-import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+
+interface Suggestion {
+  id: string;
+  status: string;
+  user: {
+    username: string;
+  };
+  content: any;
+  line_number?: number;
+  rejection_reason?: string;
+}
 
 interface SuggestionDetailProps {
-  suggestion: GroupedSuggestion;
+  suggestion: Suggestion;
   originalContent: string;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
@@ -73,10 +82,12 @@ export const SuggestionDetail: React.FC<SuggestionDetailProps> = ({
         </pre>
       </div>
       
-      <UnifiedDiffView 
-        suggestion={suggestion}
-        originalContent={originalContent}
-      />
+      <div className="bg-gray-100 p-3 rounded border mb-4">
+        <div className="text-sm font-medium mb-1 text-black">Original Content:</div>
+        <pre className="whitespace-pre-wrap font-mono text-sm bg-white p-2 rounded border text-black">
+          {originalContent}
+        </pre>
+      </div>
       
       {suggestion.status === 'pending' && (
         <div className="flex justify-end space-x-2 mt-4">

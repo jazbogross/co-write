@@ -1,26 +1,36 @@
 
-/**
- * diff module index.ts - Exports all diff functionality
- */
-
-// Define DiffOperation and DiffChange types
-export type DiffOperation = 'add' | 'delete' | 'equal' | 'modify';
-
 export interface DiffChange {
-  type: DiffOperation;
+  type: 'add' | 'delete' | 'equal' | 'modify';
   text: string;
   index: number;
   originalText?: string;
 }
 
-// Export types
-export * from './diffManagerTypes';
+export interface LineDiff {
+  original: string;
+  suggested: string;
+  changeType: 'unchanged' | 'addition' | 'deletion' | 'modification';
+  segments: {
+    type: 'unchanged' | 'addition' | 'deletion';
+    content: string;
+  }[];
+}
 
-// Re-export all diff utilities
-export * from './contentDiff';
-export * from './DiffManager';
-export * from './changeClassification';
-export * from './diffTestUtils';
-export * from './changeDetection';
-export * from './lineGrouping';
-export * from './SuggestionGroupManager';  // Export the new module
+/**
+ * Simple diff generator function
+ */
+export function generateDiff(originalText: string, newText: string): DiffChange[] {
+  if (originalText === newText) {
+    return [{ type: 'equal', text: originalText, index: 0 }];
+  }
+  
+  // Super simple implementation - in real app would use proper diff library
+  return [
+    { 
+      type: 'modify', 
+      text: newText, 
+      index: 0,
+      originalText: originalText
+    }
+  ];
+}

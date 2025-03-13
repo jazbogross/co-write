@@ -1,20 +1,12 @@
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { DeltaStatic } from 'quill';
-import { loadContent, saveContent, createSuggestion, toDelta, toJSON } from '@/utils/deltaUtils';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { saveContent, loadContent } from '@/utils/saveLineUtils';
+import { toast } from 'sonner';
+import { DeltaStatic } from 'quill';
 
 interface DeltaEditorProps {
   scriptId: string;
@@ -22,212 +14,197 @@ interface DeltaEditorProps {
 }
 
 export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) => {
-  const [content, setContent] = useState<DeltaStatic | null>(null);
-  const [originalContent, setOriginalContent] = useState<DeltaStatic | null>(null);
+  const [content, setContent] = useState<DeltaStatic>({ ops: [{ insert: '\n' }] } as unknown as DeltaStatic);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const quillRef = useRef<ReactQuill>(null);
-  const autoSaveTimerRef = useRef<number | null>(null);
-
-  // Editor modules configuration
-  const modules = {
-    toolbar: [
-      [{ 'header': [1, 2, 3, false] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-      [{ 'align': [] }],
-      ['clean']
-    ],
-  };
-
-  const formats = [
-    'header',
-    'bold', 'italic', 'underline', 'strike',
-    'list', 'bullet',
-    'align'
-  ];
-
-  // Load user ID and initial content
+  
+  // Load content and get user ID on mount
   useEffect(() => {
-    const loadInitialData = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       
       try {
-        // Get current user
+        // Get user
         const { data: { user } } = await supabase.auth.getUser();
-        setUserId(user?.id || null);
         
-        // Load content
-        const { contentDelta, hasDraft } = await loadContent(scriptId, user?.id || null);
-        setContent(contentDelta);
-        setOriginalContent(contentDelta);
-        setHasDraft(hasDraft);
+        if (user) {
+          setUserId(user.id);
+          
+          // Load content
+          const { content: loadedContent, hasDraft: hasExistingDraft } = await loadContent(scriptId, user.id);
+          
+          setContent(loadedContent);
+          setHasDraft(hasExistingDraft);
+        }
       } catch (error) {
-        console.error('Error loading content:', error);
+        console.error('Error loading editor content:', error);
         toast.error('Failed to load content');
       } finally {
         setIsLoading(false);
       }
     };
     
-    if (scriptId) {
-      loadInitialData();
-    }
-    
-    return () => {
-      // Clear auto-save timer on unmount
-      if (autoSaveTimerRef.current) {
-        window.clearTimeout(autoSaveTimerRef.current);
-      }
-    };
+    fetchData();
   }, [scriptId]);
-
-  // Handle editor content change
-  const handleChange = useCallback((value: string, delta: DeltaStatic, source: string, editor: any) => {
-    if (source !== 'user') return;
-    
-    // Get the complete current content as a Delta
-    const newContent = editor.getContents();
-    setContent(newContent);
-    
-    // Set up auto-save timer
-    if (autoSaveTimerRef.current) {
-      window.clearTimeout(autoSaveTimerRef.current);
-    }
-    
-    autoSaveTimerRef.current = window.setTimeout(() => {
-      handleAutoSave(newContent);
-    }, 3000); // Auto-save after 3 seconds of inactivity
-  }, []);
-
-  // Auto-save content
-  const handleAutoSave = async (contentToSave: DeltaStatic) => {
-    if (!scriptId || !userId) return;
-    
-    try {
-      // Only auto-save as draft for non-admins
-      if (!isAdmin) {
-        await saveContent(scriptId, contentToSave, userId, false);
-        setHasDraft(true);
-      }
-    } catch (error) {
-      console.error('Error auto-saving content:', error);
-    }
+  
+  // Handle content changes
+  const handleChange = (value: any) => {
+    // Note: We don't update state for every change to avoid performance issues
+    // The content is saved directly when the user clicks "Save"
   };
-
-  // Save changes (for admins) or submit suggestions (for non-admins)
-  const handleSaveChanges = async () => {
-    if (!scriptId || !userId || !content) return;
+  
+  // Save content
+  const handleSave = async () => {
+    if (!quillRef.current || !userId) return;
     
     setIsSaving(true);
     
     try {
-      if (isAdmin) {
-        // Admin: save changes directly
-        const success = await saveContent(scriptId, content, userId, true);
+      const currentContent = quillRef.current.getEditor().getContents();
+      
+      const success = await saveContent(scriptId, currentContent, userId, isAdmin);
+      
+      if (success) {
+        toast.success(isAdmin ? 'Content updated successfully' : 'Draft saved successfully');
         
-        if (success) {
-          toast.success('Changes saved successfully');
-          // Update original content reference after saving
-          setOriginalContent(content);
-        } else {
-          toast.error('Failed to save changes');
+        if (!isAdmin) {
+          setHasDraft(true);
         }
       } else {
-        // Non-admin: submit as suggestion
-        if (!originalContent) return;
-        
-        const success = await createSuggestion(scriptId, originalContent, content, userId);
-        
-        if (success) {
-          toast.success('Suggestion submitted successfully');
-          // Reset content to original after submitting suggestion
-          setContent(originalContent);
-          setHasDraft(false);
-        } else {
-          toast.error('Failed to submit suggestion');
-        }
+        toast.error('Failed to save content');
       }
     } catch (error) {
-      console.error('Error saving changes:', error);
+      console.error('Error saving content:', error);
       toast.error('An error occurred while saving');
     } finally {
       setIsSaving(false);
     }
   };
-
-  // Discard draft changes
-  const handleDiscardChanges = () => {
-    if (originalContent) {
-      setContent(originalContent);
+  
+  // Create a suggestion (non-admin users)
+  const handleSubmitSuggestion = async () => {
+    if (!quillRef.current || !userId || isAdmin) return;
+    
+    setIsSaving(true);
+    
+    try {
+      // Get current content
+      const suggestedContent = quillRef.current.getEditor().getContents();
+      
+      // Load original content (not the draft)
+      const { data } = await supabase
+        .from('script_content')
+        .select('content_delta')
+        .eq('script_id', scriptId)
+        .single();
+      
+      if (!data?.content_delta) {
+        toast.error('Could not load original content to compare');
+        return;
+      }
+      
+      // Calculate diff between original and suggestion
+      const originalDelta = data.content_delta as unknown as DeltaStatic;
+      const diffDelta = originalDelta.diff(suggestedContent);
+      
+      // Only submit if there are actual changes
+      if (diffDelta.ops.length <= 1) {
+        toast.info('No changes detected');
+        return;
+      }
+      
+      // Save the suggestion
+      const { error } = await supabase
+        .from('script_suggestions')
+        .insert({
+          script_id: scriptId,
+          user_id: userId,
+          delta_diff: JSON.parse(JSON.stringify(diffDelta)),
+          status: 'pending'
+        });
+      
+      if (error) throw error;
+      
+      // Clear the draft
+      await supabase
+        .from('script_drafts')
+        .delete()
+        .eq('script_id', scriptId)
+        .eq('user_id', userId);
+      
       setHasDraft(false);
+      toast.success('Suggestion submitted successfully');
       
-      // Apply changes to editor
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        editor.setContents(originalContent);
-      }
+      // Reload content to show original
+      const { content: loadedContent } = await loadContent(scriptId, userId);
+      setContent(loadedContent);
       
-      // Delete draft from database
-      if (userId) {
-        supabase
-          .from('script_drafts')
-          .delete()
-          .eq('script_id', scriptId)
-          .eq('user_id', userId);
-      }
-      
-      toast.info('Changes discarded');
+    } catch (error) {
+      console.error('Error submitting suggestion:', error);
+      toast.error('Failed to submit suggestion');
+    } finally {
+      setIsSaving(false);
     }
   };
-
+  
   if (isLoading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return <div>Loading editor...</div>;
   }
-
+  
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>{isAdmin ? 'Edit Script' : 'Suggest Changes'}</CardTitle>
-        <CardDescription>
-          {isAdmin 
-            ? 'Make changes directly to the script' 
-            : 'Suggest changes for admin approval'}
-          {hasDraft && !isAdmin && ' (Draft in progress)'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="min-h-[400px] border rounded-md">
-          <ReactQuill
-            ref={quillRef}
-            theme="snow"
-            value={content || ''}
-            onChange={handleChange}
-            modules={modules}
-            formats={formats}
-          />
-        </div>
-      </CardContent>
-      <CardFooter className="flex justify-between">
-        {hasDraft && !isAdmin && (
-          <Button 
-            variant="outline" 
-            onClick={handleDiscardChanges}
-            disabled={isSaving}
-          >
-            Discard Changes
-          </Button>
-        )}
-        <div className="flex-1"></div>
-        <Button 
-          onClick={handleSaveChanges}
+    <div className="space-y-4">
+      <ReactQuill 
+        ref={quillRef}
+        defaultValue={content}
+        onChange={handleChange}
+        theme="snow"
+        modules={{
+          toolbar: [
+            ['bold', 'italic', 'underline', 'strike'],
+            ['blockquote', 'code-block'],
+            [{ 'header': 1 }, { 'header': 2 }],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'script': 'sub'}, { 'script': 'super' }],
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
+            [{ 'direction': 'rtl' }],
+            [{ 'size': ['small', false, 'large', 'huge'] }],
+            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'font': [] }],
+            [{ 'align': [] }],
+            ['clean']
+          ]
+        }}
+        className="bg-white h-[50vh] rounded-md"
+      />
+      
+      <div className="flex justify-end space-x-2">
+        <Button
+          onClick={handleSave}
           disabled={isSaving}
         >
-          {isAdmin ? 'Save Changes' : 'Submit Suggestion'}
+          {isAdmin ? 'Save Changes' : 'Save Draft'}
         </Button>
-      </CardFooter>
-    </Card>
+        
+        {!isAdmin && (
+          <Button
+            variant="secondary"
+            onClick={handleSubmitSuggestion}
+            disabled={isSaving}
+          >
+            Submit Suggestion
+          </Button>
+        )}
+      </div>
+      
+      {hasDraft && !isAdmin && (
+        <div className="p-2 bg-yellow-50 text-yellow-600 rounded border border-yellow-200 text-sm">
+          You have a draft saved. Submit your suggestion when you're ready to propose these changes to the admin.
+        </div>
+      )}
+    </div>
   );
 };
