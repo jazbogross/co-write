@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Script } from "@/types/repository";
 
 export default function Profile() {
+  console.log("📋 PROFILE: Component rendering");
   const navigate = useNavigate();
   const { user, loading: authLoading, signOut } = useAuth();
   const [profile, setProfile] = useState<{ email: string; username: string }>({
@@ -20,12 +21,21 @@ export default function Profile() {
   const [scripts, setScripts] = useState<Script[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasFetched, setHasFetched] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  console.log("📋 PROFILE: Current states -", {
+    authLoading,
+    userExists: !!user,
+    userId: user?.id,
+    loading,
+    hasFetched
+  });
 
   useEffect(() => {
     // Only fetch data if authentication is complete and user exists
     if (!authLoading && user && !hasFetched) {
       const getProfile = async () => {
-        console.log("Profile: Fetching profile data for user:", user.id);
+        console.log("📋 PROFILE: Fetching profile data for user:", user.id);
         try {
           setLoading(true);
           
@@ -36,17 +46,23 @@ export default function Profile() {
             .eq('id', user.id)
             .single();
 
-          if (error && error.code !== "PGRST116") {
-            throw error;
+          if (error) {
+            console.error("📋 PROFILE: Error fetching profile:", error);
+            setFetchError(`Profile fetch error: ${error.message}`);
+            if (error.code !== "PGRST116") {
+              throw error;
+            }
           }
 
           // If profile exists, set the profile state
           if (data) {
+            console.log("📋 PROFILE: Profile data found:", data);
             setProfile({
               email: user.email || "",
               username: data.username || "",
             });
           } else {
+            console.log("📋 PROFILE: No profile data found, using defaults");
             // If profile doesn't exist yet
             setProfile({
               email: user.email || "",
@@ -54,15 +70,20 @@ export default function Profile() {
             });
           }
 
-          // Fetch user scripts - updated to correctly get the admin_id field and match the Script type
+          // Fetch user scripts
+          console.log("📋 PROFILE: Fetching scripts for user:", user.id);
           const { data: scriptsData, error: scriptsError } = await supabase
             .from('scripts')
             .select('id, title, created_at, is_private, admin_id')
             .eq('admin_id', user.id);
 
           if (scriptsError) {
+            console.error("📋 PROFILE: Error fetching scripts:", scriptsError);
+            setFetchError(`Scripts fetch error: ${scriptsError.message}`);
             throw scriptsError;
           }
+
+          console.log("📋 PROFILE: Scripts data:", scriptsData);
 
           // Transform the data to match the Script type
           const formattedScripts: Script[] = (scriptsData || []).map(script => ({
@@ -76,35 +97,56 @@ export default function Profile() {
 
           setScripts(formattedScripts);
           setHasFetched(true); // Mark that we've fetched data
+          console.log("📋 PROFILE: Data fetching complete, hasFetched set to true");
         } catch (error) {
-          console.error("Error loading profile:", error);
+          console.error("📋 PROFILE: Error loading profile:", error);
           toast.error("Failed to load profile");
         } finally {
           setLoading(false);
+          console.log("📋 PROFILE: Loading state set to false");
         }
       };
 
       getProfile();
     } else if (!authLoading && !user) {
       // Redirect to auth page if not authenticated
+      console.log("📋 PROFILE: No authenticated user, redirecting to auth page");
       navigate("/auth");
     }
   }, [user, authLoading, navigate, hasFetched]);
 
   const handleSignOut = async () => {
     try {
+      console.log("📋 PROFILE: Signing out");
       await signOut();
       navigate("/auth");
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error("📋 PROFILE: Error signing out:", error);
       toast.error("Failed to sign out");
     }
   };
 
-  if (authLoading || loading) {
-    return <div className="container py-8 text-center">Loading profile...</div>;
+  // Add more detailed rendering logs
+  if (authLoading) {
+    console.log("📋 PROFILE: Rendering loading state - auth is loading");
+    return <div className="container py-8 text-center">Loading authentication...</div>;
   }
 
+  if (loading) {
+    console.log("📋 PROFILE: Rendering loading state - profile data is loading");
+    return (
+      <div className="container py-8 text-center">
+        <div>Loading profile...</div>
+        {fetchError && (
+          <div className="mt-4 p-4 bg-red-50 text-red-800 rounded">
+            Debug info: {fetchError}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  console.log("📋 PROFILE: Rendering complete profile page");
   return (
     <div className="container max-w-6xl py-8 space-y-6">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
