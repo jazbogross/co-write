@@ -15,7 +15,7 @@ export default function Profile() {
   console.log("📋 PROFILE: Component rendering");
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const { userId, isLoading: userLoading } = useUserData();
+  const { userId, isLoading: userLoading, authProvider } = useUserData();
   
   const [profile, setProfile] = useState<{ email: string; username: string }>({
     email: "",
@@ -31,7 +31,8 @@ export default function Profile() {
     userExists: !!userId,
     userId,
     loading,
-    hasFetched
+    hasFetched,
+    authProvider
   });
 
   // Reset hasFetched when user changes
@@ -69,9 +70,9 @@ export default function Profile() {
           // Get user profile data
           const { data, error } = await supabase
             .from('profiles')
-            .select('username')
+            .select('username, github_app_installation_id')
             .eq('id', userId)
-            .maybeSingle();  // Changed from single() to maybeSingle()
+            .maybeSingle();
 
           if (error && error.code !== 'PGRST116') {
             console.error("📋 PROFILE: Error fetching profile:", error);
