@@ -49,10 +49,11 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       .from('profiles')
       .select('github_access_token')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
       
     if (profileError) {
       console.error("CreateScriptDialog: Error fetching profile:", profileError);
+      console.log("CreateScriptDialog: Profile error details:", JSON.stringify(profileError));
       throw new Error('Error verifying GitHub connection');
     }
     
@@ -79,18 +80,39 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       if (providerToken) {
         console.log("CreateScriptDialog: Found provider token in session, updating profile");
         
-        // Update the profile with the token
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ 
-            github_access_token: providerToken,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', user.id);
-          
-        if (updateError) {
-          console.error("CreateScriptDialog: Failed to update GitHub token:", updateError);
-          throw new Error('Failed to update GitHub token');
+        // Don't use update directly, check if profile exists first
+        if (!profile) {
+          console.log("CreateScriptDialog: No profile found, creating one");
+          // Create a new profile
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({ 
+              id: user.id,
+              username: user.email?.split('@')[0] || 'user',
+              github_access_token: providerToken,
+              updated_at: new Date().toISOString()
+            });
+            
+          if (insertError) {
+            console.error("CreateScriptDialog: Failed to create profile:", insertError);
+            console.log("CreateScriptDialog: Insert error details:", JSON.stringify(insertError));
+            throw new Error('Failed to create profile with GitHub token');
+          }
+        } else {
+          // Update existing profile
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ 
+              github_access_token: providerToken,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
+            
+          if (updateError) {
+            console.error("CreateScriptDialog: Failed to update GitHub token:", updateError);
+            console.log("CreateScriptDialog: Update error details:", JSON.stringify(updateError));
+            throw new Error('Failed to update GitHub token');
+          }
         }
         
         return providerToken;

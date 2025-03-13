@@ -65,7 +65,7 @@ export const useUserData = () => {
     fetchUser();
     
     // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('👤 useUserData: Auth state change event:', event);
       
       if (event === 'SIGNED_IN' && session?.user) {
@@ -76,20 +76,59 @@ export const useUserData = () => {
         // Update the github_access_token in profile if available
         if (provider === 'github' && session.provider_token) {
           console.log('👤 useUserData: GitHub provider token available, updating profile');
-          supabase
-            .from('profiles')
-            .update({ 
-              github_access_token: session.provider_token,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', session.user.id)
-            .then(({ error }) => {
-              if (error) {
-                console.error('👤 useUserData: Error updating GitHub token:', error);
+          
+          try {
+            // First check if profile exists
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select()
+              .eq('id', session.user.id)
+              .maybeSingle();
+              
+            if (profileError) {
+              console.error('👤 useUserData: Error checking profile:', profileError);
+              throw profileError;
+            }
+            
+            if (!profile) {
+              console.log('👤 useUserData: No profile found, creating one');
+              // Create a new profile
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert({ 
+                  id: session.user.id,
+                  username: session.user.email?.split('@')[0] || 'user',
+                  github_access_token: session.provider_token,
+                  updated_at: new Date().toISOString()
+                });
+                
+              if (insertError) {
+                console.error('👤 useUserData: Error creating profile:', insertError);
+                console.log('👤 useUserData: Insert error details:', JSON.stringify(insertError));
+              } else {
+                console.log('👤 useUserData: New profile created with GitHub token');
+              }
+            } else {
+              console.log('👤 useUserData: Existing profile found, updating token');
+              // Update existing profile
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                  github_access_token: session.provider_token,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', session.user.id);
+                
+              if (updateError) {
+                console.error('👤 useUserData: Error updating GitHub token:', updateError);
+                console.log('👤 useUserData: Update error details:', JSON.stringify(updateError));
               } else {
                 console.log('👤 useUserData: GitHub token updated in profile');
               }
-            });
+            }
+          } catch (error) {
+            console.error('👤 useUserData: Exception updating profile:', error);
+          }
         }
         
         if (mounted) {
@@ -112,24 +151,64 @@ export const useUserData = () => {
         console.log(`👤 useUserData: ${event} for user:`, session?.user?.id);
         if (mounted && session?.user) {
           const provider = session.user.app_metadata?.provider || null;
+          console.log(`👤 useUserData: INITIAL_SESSION for user:`, session.user.id);
           
           // Update the github_access_token in profile if available
           if (provider === 'github' && session.provider_token) {
             console.log('👤 useUserData: GitHub provider token available on token refresh, updating profile');
-            supabase
-              .from('profiles')
-              .update({ 
-                github_access_token: session.provider_token,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', session.user.id)
-              .then(({ error }) => {
-                if (error) {
-                  console.error('👤 useUserData: Error updating GitHub token on refresh:', error);
+            
+            try {
+              // First check if profile exists
+              const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select()
+                .eq('id', session.user.id)
+                .maybeSingle();
+                
+              if (profileError) {
+                console.error('👤 useUserData: Error checking profile on refresh:', profileError);
+                throw profileError;
+              }
+              
+              if (!profile) {
+                console.log('👤 useUserData: No profile found on refresh, creating one');
+                // Create a new profile
+                const { error: insertError } = await supabase
+                  .from('profiles')
+                  .insert({ 
+                    id: session.user.id,
+                    username: session.user.email?.split('@')[0] || 'user',
+                    github_access_token: session.provider_token,
+                    updated_at: new Date().toISOString()
+                  });
+                  
+                if (insertError) {
+                  console.error('👤 useUserData: Error creating profile on refresh:', insertError);
+                  console.log('👤 useUserData: Insert error details:', JSON.stringify(insertError));
+                } else {
+                  console.log('👤 useUserData: New profile created with GitHub token on refresh');
+                }
+              } else {
+                console.log('👤 useUserData: Existing profile found on refresh, updating token');
+                // Update existing profile
+                const { error: updateError } = await supabase
+                  .from('profiles')
+                  .update({ 
+                    github_access_token: session.provider_token,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', session.user.id);
+                  
+                if (updateError) {
+                  console.error('👤 useUserData: Error updating GitHub token on refresh:', updateError);
+                  console.log('👤 useUserData: Update error details:', JSON.stringify(updateError));
                 } else {
                   console.log('👤 useUserData: GitHub token updated in profile on refresh');
                 }
-              });
+              }
+            } catch (error) {
+              console.error('👤 useUserData: Exception updating profile on refresh:', error);
+            }
           }
           
           if (mounted) {

@@ -36,17 +36,51 @@ export default function GitHubCallback() {
             console.log('GitHubCallback: useEffect: Provider token available:', !!providerToken);
             
             if (providerToken) {
-              // Store the token in the profile
-              const { error: updateError } = await supabase
+              console.log('GitHubCallback: Provider token to store:', providerToken.substring(0, 10) + "...");
+              
+              // First check if profile exists
+              const { data: profile, error: profileError } = await supabase
                 .from('profiles')
-                .update({ 
-                  github_access_token: providerToken,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', user.id);
+                .select()
+                .eq('id', user.id)
+                .maybeSingle();
+                
+              if (profileError) {
+                console.error('GitHubCallback: Error checking profile:', profileError);
+                console.log('GitHubCallback: Profile error details:', JSON.stringify(profileError));
+                throw profileError;
+              }
+              
+              let updateError;
+              
+              if (!profile) {
+                console.log('GitHubCallback: No profile found, creating one');
+                // Create a new profile
+                const { error } = await supabase
+                  .from('profiles')
+                  .insert({ 
+                    id: user.id,
+                    username: user.email?.split('@')[0] || 'user',
+                    github_access_token: providerToken,
+                    updated_at: new Date().toISOString()
+                  });
+                updateError = error;
+              } else {
+                console.log('GitHubCallback: Existing profile found, updating token');
+                // Update existing profile
+                const { error } = await supabase
+                  .from('profiles')
+                  .update({ 
+                    github_access_token: providerToken,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', user.id);
+                updateError = error;
+              }
                 
               if (updateError) {
                 console.error('GitHubCallback: Failed to store GitHub token:', updateError);
+                console.log('GitHubCallback: Update error details:', JSON.stringify(updateError));
               } else {
                 console.log('GitHubCallback: GitHub token stored successfully');
               }
