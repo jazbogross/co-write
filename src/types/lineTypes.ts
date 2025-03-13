@@ -1,5 +1,5 @@
 
-import { DeltaStatic } from 'quill';
+import type { DeltaStatic } from 'quill';
 
 // Main script content Delta type
 export interface ScriptContent {
@@ -39,7 +39,7 @@ export interface ScriptVersion {
   createdAt: string;
 }
 
-// LineData type for backward compatibility with existing components and utilities
+// For backwards compatibility - will be used less in the new approach
 export interface LineData {
   uuid: string;
   lineNumber: number;
@@ -51,7 +51,7 @@ export interface LineData {
   originalLineNumber?: number;
 }
 
-// Delta content for editor
+// Delta content type for simplification
 export interface DeltaContent {
   ops: Array<{
     insert?: string | object;
@@ -61,4 +61,5 @@ export interface DeltaContent {
   }>;
 }
 
-export { DeltaStatic };
+// Re-export DeltaStatic for use in other files
+export type { DeltaStatic };
