@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -109,7 +110,14 @@ export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) 
       <CreateScriptDialog
         open={isNewScriptDialogOpen}
         onOpenChange={setIsNewScriptDialogOpen}
-        onScriptCreated={(script) => setScripts([script, ...scripts])}
+        onScriptCreated={(newScript) => {
+          // Make sure we add all required properties to match the Script type
+          const completeScript: Script = {
+            ...newScript,
+            profiles: { username: "" }
+          };
+          setScripts([completeScript, ...scripts]);
+        }}
       />
 
       <RenameScriptDialog

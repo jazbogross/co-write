@@ -1,14 +1,9 @@
+
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Pencil, Trash2 } from "lucide-react";
-
-interface Script {
-  id: string;
-  title: string;
-  created_at: string;
-  is_private: boolean;
-}
+import { Script } from "@/types/repository";
 
 interface ScriptItemProps {
   script: Script;
@@ -31,7 +26,7 @@ export function ScriptItem({
         <div>
           <h3 className="font-medium">{script.title}</h3>
           <p className="text-sm text-muted-foreground">
-            Created: {new Date(script.created_at).toLocaleDateString()}
+            Created: {script.created_at ? new Date(script.created_at).toLocaleDateString() : 'N/A'}
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -41,7 +36,7 @@ export function ScriptItem({
             </span>
             <Switch
               checked={!script.is_private}
-              onCheckedChange={() => onTogglePrivacy(script.id, script.is_private)}
+              onCheckedChange={() => onTogglePrivacy(script.id, script.is_private as boolean)}
             />
           </div>
           <div className="flex items-center gap-2">

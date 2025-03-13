@@ -10,11 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
-interface Script {
-  id: string;
-  title: string;
-}
+import { Script } from "@/types/repository";
 
 interface RenameScriptDialogProps {
   open: boolean;
