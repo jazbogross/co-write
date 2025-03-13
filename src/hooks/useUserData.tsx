@@ -7,6 +7,7 @@ export const useUserData = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authProvider, setAuthProvider] = useState<string | null>(null);
+  const [authCheckedOnce, setAuthCheckedOnce] = useState(false);
 
   useEffect(() => {
     console.log('👤 useUserData: Initializing...');
@@ -24,6 +25,7 @@ export const useUserData = () => {
             setUserId(null);
             setIsLoading(false);
             setAuthProvider(null);
+            setAuthCheckedOnce(true);
           }
         } else if (user) {
           console.log('👤 useUserData: User fetched:', user.id);
@@ -35,6 +37,8 @@ export const useUserData = () => {
             setUserId(user.id);
             setAuthProvider(provider);
             setIsLoading(false);
+            setAuthCheckedOnce(true);
+            setError(null);
           }
         } else {
           console.log('👤 useUserData: No user found');
@@ -42,6 +46,8 @@ export const useUserData = () => {
             setUserId(null);
             setIsLoading(false);
             setAuthProvider(null);
+            setAuthCheckedOnce(true);
+            setError(null);
           }
         }
       } catch (error) {
@@ -51,6 +57,7 @@ export const useUserData = () => {
           setUserId(null);
           setIsLoading(false);
           setAuthProvider(null);
+          setAuthCheckedOnce(true);
         }
       }
     };
@@ -70,6 +77,8 @@ export const useUserData = () => {
           setUserId(session.user.id);
           setAuthProvider(provider);
           setIsLoading(false);
+          setAuthCheckedOnce(true);
+          setError(null);
         }
       } else if (event === 'SIGNED_OUT') {
         console.log('👤 useUserData: User signed out');
@@ -77,14 +86,18 @@ export const useUserData = () => {
           setUserId(null);
           setAuthProvider(null);
           setIsLoading(false);
+          setAuthCheckedOnce(true);
+          setError(null);
         }
-      } else if (event === 'TOKEN_REFRESHED') {
-        console.log('👤 useUserData: Token refreshed for user:', session?.user?.id);
+      } else if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        console.log(`👤 useUserData: ${event} for user:`, session?.user?.id);
         if (mounted && session?.user) {
           const provider = session.user.app_metadata?.provider || null;
           setUserId(session.user.id);
-          setAuthProvider(provider);
+          setAuthProvider(provider); 
           setIsLoading(false);
+          setAuthCheckedOnce(true);
+          setError(null);
         }
       }
     });
@@ -96,5 +109,5 @@ export const useUserData = () => {
     };
   }, []);
 
-  return { userId, isLoading, error, authProvider };
+  return { userId, isLoading, error, authProvider, authCheckedOnce };
 };
