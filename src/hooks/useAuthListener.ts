@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
@@ -21,6 +22,21 @@ export const useAuthListener = (): UseAuthListenerResult => {
     const checkCurrentUser = async () => {
       console.log("🎧 AuthListener: Checking for current user session");
       try {
+        // Immediately set session state based on session existence
+        const { data: sessionData } = await supabase.auth.getSession();
+        
+        if (!isMounted) {
+          console.log("🎧 AuthListener: Component unmounted, skipping state update");
+          return;
+        }
+        
+        // Immediately update authentication state if session exists
+        const sessionExists = !!sessionData.session;
+        if (sessionExists) {
+          console.log("🎧 AuthListener: Session exists, setting isAuthenticated to true");
+          setIsAuthenticated(true);
+        }
+        
         const { data } = await supabase.auth.getUser();
         
         if (!isMounted) {
@@ -102,6 +118,14 @@ export const useAuthListener = (): UseAuthListenerResult => {
       if (!isMounted) {
         console.log("🎧 AuthListener: Component unmounted, skipping auth state change handling");
         return;
+      }
+      
+      // Immediately update authentication state if session exists
+      if (session) {
+        console.log("🎧 AuthListener: Session exists in auth event, setting isAuthenticated to true");
+        setIsAuthenticated(true);
+      } else if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
       }
       
       if (event === 'SIGNED_IN' && session?.user) {
