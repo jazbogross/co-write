@@ -28,11 +28,27 @@ export const fetchScriptContent = async (
     }
     
     // Transform to LineData format for compatibility
-    const content = data.content_delta 
-      ? (typeof data.content_delta === 'object' 
-          ? data.content_delta as unknown as DeltaContent
-          : JSON.parse(data.content_delta as string) as DeltaContent)
-      : { ops: [{ insert: '\n' }] };
+    let content: DeltaContent;
+    
+    // Handle different content formats
+    if (data.content_delta) {
+      if (typeof data.content_delta === 'object') {
+        content = data.content_delta as unknown as DeltaContent;
+      } else if (typeof data.content_delta === 'string') {
+        try {
+          content = JSON.parse(data.content_delta) as DeltaContent;
+        } catch (e) {
+          // If parse fails, create a minimal Delta with the string
+          content = { ops: [{ insert: data.content_delta + '\n' }] };
+        }
+      } else {
+        // Default empty Delta
+        content = { ops: [{ insert: '\n' }] };
+      }
+    } else {
+      // Default empty Delta
+      content = { ops: [{ insert: '\n' }] };
+    }
     
     // Create a single LineData entry with the full Delta
     const lineData: LineData[] = [{

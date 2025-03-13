@@ -11,7 +11,7 @@ export interface Suggestion {
   createdAt: string;
   delta_diff: any;
   original_content?: any;
-  user?: {
+  user: {
     username: string;
   };
 }

@@ -47,13 +47,16 @@ export const saveSuggestions = async (
       deltaDiff: deltaDiff as DeltaContent
     };
     
+    // Convert to JSON for storage in Supabase
+    const jsonDeltaDiff = JSON.parse(JSON.stringify(suggestion.deltaDiff));
+    
     // Save to database
     const { data, error } = await supabase
       .from('script_suggestions')
       .insert({
         script_id: suggestion.scriptId,
         user_id: suggestion.userId,
-        delta_diff: suggestion.deltaDiff as any,
+        delta_diff: jsonDeltaDiff,
         status: 'pending'
       })
       .select('id')

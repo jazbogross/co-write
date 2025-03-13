@@ -51,7 +51,10 @@ export const useLineDataInit = ({
         const newLineData: LineData[] = [{
           uuid: scriptId, // Use scriptId as the UUID for simplicity
           lineNumber: 1,
-          content: isDeltaObject(initialContent) ? initialContent : { ops: [{ insert: String(initialContent) }] }
+          content: isDeltaObject(initialContent) ? initialContent : { ops: [{ insert: String(initialContent) }] },
+          originalAuthor: userId || null,
+          editedBy: [],
+          hasDraft: false
         }];
 
         setLineData(newLineData);
@@ -63,7 +66,7 @@ export const useLineDataInit = ({
     };
 
     initializeLineData();
-  }, [initialContent, scriptId, isInitialized]);
+  }, [initialContent, scriptId, isInitialized, userId]);
   
   // Function to load drafts (stub implementation)
   const loadDrafts = async (): Promise<void> => {

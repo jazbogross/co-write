@@ -4,9 +4,9 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { saveContent, loadContent } from '@/utils/saveLineUtils';
 import { toast } from 'sonner';
 import { DeltaStatic } from 'quill';
+import { saveContent, loadContent } from '@/utils/deltaUtils';
 
 interface DeltaEditorProps {
   scriptId: string;
@@ -34,10 +34,10 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
           setUserId(user.id);
           
           // Load content
-          const { content: loadedContent, hasDraft: hasExistingDraft } = await loadContent(scriptId, user.id);
+          const result = await loadContent(scriptId, user.id);
           
-          setContent(loadedContent);
-          setHasDraft(hasExistingDraft);
+          setContent(result.contentDelta);
+          setHasDraft(result.hasDraft);
         }
       } catch (error) {
         console.error('Error loading editor content:', error);
@@ -139,8 +139,8 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
       toast.success('Suggestion submitted successfully');
       
       // Reload content to show original
-      const { content: loadedContent } = await loadContent(scriptId, userId);
-      setContent(loadedContent);
+      const result = await loadContent(scriptId, userId);
+      setContent(result.contentDelta);
       
     } catch (error) {
       console.error('Error submitting suggestion:', error);

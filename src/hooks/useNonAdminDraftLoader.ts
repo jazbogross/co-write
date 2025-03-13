@@ -1,100 +1,85 @@
-import { useRef, useEffect } from 'react';
-import { LineData } from '@/types/lineTypes';
+
+import { useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { loadUserDrafts } from '@/utils/suggestions/loadUserDrafts';
+import { LineData } from '@/types/lineTypes';
+
+interface UseNonAdminDraftLoaderParams {
+  scriptId: string;
+  userId: string | null;
+  setLineData: React.Dispatch<React.SetStateAction<LineData[]>>;
+  contentToUuidMapRef: React.MutableRefObject<Map<string, string>>;
+}
+
+interface UseNonAdminDraftLoaderResult {
+  loadDrafts: () => Promise<{ success: boolean; lineData?: LineData[] }>;
+  isLoadingDrafts: boolean;
+  hasDrafts: boolean;
+}
 
 /**
- * Hook for non-admin draft loading with race condition protection
+ * Hook for loading draft data for non-admin users
  */
-export const useNonAdminDraftLoader = () => {
-  const loadingRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
+export const useNonAdminDraftLoader = ({
+  scriptId,
+  userId,
+  setLineData,
+  contentToUuidMapRef
+}: UseNonAdminDraftLoaderParams): UseNonAdminDraftLoaderResult => {
+  const [isLoadingDrafts, setIsLoadingDrafts] = useState(false);
+  const [hasDrafts, setHasDrafts] = useState(false);
 
-  useEffect(() => {
-    return () => {
-      // Cleanup any pending operations on unmount
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-    };
-  }, []);
-
-  const loadNonAdminDrafts = async (
-    scriptId: string,
-    userId: string | null,
-    contentToUuidMapRef: React.MutableRefObject<Map<string, string>>,
-    setLineData: React.Dispatch<React.SetStateAction<LineData[]>>
-  ) => {
-    // Prevent concurrent loading attempts
-    if (loadingRef.current) {
-      console.log('🔍 DEBUG: Draft loading already in progress, skipping');
-      return false;
+  /**
+   * Load drafts from the database
+   */
+  const loadDrafts = useCallback(async (): Promise<{ success: boolean; lineData?: LineData[] }> => {
+    if (!userId || !scriptId) {
+      return { success: false };
     }
 
-    // Cancel any existing operations
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-
-    // Create new abort controller for this operation
-    abortControllerRef.current = new AbortController();
-    
-    console.log('🔍 DEBUG: Loading non-admin drafts from script_suggestions table');
-    
-    if (!scriptId || !userId) {
-      console.log('🔍 DEBUG: Missing scriptId or userId, aborting draft load');
-      return false;
-    }
-
-    loadingRef.current = true;
+    setIsLoadingDrafts(true);
     
     try {
-      // Load user drafts with abort signal
-      console.log('🔍 DEBUG: Calling loadUserDrafts to fetch draft data from script_suggestions');
-      const draftLines = await loadUserDrafts(
-        scriptId, 
-        userId, 
-        contentToUuidMapRef,
-        abortControllerRef.current.signal
-      );
+      // Check if the user has any drafts for this script
+      const { data: draftChecks } = await supabase
+        .from('script_drafts')
+        .select('id')
+        .eq('script_id', scriptId)
+        .eq('user_id', userId)
+        .limit(1);
       
-      // Check if operation was aborted
-      if (abortControllerRef.current?.signal.aborted) {
-        console.log('🔍 DEBUG: Draft loading operation was aborted');
-        return false;
+      const userHasDrafts = draftChecks && draftChecks.length > 0;
+      setHasDrafts(userHasDrafts);
+      
+      if (!userHasDrafts) {
+        // No drafts found
+        console.log('No drafts found for user:', userId);
+        return { success: true, lineData: [] };
       }
       
-      if (!draftLines || !Array.isArray(draftLines)) {
-        console.log('🔍 DEBUG: No valid draft lines returned from loadUserDrafts');
-        return false;
-      }
+      // Load the draft content
+      const draftLineData = await loadUserDrafts(scriptId, userId, contentToUuidMapRef);
       
-      if (draftLines.length > 0) {
-        console.log(`🔍 DEBUG: Successfully loaded ${draftLines.length} draft lines from script_suggestions`);
-        
-        // Set the line data with the sorted draft lines
-        setLineData(draftLines);
-        return true;
-      } else {
-        console.log('🔍 DEBUG: No draft lines found in script_suggestions table');
-        return false;
-      }
+      // Update line data
+      setLineData(draftLineData);
+      
+      return { 
+        success: true,
+        lineData: draftLineData
+      };
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('🔍 DEBUG: Draft loading was aborted');
-      } else {
-        console.error('🔍 DEBUG: Error loading non-admin drafts from script_suggestions:', error);
-      }
-      return false;
+      console.error('Error loading drafts:', error);
+      toast.error('Failed to load your drafts');
+      return { success: false };
     } finally {
-      loadingRef.current = false;
-      // Clear abort controller if operation completed normally
-      if (!abortControllerRef.current?.signal.aborted) {
-        abortControllerRef.current = null;
-      }
+      setIsLoadingDrafts(false);
     }
-  };
+  }, [scriptId, userId, setLineData, contentToUuidMapRef]);
 
-  return { loadNonAdminDrafts };
+  return {
+    loadDrafts,
+    isLoadingDrafts,
+    hasDrafts
+  };
 };
