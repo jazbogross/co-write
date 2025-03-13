@@ -10,32 +10,41 @@ import { supabase } from '@/integrations/supabase/client';
 import { Github } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
   const { signIn, signUp, user } = useAuth();
 
   // Handle OAuth redirect with code
   useEffect(() => {
     const handleRedirect = async () => {
+      // First check if this is a GitHub OAuth redirect by looking at the URL hash
       const params = new URLSearchParams(window.location.hash.substring(1));
       const accessToken = params.get('access_token');
       const providerToken = params.get('provider_token');
       
+      console.log("Auth: Checking for OAuth redirect parameters");
+      console.log("Auth: access_token present:", !!accessToken);
+      console.log("Auth: provider_token present:", !!providerToken);
+      
       if (accessToken && providerToken) {
-        console.log("Auth: Detected OAuth redirect with tokens");
+        console.log("Auth: Detected GitHub OAuth redirect with tokens");
         try {
           // Get the user to find their ID
           const { data: { user } } = await supabase.auth.getUser();
           
           if (user) {
-            console.log("Auth: Storing GitHub access token for user:", user.id);
+            console.log("Auth: Found authenticated user:", user.id);
+            console.log("Auth: Auth provider from metadata:", user.app_metadata?.provider);
+            console.log("Auth: Storing GitHub access token");
+            
             // Store the github_access_token in the profiles table
-            const { error } = await supabase
+            const { error: updateError } = await supabase
               .from('profiles')
               .update({ 
                 github_access_token: providerToken,
@@ -43,14 +52,20 @@ const Auth = () => {
               })
               .eq('id', user.id);
               
-            if (error) {
-              console.error("Auth: Error storing GitHub token:", error);
+            if (updateError) {
+              console.error("Auth: Error storing GitHub token:", updateError);
+              toast.error("Failed to store GitHub access token. Please try again or contact support.");
             } else {
               console.log("Auth: GitHub token stored successfully");
+              toast.success("GitHub connected successfully!");
             }
+          } else {
+            console.error("Auth: No authenticated user found after GitHub OAuth");
+            toast.error("Authentication error. Please try again.");
           }
         } catch (error) {
           console.error("Auth: Error handling OAuth redirect:", error);
+          toast.error("Failed to complete GitHub authentication");
         }
         
         // Clean up URL by removing hash
@@ -62,10 +77,11 @@ const Auth = () => {
   }, []);
 
   // If user is already logged in, redirect to profile
-  if (user) {
-    navigate('/profile');
-    return null;
-  }
+  useEffect(() => {
+    if (user) {
+      navigate('/profile');
+    }
+  }, [user, navigate]);
 
   const handleAuth = async (action: 'login' | 'signup') => {
     try {
@@ -85,7 +101,7 @@ const Auth = () => {
       }
     } catch (error) {
       console.error('Auth error:', error);
-      toast({
+      uiToast({
         title: "Error",
         description: "An unexpected error occurred",
         variant: "destructive",
@@ -98,6 +114,7 @@ const Auth = () => {
   const handleGitHubAuth = async () => {
     try {
       setLoading(true);
+      console.log("Auth: Initiating GitHub OAuth");
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
@@ -107,15 +124,18 @@ const Auth = () => {
       });
 
       if (error) {
-        toast({
+        console.error("Auth: GitHub OAuth error:", error);
+        uiToast({
           title: "Error",
           description: error.message,
           variant: "destructive",
         });
+      } else {
+        console.log("Auth: GitHub OAuth initiated successfully");
       }
     } catch (error) {
       console.error('GitHub auth error:', error);
-      toast({
+      uiToast({
         title: "Error",
         description: "Failed to authenticate with GitHub",
         variant: "destructive",

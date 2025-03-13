@@ -73,6 +73,25 @@ export const useUserData = () => {
         const provider = session.user.app_metadata?.provider || null;
         console.log('👤 useUserData: Auth provider on sign in:', provider);
         
+        // Update the github_access_token in profile if available
+        if (provider === 'github' && session.provider_token) {
+          console.log('👤 useUserData: GitHub provider token available, updating profile');
+          supabase
+            .from('profiles')
+            .update({ 
+              github_access_token: session.provider_token,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', session.user.id)
+            .then(({ error }) => {
+              if (error) {
+                console.error('👤 useUserData: Error updating GitHub token:', error);
+              } else {
+                console.log('👤 useUserData: GitHub token updated in profile');
+              }
+            });
+        }
+        
         if (mounted) {
           setUserId(session.user.id);
           setAuthProvider(provider);
@@ -93,11 +112,33 @@ export const useUserData = () => {
         console.log(`👤 useUserData: ${event} for user:`, session?.user?.id);
         if (mounted && session?.user) {
           const provider = session.user.app_metadata?.provider || null;
-          setUserId(session.user.id);
-          setAuthProvider(provider); 
-          setIsLoading(false);
-          setAuthCheckedOnce(true);
-          setError(null);
+          
+          // Update the github_access_token in profile if available
+          if (provider === 'github' && session.provider_token) {
+            console.log('👤 useUserData: GitHub provider token available on token refresh, updating profile');
+            supabase
+              .from('profiles')
+              .update({ 
+                github_access_token: session.provider_token,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', session.user.id)
+              .then(({ error }) => {
+                if (error) {
+                  console.error('👤 useUserData: Error updating GitHub token on refresh:', error);
+                } else {
+                  console.log('👤 useUserData: GitHub token updated in profile on refresh');
+                }
+              });
+          }
+          
+          if (mounted) {
+            setUserId(session.user.id);
+            setAuthProvider(provider); 
+            setIsLoading(false);
+            setAuthCheckedOnce(true);
+            setError(null);
+          }
         }
       }
     });

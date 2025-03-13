@@ -19,8 +19,41 @@ export default function GitHubCallback() {
       if (code) {
         console.log('GitHubCallback: useEffect: handleCallback: Found GitHub code, processing...');
         try {
-          // The access token will be processed in Auth.tsx in the redirect handler
+          // Exchange the code for an access token
+          // This happens automatically in Supabase's auth flow
           toast.success("GitHub authorization successful");
+          
+          // Ensure the profile record has the GitHub access token
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            console.log('GitHubCallback: useEffect: Got user after auth:', user.id);
+            
+            // Get the session to extract the provider token
+            const { data: sessionData } = await supabase.auth.getSession();
+            const providerToken = sessionData?.session?.provider_token;
+            
+            console.log('GitHubCallback: useEffect: Provider token available:', !!providerToken);
+            
+            if (providerToken) {
+              // Store the token in the profile
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                  github_access_token: providerToken,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
+                
+              if (updateError) {
+                console.error('GitHubCallback: Failed to store GitHub token:', updateError);
+              } else {
+                console.log('GitHubCallback: GitHub token stored successfully');
+              }
+            } else {
+              console.warn('GitHubCallback: No provider token found in session');
+            }
+          }
           
           // Redirect to the original page or profile
           const redirectPath = state ? decodeURIComponent(state) : "/profile";
