@@ -58,14 +58,12 @@ export default function Profile() {
             .from('profiles')
             .select('username')
             .eq('id', userId)
-            .single();
+            .maybeSingle();  // Changed from single() to maybeSingle()
 
-          if (error) {
+          if (error && error.code !== 'PGRST116') {
             console.error("📋 PROFILE: Error fetching profile:", error);
             setFetchError(`Profile fetch error: ${error.message}`);
-            if (error.code !== "PGRST116") {
-              throw error;
-            }
+            throw error;
           }
 
           // If profile exists, set the profile state
@@ -82,6 +80,25 @@ export default function Profile() {
               email: user?.email || "",
               username: user?.email?.split("@")[0] || "",
             });
+            
+            // Create a profile if one doesn't exist
+            try {
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .upsert({ 
+                  id: userId, 
+                  username: user?.email?.split("@")[0] || "",
+                  updated_at: new Date().toISOString() 
+                });
+                
+              if (insertError) {
+                console.error("📋 PROFILE: Error creating profile:", insertError);
+              } else {
+                console.log("📋 PROFILE: Created new profile for user");
+              }
+            } catch (insertError) {
+              console.error("📋 PROFILE: Exception creating profile:", insertError);
+            }
           }
 
           // Fetch user scripts
