@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useAuthStatus = () => {
@@ -8,9 +8,11 @@ export const useAuthStatus = () => {
   const [error, setError] = useState<string | null>(null);
   const [authProvider, setAuthProvider] = useState<string | null>(null);
   const [authCheckedOnce, setAuthCheckedOnce] = useState(false);
+  const mountCountRef = useRef(0);
 
   useEffect(() => {
-    console.log('🔒 useAuthStatus: Initializing auth status check...');
+    mountCountRef.current += 1;
+    console.log(`🔒 useAuthStatus: Initializing auth status check... (mount #${mountCountRef.current})`);
     let mounted = true;
     
     const fetchUser = async () => {
@@ -26,6 +28,7 @@ export const useAuthStatus = () => {
             setIsLoading(false);
             setAuthProvider(null);
             setAuthCheckedOnce(true);
+            console.log('🔒 useAuthStatus: Set state after error - no user, not loading, authCheckedOnce=true');
           }
         } else if (user) {
           console.log('🔒 useAuthStatus: User fetched:', user.id);
@@ -38,6 +41,7 @@ export const useAuthStatus = () => {
             setIsLoading(false);
             setAuthCheckedOnce(true);
             setError(null);
+            console.log('🔒 useAuthStatus: Set state after success - userId, authProvider, not loading, authCheckedOnce=true');
           }
         } else {
           console.log('🔒 useAuthStatus: No user found');
@@ -47,6 +51,7 @@ export const useAuthStatus = () => {
             setAuthProvider(null);
             setAuthCheckedOnce(true);
             setError(null);
+            console.log('🔒 useAuthStatus: Set state after no user - no userId, not loading, authCheckedOnce=true');
           }
         }
       } catch (error) {
@@ -57,6 +62,7 @@ export const useAuthStatus = () => {
           setIsLoading(false);
           setAuthProvider(null);
           setAuthCheckedOnce(true);
+          console.log('🔒 useAuthStatus: Set state after exception - no userId, not loading, authCheckedOnce=true');
         }
       }
     };
@@ -65,9 +71,20 @@ export const useAuthStatus = () => {
     
     return () => {
       mounted = false;
-      console.log('🔒 useAuthStatus: Cleanup - unmounted');
+      console.log(`🔒 useAuthStatus: Cleanup - unmounted (mount #${mountCountRef.current})`);
     };
   }, []);
+
+  // Log state changes
+  useEffect(() => {
+    console.log('🔒 useAuthStatus: State updated:', { 
+      userId, 
+      isLoading, 
+      authProvider, 
+      authCheckedOnce,
+      hasError: !!error 
+    });
+  }, [userId, isLoading, error, authProvider, authCheckedOnce]);
 
   return { userId, isLoading, error, authProvider, authCheckedOnce };
 };

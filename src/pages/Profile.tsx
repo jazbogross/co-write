@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -12,7 +12,11 @@ import { Script } from "@/types/repository";
 import { useUserData } from "@/hooks/useUserData";
 
 export default function Profile() {
-  console.log("📋 PROFILE: Component rendering");
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  
+  console.log(`📋 PROFILE: Component rendering (render #${renderCountRef.current})`);
+  
   const navigate = useNavigate();
   const { signOut, user, loading: authLoading, authChecked } = useAuth();
   const { userId, isLoading: userLoading, authProvider, authCheckedOnce } = useUserData();
@@ -25,8 +29,10 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [hasFetched, setHasFetched] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
 
   console.log("📋 PROFILE: Current states -", {
+    renderCount: renderCountRef.current,
     authLoading,
     userLoading,
     userExists: !!userId,
@@ -35,16 +41,30 @@ export default function Profile() {
     hasFetched,
     authProvider,
     authCheckedOnce,
-    authChecked
+    authChecked,
+    redirecting
   });
 
   // Reset hasFetched when user changes
   useEffect(() => {
+    console.log("📋 PROFILE: User or auth check state changed:", {
+      userId,
+      authCheckedOnce,
+      authChecked
+    });
+    
     if (userId === null && authCheckedOnce && authChecked) {
       console.log("📋 PROFILE: User is null and auth has been checked, resetting hasFetched");
       setHasFetched(false);
+      
+      // Only redirect if not already redirecting
+      if (!redirecting && !authLoading && !userLoading) {
+        console.log("📋 PROFILE: No user is authenticated, redirecting to auth page");
+        setRedirecting(true);
+        navigate("/auth");
+      }
     }
-  }, [userId, authCheckedOnce, authChecked]);
+  }, [userId, authCheckedOnce, authChecked, navigate, authLoading, userLoading, redirecting]);
 
   useEffect(() => {
     // Only fetch data if user exists and we haven't fetched data yet and we've checked auth at least once
@@ -80,6 +100,7 @@ export default function Profile() {
 
           if (error && error.code !== 'PGRST116') {
             console.error("📋 PROFILE: Error fetching profile:", error);
+            console.log("📋 PROFILE: Error details:", JSON.stringify(error));
             setFetchError(`Profile fetch error: ${error.message}`);
             throw error;
           }
@@ -112,6 +133,7 @@ export default function Profile() {
                 
               if (insertError) {
                 console.error("📋 PROFILE: Error creating profile:", insertError);
+                console.log("📋 PROFILE: Error details:", JSON.stringify(insertError));
               } else {
                 console.log("📋 PROFILE: Created new profile for user");
               }
@@ -129,6 +151,7 @@ export default function Profile() {
 
           if (scriptsError) {
             console.error("📋 PROFILE: Error fetching scripts:", scriptsError);
+            console.log("📋 PROFILE: Error details:", JSON.stringify(scriptsError));
             setFetchError(`Scripts fetch error: ${scriptsError.message}`);
             throw scriptsError;
           }
@@ -159,17 +182,19 @@ export default function Profile() {
       };
 
       getProfile();
-    } else if (!userLoading && !authLoading && !userId && authCheckedOnce && authChecked) {
+    } else if (!userLoading && !authLoading && !userId && authCheckedOnce && authChecked && !redirecting) {
       // Redirect to auth page if not authenticated and we've checked auth status
       console.log("📋 PROFILE: No authenticated user and auth checked, redirecting to auth page");
+      setRedirecting(true);
       navigate("/auth");
     }
-  }, [userId, userLoading, authLoading, navigate, hasFetched, authCheckedOnce, authChecked]);
+  }, [userId, userLoading, authLoading, navigate, hasFetched, authCheckedOnce, authChecked, redirecting]);
 
   const handleSignOut = async () => {
     try {
       console.log("📋 PROFILE: Signing out");
       await signOut();
+      setRedirecting(true);
       navigate("/auth");
     } catch (error) {
       console.error("📋 PROFILE: Error signing out:", error);
