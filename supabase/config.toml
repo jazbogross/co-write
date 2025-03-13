@@ -1,14 +1,1 @@
-project_id = "rvcjjrthsktrkrdcujna"
-
-[functions]
-[functions.commit-script-changes]
-verify_jwt = true
-
-[functions.create-change-suggestion]
-verify_jwt = true
-
-[functions.handle-suggestion-status]
-verify_jwt = true
-
-[functions.rename-script]
-verify_jwt = true
+project_id = "uoasmfawwtkejjdglyws"
