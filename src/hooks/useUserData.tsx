@@ -16,16 +16,18 @@ export const useUserData = () => {
         if (userError) {
           console.error('👤 useUserData: Error fetching user:', userError);
           setError(userError.message);
-          return;
+          setUserId(null);
+        } else {
+          console.log('👤 useUserData: User fetched:', user?.id);
+          setUserId(user?.id || null);
         }
-        
-        console.log('👤 useUserData: User fetched:', user?.id);
-        setUserId(user?.id || null);
       } catch (error) {
         console.error('👤 useUserData: Error fetching user:', error);
         setError(error instanceof Error ? error.message : 'Unknown error');
+        setUserId(null);
       } finally {
         setIsLoading(false);
+        console.log('👤 useUserData: Loading state set to false');
       }
     };
     
@@ -38,9 +40,11 @@ export const useUserData = () => {
       if (event === 'SIGNED_IN' && session?.user) {
         console.log('👤 useUserData: User signed in:', session.user.id);
         setUserId(session.user.id);
+        setIsLoading(false);
       } else if (event === 'SIGNED_OUT') {
         console.log('👤 useUserData: User signed out');
         setUserId(null);
+        setIsLoading(false);
       }
     });
     

@@ -9,11 +9,14 @@ import { ScriptsCard } from "@/components/profile/ScriptsCard";
 import { GitHubConnectionCard } from "@/components/profile/GitHubConnectionCard";
 import { useAuth } from "@/hooks/useAuth";
 import { Script } from "@/types/repository";
+import { useUserData } from "@/hooks/useUserData";
 
 export default function Profile() {
   console.log("📋 PROFILE: Component rendering");
   const navigate = useNavigate();
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { signOut } = useAuth();
+  const { userId, isLoading: userLoading } = useUserData();
+  
   const [profile, setProfile] = useState<{ email: string; username: string }>({
     email: "",
     username: "",
@@ -24,26 +27,37 @@ export default function Profile() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   console.log("📋 PROFILE: Current states -", {
-    authLoading,
-    userExists: !!user,
-    userId: user?.id,
+    userLoading,
+    userExists: !!userId,
+    userId,
     loading,
     hasFetched
   });
 
   useEffect(() => {
-    // Only fetch data if authentication is complete and user exists
-    if (!authLoading && user && !hasFetched) {
+    // Only fetch data if user exists and we haven't fetched data yet
+    if (!userLoading && userId && !hasFetched) {
       const getProfile = async () => {
-        console.log("📋 PROFILE: Fetching profile data for user:", user.id);
+        console.log("📋 PROFILE: Fetching profile data for user:", userId);
         try {
           setLoading(true);
+          
+          // Get user data
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+          
+          if (userError) {
+            console.error("📋 PROFILE: Error fetching user:", userError);
+            setFetchError(`User fetch error: ${userError.message}`);
+            throw userError;
+          }
+          
+          const user = userData.user;
           
           // Get user profile data
           const { data, error } = await supabase
             .from('profiles')
             .select('username')
-            .eq('id', user.id)
+            .eq('id', userId)
             .single();
 
           if (error) {
@@ -58,24 +72,24 @@ export default function Profile() {
           if (data) {
             console.log("📋 PROFILE: Profile data found:", data);
             setProfile({
-              email: user.email || "",
+              email: user?.email || "",
               username: data.username || "",
             });
           } else {
             console.log("📋 PROFILE: No profile data found, using defaults");
             // If profile doesn't exist yet
             setProfile({
-              email: user.email || "",
-              username: user.email?.split("@")[0] || "",
+              email: user?.email || "",
+              username: user?.email?.split("@")[0] || "",
             });
           }
 
           // Fetch user scripts
-          console.log("📋 PROFILE: Fetching scripts for user:", user.id);
+          console.log("📋 PROFILE: Fetching scripts for user:", userId);
           const { data: scriptsData, error: scriptsError } = await supabase
             .from('scripts')
             .select('id, title, created_at, is_private, admin_id')
-            .eq('admin_id', user.id);
+            .eq('admin_id', userId);
 
           if (scriptsError) {
             console.error("📋 PROFILE: Error fetching scripts:", scriptsError);
@@ -108,12 +122,12 @@ export default function Profile() {
       };
 
       getProfile();
-    } else if (!authLoading && !user) {
+    } else if (!userLoading && !userId) {
       // Redirect to auth page if not authenticated
       console.log("📋 PROFILE: No authenticated user, redirecting to auth page");
       navigate("/auth");
     }
-  }, [user, authLoading, navigate, hasFetched]);
+  }, [userId, userLoading, navigate, hasFetched]);
 
   const handleSignOut = async () => {
     try {
@@ -127,8 +141,8 @@ export default function Profile() {
   };
 
   // Add more detailed rendering logs
-  if (authLoading) {
-    console.log("📋 PROFILE: Rendering loading state - auth is loading");
+  if (userLoading) {
+    console.log("📋 PROFILE: Rendering loading state - user data is loading");
     return <div className="container py-8 text-center">Loading authentication...</div>;
   }
 
