@@ -23,7 +23,7 @@ interface RepositoryManagementCardProps {
 export const RepositoryManagementCard: React.FC<RepositoryManagementCardProps> = ({ userId }) => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+  const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
   const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
   
   useEffect(() => {
@@ -79,7 +79,7 @@ export const RepositoryManagementCard: React.FC<RepositoryManagementCardProps> =
   };
   
   const openPermissionsDialog = (repository: Repository) => {
-    setSelectedRepo(repository);
+    setSelectedRepoId(repository.id);
     setIsPermissionsDialogOpen(true);
   };
 
@@ -126,9 +126,9 @@ export const RepositoryManagementCard: React.FC<RepositoryManagementCardProps> =
               <div key={repo.id} className="flex items-center justify-between">
                 <RepositoryListItem 
                   repository={repo}
-                  onTogglePrivacy={handleTogglePrivacy}
-                  onDelete={handleDeleteRepository}
-                  onOpenPermissions={openPermissionsDialog}
+                  onTogglePrivacy={() => handleTogglePrivacy(repo)}
+                  onDelete={() => handleDeleteRepository(repo.id)}
+                  onOpenPermissions={() => openPermissionsDialog(repo)}
                   loading={isLoading}
                 />
                 <DropdownMenu>
@@ -157,9 +157,9 @@ export const RepositoryManagementCard: React.FC<RepositoryManagementCardProps> =
         )}
       </CardContent>
       
-      {selectedRepo && (
+      {selectedRepoId && (
         <RepositoryPermissionsDialog
-          repositoryId={selectedRepo.id}
+          repositoryId={selectedRepoId}
           open={isPermissionsDialogOpen}
           onOpenChange={setIsPermissionsDialogOpen}
         />

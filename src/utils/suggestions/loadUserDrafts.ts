@@ -15,8 +15,7 @@ import { finalizeLineData } from './finalizeLineData';
 export const loadUserDrafts = async (
   scriptId: string,
   userId: string | null,
-  contentToUuidMapRef: React.MutableRefObject<Map<string, string>>,
-  signal?: AbortSignal
+  contentToUuidMapRef: React.MutableRefObject<Map<string, string>>
 ): Promise<LineData[]> => {
   if (!scriptId || !userId) {
     logDraftLoading('loadUserDrafts aborted: missing scriptId or userId');
@@ -28,7 +27,7 @@ export const loadUserDrafts = async (
   try {
     // 1. Fetch original content lines
     logDraftLoading('🔍 DEBUG: Step 1 - Fetching original content lines');
-    const originalLines = await fetchScriptContent(scriptId, signal);
+    const originalLines = await fetchScriptContent(scriptId);
     if (!originalLines) {
       logDraftLoading('🔍 DEBUG: No original lines found');
       return [];
@@ -38,7 +37,7 @@ export const loadUserDrafts = async (
     
     // 2. Fetch user suggestions from script_suggestions table
     logDraftLoading('🔍 DEBUG: Step 2 - Fetching user suggestions from script_suggestions table');
-    const suggestions = await fetchUserSuggestions(scriptId, userId, signal);
+    const suggestions = await fetchUserSuggestions(scriptId, userId);
     logDraftLoading(`🔍 DEBUG: Fetched ${suggestions.length} user suggestions from script_suggestions table`);
     
     // 3. Build initial line data

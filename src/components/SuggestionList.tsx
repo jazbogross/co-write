@@ -6,7 +6,7 @@ import { RejectionDialog } from './suggestions/RejectionDialog';
 import { SuggestionGroup } from './suggestions/SuggestionGroup';
 import { SuggestionDetail } from './suggestions/SuggestionDetail';
 import { useSuggestionManager } from '@/hooks/useSuggestionManager';
-import { UserGroup, GroupedSuggestion, Suggestion } from '@/utils/diff/SuggestionGroupManager';
+import { UserGroup, Suggestion } from '@/utils/diff/SuggestionGroupManager';
 
 interface SuggestionListProps {
   scriptId: string;

@@ -2,35 +2,30 @@
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
+import { combineDeltaContents } from '@/utils/editor/operations/deltaCombination';
 
 /**
- * Save lines to the database
+ * Saves content to the database as a full Delta
  */
-export const saveLinesToDatabase = async (
+export const saveContent = async (
   scriptId: string,
-  lineData: LineData[],
-  content: string | DeltaContent
+  content: string | DeltaContent,
+  lineData: LineData[]
 ): Promise<boolean> => {
   try {
-    // For the simplified Delta approach, we don't need lineData
-    // Convert Delta to a format suitable for database storage
-    const contentToSave = typeof content === 'string'
+    // Convert content to Delta if needed
+    const deltaContent = typeof content === 'string'
       ? { ops: [{ insert: content }] }
       : content;
     
-    // Convert to JSON for Supabase
-    const jsonContent = JSON.stringify(contentToSave);
-    
-    // Update script_content
+    // Update script_content table with the full Delta
     const { error } = await supabase
       .from('script_content')
       .upsert({
         script_id: scriptId,
-        content_delta: JSON.parse(jsonContent),
+        content_delta: deltaContent as any,
         updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'script_id'
-      });
+      }, { onConflict: 'script_id' });
     
     if (error) {
       console.error('Error saving content:', error);
@@ -39,108 +34,40 @@ export const saveLinesToDatabase = async (
     
     return true;
   } catch (error) {
-    console.error('Error in saveLinesToDatabase:', error);
+    console.error('Error in saveContent:', error);
     return false;
   }
 };
 
-// Add exports for DeltaEditor.tsx
-export const saveContent = async (
-  scriptId: string,
-  delta: any,
-  userId: string,
-  isAdmin: boolean = false
-): Promise<boolean> => {
+/**
+ * Loads content from the database
+ */
+export const loadContent = async (scriptId: string): Promise<DeltaContent | null> => {
   try {
-    // Convert the Delta to a JSON object for storage
-    const contentJson = JSON.stringify(delta);
-    
-    if (isAdmin) {
-      // For admins: Update the main content
-      const { error } = await supabase
-        .from('script_content')
-        .upsert({
-          script_id: scriptId,
-          content_delta: JSON.parse(contentJson),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'script_id'
-        });
-      
-      if (error) throw error;
-      
-      return true;
-    } else {
-      // For non-admins: Save as a draft
-      if (!userId) return false;
-      
-      const { error } = await supabase
-        .from('script_drafts')
-        .upsert({
-          script_id: scriptId,
-          user_id: userId,
-          draft_content: JSON.parse(contentJson),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'script_id,user_id'
-        });
-      
-      if (error) throw error;
-      
-      return true;
-    }
-  } catch (error) {
-    console.error('Error saving content:', error);
-    return false;
-  }
-};
-
-// Load content for DeltaEditor
-export const loadContent = async (
-  scriptId: string,
-  userId: string
-): Promise<{content: any, hasDraft: boolean}> => {
-  try {
-    // Check for draft content first (for non-admin users)
-    const { data: draft } = await supabase
-      .from('script_drafts')
-      .select('draft_content')
-      .eq('script_id', scriptId)
-      .eq('user_id', userId)
-      .maybeSingle();
-    
-    if (draft?.draft_content) {
-      return {
-        content: draft.draft_content,
-        hasDraft: true
-      };
-    }
-    
-    // Load main content
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('script_content')
       .select('content_delta')
       .eq('script_id', scriptId)
       .single();
     
-    if (data?.content_delta) {
-      return {
-        content: data.content_delta,
-        hasDraft: false
-      };
+    if (error) {
+      console.error('Error loading content:', error);
+      return null;
     }
     
-    // Return empty Delta if no content exists
-    return {
-      content: { ops: [{ insert: '\n' }] },
-      hasDraft: false
-    };
+    if (!data?.content_delta) {
+      console.error('No content found for script:', scriptId);
+      return null;
+    }
+    
+    // Parse Delta content if needed
+    const deltaContent = typeof data.content_delta === 'string'
+      ? JSON.parse(data.content_delta)
+      : data.content_delta;
+    
+    return deltaContent as DeltaContent;
   } catch (error) {
-    console.error('Error loading content:', error);
-    // Return empty Delta on error
-    return {
-      content: { ops: [{ insert: '\n' }] },
-      hasDraft: false
-    };
+    console.error('Error in loadContent:', error);
+    return null;
   }
 };

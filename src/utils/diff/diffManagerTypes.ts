@@ -60,5 +60,5 @@ export interface DiffSummary {
   changedLines: ChangedLine[];
 }
 
-// Export the enum and interfaces as values, not just types
+// Export the enum as a value, not just a type
 export { DiffChangeType };

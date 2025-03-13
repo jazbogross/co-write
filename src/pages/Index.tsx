@@ -15,9 +15,7 @@ interface Script {
   created_at: string;
   admin_id: string;
   is_private?: boolean;
-  profiles: {
-    username: string;
-  };
+  admin_username?: string;
 }
 
 export const Index = () => {
@@ -44,11 +42,25 @@ export const Index = () => {
             admin_id,
             is_private,
             github_repo,
-            github_owner,
-            admin:admin_id(username)
+            github_owner
           `);
           
         if (error) throw error;
+        
+        // Fetch admin usernames in a separate query
+        const adminIds = [...new Set(data.map(script => script.admin_id))];
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', adminIds);
+          
+        if (profilesError) throw profilesError;
+        
+        // Create a map of admin_id to username
+        const adminUsernameMap = new Map();
+        profilesData?.forEach(profile => {
+          adminUsernameMap.set(profile.id, profile.username);
+        });
         
         const formattedScripts = data.map(script => ({
           id: script.id,
@@ -56,9 +68,7 @@ export const Index = () => {
           created_at: script.created_at,
           admin_id: script.admin_id,
           is_private: script.is_private ?? false,
-          profiles: {
-            username: script.admin?.username || 'Unknown'
-          }
+          admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
         }));
         
         setScripts(formattedScripts);
@@ -73,12 +83,26 @@ export const Index = () => {
             admin_id,
             is_private,
             github_repo,
-            github_owner,
-            admin:admin_id(username)
+            github_owner
           `)
           .eq('is_private', false);
           
         if (error) throw error;
+        
+        // Fetch admin usernames in a separate query
+        const adminIds = [...new Set(data.map(script => script.admin_id))];
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', adminIds);
+          
+        if (profilesError) throw profilesError;
+        
+        // Create a map of admin_id to username
+        const adminUsernameMap = new Map();
+        profilesData?.forEach(profile => {
+          adminUsernameMap.set(profile.id, profile.username);
+        });
         
         const formattedScripts = data.map(script => ({
           id: script.id,
@@ -86,9 +110,7 @@ export const Index = () => {
           created_at: script.created_at,
           admin_id: script.admin_id,
           is_private: false,
-          profiles: {
-            username: script.admin?.username || 'Unknown'
-          }
+          admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
         }));
         
         setScripts(formattedScripts);
@@ -159,9 +181,9 @@ export const Index = () => {
               <CardContent>
                 <div className="flex items-center space-x-2 mb-4">
                   <Avatar className="h-6 w-6">
-                    <AvatarFallback>{script.profiles.username[0]}</AvatarFallback>
+                    <AvatarFallback>{script.admin_username ? script.admin_username[0] : '?'}</AvatarFallback>
                   </Avatar>
-                  <span className="text-sm text-gray-600">{script.profiles.username}</span>
+                  <span className="text-sm text-gray-600">{script.admin_username}</span>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">

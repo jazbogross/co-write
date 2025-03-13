@@ -1,27 +1,46 @@
 
 import { useCallback } from 'react';
 import { LineData } from '@/types/lineTypes';
-import { v4 as uuidv4 } from 'uuid';
-import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 
 /**
- * Hook for matching and assigning line UUIDs
+ * Hook for matching lines between old and new content
  */
 export const useLineMatching = (userId: string | null) => {
   /**
-   * Match and assign UUIDs to lines
+   * Matches and assigns UUIDs between old and new line data
    */
   const matchAndAssignLines = useCallback((
-    newLines: string[],
-    existingLineData: LineData[],
-    contentToUuidMapRef: React.MutableRefObject<Map<string, string>>
+    oldLineData: LineData[],
+    newContents: any[],
+    quill: any
   ): LineData[] => {
-    console.log('🔍 useLineMatching: matchAndAssignLines called');
+    console.log('🔄 useLineMatching: matchAndAssignLines called');
     
-    // For Delta-based system, we don't need this complex matching logic
-    // Just return existing line data as is
-    return existingLineData;
+    // In the simplified Delta approach, we mostly preserve the UUID
+    // and just update the content
+    if (oldLineData.length > 0 && newContents.length > 0) {
+      return [{
+        uuid: oldLineData[0].uuid,
+        lineNumber: 1,
+        content: newContents[0],
+        originalAuthor: oldLineData[0].originalAuthor || userId,
+        editedBy: (userId && oldLineData[0].editedBy && !oldLineData[0].editedBy.includes(userId))
+          ? [...oldLineData[0].editedBy, userId]
+          : oldLineData[0].editedBy || [],
+        hasDraft: true
+      }];
+    }
+    
+    // Fallback if there's no previous data
+    return newContents.map((content, index) => ({
+      uuid: crypto.randomUUID(),
+      lineNumber: index + 1,
+      content,
+      originalAuthor: userId,
+      editedBy: [],
+      hasDraft: true
+    }));
   }, [userId]);
-
+  
   return { matchAndAssignLines };
 };
