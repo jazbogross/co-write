@@ -1,127 +1,106 @@
 
-import { useRef, useCallback, useMemo } from 'react';
-import { LineData } from '@/hooks/useLineData';
-import { useEditorState } from './editor/useEditorState';
-import { useEditorIntegration } from './editor/useEditorIntegration';
-import { useContentFlushing } from './editor/useContentFlushing';
-import { useEditorInitialization } from './useEditorInitialization';
-import { useContentInitialization } from './useContentInitialization';
-import { useContentUpdates } from './useContentUpdates';
-import { useDraftManagement } from './useDraftManagement';
-import { isDeltaObject } from '@/utils/editor';
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { LineData } from '@/types/lineTypes';
+import { toast } from 'sonner';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 import { DeltaContent } from '@/utils/editor/types';
 
 export const useTextEditor = (
-  originalContent: string, 
   scriptId: string,
-  lineData: LineData[],
-  setLineData: React.Dispatch<React.SetStateAction<LineData[]>>,
-  isDataReady: boolean,
-  initializeEditor: (editor: any) => boolean,
-  updateLineContents: (lines: any[], editor: any) => void
+  isAdmin: boolean
 ) => {
-  // Track if editor has been fully initialized to prevent re-initialization
-  const fullyInitializedRef = useRef(false);
+  const [content, setContent] = useState<DeltaContent>({ ops: [{ insert: '\n' }] });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const editorRef = useRef<any>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   
-  // Initialize editor state with original content to guarantee it's not empty
-  const editorState = useEditorState(originalContent);
-  const {
-    content,
-    setContent,
-    lineCount,
-    setLineCount,
-    editorInitialized,
-    setEditorInitialized,
-    isProcessingLinesRef,
-    hasInitializedRef,
-    contentResetRef
-  } = editorState;
-  
-  // Set up content flushing - memoize to prevent recreation
-  const editorIntegration = useEditorIntegration({
-    editorInitialized,
-    content,
-    setContent,
-    flushContentToLineData: () => contentFlushing.flushContentToLineData()
-  });
-  const { quillRef, formats, modules } = editorIntegration;
-  
-  // Initialize content flushing - memoize to prevent recreation
-  const contentFlushing = useContentFlushing(quillRef, updateLineContents);
-  const { flushContentToLineData, captureEditorContent } = contentFlushing;
-  
-  // Initialize editor - memoize to prevent recreation
-  const editorInitResult = useEditorInitialization(
-    quillRef,
-    lineData,
-    isDataReady,
-    useCallback((editor) => {
-      // Only initialize once
-      if (hasInitializedRef.current) {
-        return true;
-      }
-      
-      const result = initializeEditor(editor);
-      setEditorInitialized(result);
-      
-      if (result) {
-        fullyInitializedRef.current = true;
-      }
-      
-      return result;
-    }, [initializeEditor, setEditorInitialized, hasInitializedRef])
-  );
-  
-  // Set up content update handlers - memoize to prevent recreation
-  const contentUpdates = useContentUpdates(
-    content,
-    setContent,
-    lineCount,
-    setLineCount,
-    editorInitialized,
-    isProcessingLinesRef,
-    quillRef
-  );
-  const { 
-    contentUpdateRef, 
-    handleChange, 
-    updateEditorContent,
-    captureCurrentContent 
-  } = contentUpdates;
-  
-  // Placeholder for userId (will be connected in TextEditor)
-  const userId = null;
-  const loadDraftsForCurrentUser = useCallback(() => {
-    console.log('🪝 useTextEditor: loadDraftsForCurrentUser placeholder called');
+  // Get user ID on mount
+  useEffect(() => {
+    const getUserId = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserId(user?.id || null);
+    };
+    
+    getUserId();
   }, []);
   
-  // Manage drafts - memoize to prevent recreation
-  const draftManagement = useDraftManagement(
-    editorInitialized,
-    userId,
-    isDataReady,
-    lineData,
-    typeof content === 'string' ? content : '',
-    quillRef,
-    updateEditorContent,
-    loadDraftsForCurrentUser
-  );
-  const { draftLoadAttempted, draftApplied } = draftManagement;
-
+  // Load content from database
+  useEffect(() => {
+    const loadContent = async () => {
+      if (!scriptId) {
+        setError(new Error('No script ID provided'));
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        setIsLoading(true);
+        
+        // Check for draft first if user is logged in
+        if (userId) {
+          const { data: draft } = await supabase
+            .from('script_drafts')
+            .select('draft_content')
+            .eq('script_id', scriptId)
+            .eq('user_id', userId)
+            .maybeSingle();
+          
+          if (draft?.draft_content) {
+            setContent(draft.draft_content as unknown as DeltaContent);
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        // If no draft or no user, load main content
+        const { data, error } = await supabase
+          .from('script_content')
+          .select('content_delta')
+          .eq('script_id', scriptId)
+          .single();
+        
+        if (error) {
+          if (error.code === 'PGRST116') {
+            // Content not found, create empty content
+            const emptyDelta = { ops: [{ insert: '\n' }] };
+            setContent(emptyDelta);
+            
+            // For admins, save the empty content
+            if (isAdmin) {
+              await supabase
+                .from('script_content')
+                .insert({
+                  script_id: scriptId,
+                  content_delta: emptyDelta,
+                  version: 1
+                });
+            }
+          } else {
+            throw error;
+          }
+        } else {
+          setContent(data.content_delta as unknown as DeltaContent);
+        }
+      } catch (error) {
+        console.error('Error loading content:', error);
+        setError(error as Error);
+        toast.error('Failed to load content');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadContent();
+  }, [scriptId, userId, isAdmin]);
+  
   return {
-    quillRef,
     content,
     setContent,
-    lineCount,
-    editorInitialized,
-    handleChange,
-    updateEditorContent,
-    flushContentToLineData,
-    captureCurrentContent,
-    captureEditorContent,  // Expose the new function
-    formats,
-    modules,
-    draftLoadAttempted,
-    draftApplied
+    isLoading,
+    error,
+    editorRef,
+    userId
   };
 };

@@ -1,6 +1,6 @@
 
 import { DeltaContent } from '@/utils/editor/types';
-import { isDeltaObject, safelyParseDelta } from '@/utils/editor';
+import { isDeltaObject } from '@/utils/editor';
 
 /**
  * Parse draft content from various formats

@@ -1,136 +1,147 @@
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Repository } from "@/types/repository";
-import { supabase } from "@/integrations/supabase/client";
-import { RepositoryListItem } from "./RepositoryListItem";
-import { RepositoryPermissionsDialog } from "./RepositoryPermissionsDialog";
-import { toast } from "sonner";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { Plus, MoreVertical, Users, Trash, RefreshCw } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { CreateRepositoryButton } from './CreateRepositoryButton';
+import { RepositoryListItem } from './RepositoryListItem';
+import { RepositoryPermissionsDialog } from './RepositoryPermissionsDialog';
+import { Repository } from './types';
+import { toast } from 'sonner';
 
-export const RepositoryManagementCard = () => {
+interface RepositoryManagementCardProps {
+  userId: string;
+}
+
+export const RepositoryManagementCard: React.FC<RepositoryManagementCardProps> = ({ userId }) => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
-  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
-  const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+  const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
+  
   useEffect(() => {
-    fetchRepos();
-  }, []);
-
-  const fetchRepos = async () => {
+    fetchRepositories();
+  }, [userId]);
+  
+  const fetchRepositories = async () => {
     setIsLoading(true);
     try {
-      // Fetch user scripts instead of github_repositories
       const { data, error } = await supabase
-        .from("scripts")
-        .select("id, title, created_at, admin_id, github_repo, github_owner, is_private")
-        .order("created_at", { ascending: false });
-
+        .from('scripts')
+        .select('*')
+        .eq('admin_id', userId);
+      
       if (error) throw error;
-
-      // Transform to Repository type
-      const repos = data.map((repo): Repository => ({
+      
+      const repos: Repository[] = data.map(repo => ({
         id: repo.id,
         name: repo.title,
-        owner: repo.github_owner || "local",
-        is_private: !!repo.is_private,
+        owner: userId,
+        is_private: repo.is_private || false,
         created_at: repo.created_at
       }));
-
+      
       setRepositories(repos);
     } catch (error) {
-      console.error("Error fetching repositories:", error);
-      toast.error("Failed to load repositories");
+      console.error('Error fetching repositories:', error);
+      toast.error('Failed to load repositories');
     } finally {
       setIsLoading(false);
     }
   };
-
-  const handleTogglePrivacy = async (repo: Repository) => {
-    try {
-      setIsLoading(true);
-      const { error } = await supabase
-        .from("scripts")
-        .update({ is_private: !repo.is_private })
-        .eq("id", repo.id);
-
-      if (error) throw error;
-
-      // Update local state
-      setRepositories(prev => 
-        prev.map(r => r.id === repo.id ? { ...r, is_private: !r.is_private } : r)
-      );
-      
-      toast.success(`Repository is now ${!repo.is_private ? 'private' : 'public'}`);
-    } catch (error) {
-      console.error("Error toggling privacy:", error);
-      toast.error("Failed to update repository privacy");
-    } finally {
-      setIsLoading(false);
+  
+  const handleDeleteRepository = async (repositoryId: string) => {
+    if (!confirm('Are you sure you want to delete this repository? This action cannot be undone.')) {
+      return;
     }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this repository?")) return;
     
     try {
-      setIsLoading(true);
       const { error } = await supabase
-        .from("scripts")
+        .from('scripts')
         .delete()
-        .eq("id", id);
-
+        .eq('id', repositoryId);
+      
       if (error) throw error;
-
-      // Update local state
-      setRepositories(prev => prev.filter(r => r.id !== id));
-      toast.success("Repository deleted successfully");
+      
+      toast.success('Repository deleted successfully');
+      fetchRepositories();
     } catch (error) {
-      console.error("Error deleting repository:", error);
-      toast.error("Failed to delete repository");
-    } finally {
-      setIsLoading(false);
+      console.error('Error deleting repository:', error);
+      toast.error('Failed to delete repository');
     }
   };
-
-  const handleOpenPermissions = (repo: Repository) => {
-    setSelectedRepo(repo);
-    setPermissionsOpen(true);
+  
+  const openPermissionsDialog = (repository: Repository) => {
+    setSelectedRepo(repository);
+    setIsPermissionsDialogOpen(true);
   };
-
+  
   return (
-    <Card className="col-span-3">
-      <CardHeader>
+    <Card className="mb-6">
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Your Repositories</CardTitle>
+        <div className="flex space-x-2">
+          <Button size="sm" variant="outline" onClick={fetchRepositories}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Refresh
+          </Button>
+          <CreateRepositoryButton userId={userId} onSuccess={fetchRepositories} />
+        </div>
       </CardHeader>
       <CardContent>
-        {isLoading && repositories.length === 0 ? (
-          <p>Loading repositories...</p>
+        {isLoading ? (
+          <div className="text-center py-4 text-muted-foreground">Loading repositories...</div>
         ) : repositories.length === 0 ? (
-          <p>No repositories found. Create a script to get started.</p>
+          <div className="text-center py-4 text-muted-foreground">
+            <p>You don't have any repositories yet.</p>
+            <p className="mt-2">Create one to get started!</p>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {repositories.map((repo) => (
-              <RepositoryListItem
-                key={repo.id}
-                repository={repo}
-                onTogglePrivacy={handleTogglePrivacy}
-                onDelete={handleDelete}
-                onOpenPermissions={handleOpenPermissions}
-                loading={isLoading}
-              />
+          <div className="space-y-2">
+            {repositories.map(repo => (
+              <div key={repo.id} className="flex items-center justify-between">
+                <RepositoryListItem repository={repo} />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => openPermissionsDialog(repo)}>
+                      <Users className="h-4 w-4 mr-2" />
+                      Manage Access
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="text-destructive"
+                      onClick={() => handleDeleteRepository(repo.id)}
+                    >
+                      <Trash className="h-4 w-4 mr-2" />
+                      Delete Repository
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ))}
           </div>
         )}
-
-        {selectedRepo && (
-          <RepositoryPermissionsDialog
-            repository={selectedRepo}
-            open={permissionsOpen}
-            onOpenChange={setPermissionsOpen}
-          />
-        )}
       </CardContent>
+      
+      {selectedRepo && (
+        <RepositoryPermissionsDialog
+          repositoryId={selectedRepo.id}
+          repository={selectedRepo}
+          open={isPermissionsDialogOpen}
+          onOpenChange={setIsPermissionsDialogOpen}
+        />
+      )}
     </Card>
   );
 };

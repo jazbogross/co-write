@@ -2,23 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SuggestionGroupItem } from './SuggestionGroupItem';
-import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
-
-interface GroupedSuggestion {
-  id: string;
-  content: any;
-  status: string;
-  user: {
-    username: string;
-  };
-}
-
-interface UserGroup {
-  userId: string;
-  username: string;
-  count: number;
-  suggestions: GroupedSuggestion[];
-}
+import { UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 
 interface SuggestionGroupProps {
   group: UserGroup;

@@ -45,9 +45,8 @@ export const saveSuggestions = async (
       };
     }
     
-    // Compare original and suggested content to generate diff
-    // Using QuillJS Delta, we can generate a diff
-    // For now, just store the entire suggested Delta
+    // Convert to JSON for Supabase
+    const jsonContent = JSON.parse(JSON.stringify(suggestedContent));
     
     // Save to script_suggestions table
     const { error } = await supabase
@@ -55,7 +54,7 @@ export const saveSuggestions = async (
       .insert({
         script_id: scriptId,
         user_id: userId,
-        delta_diff: suggestedContent,
+        delta_diff: jsonContent,
         status: 'pending',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

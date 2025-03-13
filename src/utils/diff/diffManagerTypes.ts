@@ -4,13 +4,38 @@
  */
 import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
-import { DiffChangeType, DiffSegment, LineDiff } from './contentDiff';
 
 /**
  * Map of line UUIDs to their diffs
  */
 export interface LineDiffMap {
   [lineUuid: string]: LineDiff;
+}
+
+/**
+ * Represents a diff between original and suggestion content
+ */
+export interface LineDiff {
+  segments: DiffSegment[];
+  changeType: DiffChangeType;
+}
+
+/**
+ * Different types of changes that can occur
+ */
+export enum DiffChangeType {
+  ADDED = 'added',
+  DELETED = 'deleted',
+  MODIFIED = 'modified',
+  UNCHANGED = 'unchanged'
+}
+
+/**
+ * A segment of text with change information
+ */
+export interface DiffSegment {
+  text: string;
+  type: DiffChangeType;
 }
 
 /**
@@ -35,4 +60,5 @@ export interface DiffSummary {
   changedLines: ChangedLine[];
 }
 
-export { DiffChangeType, DiffSegment, LineDiff };
+// Re-export types as types (for isolatedModules)
+export type { DiffChangeType, DiffSegment, LineDiff };

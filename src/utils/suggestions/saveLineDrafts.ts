@@ -36,13 +36,16 @@ export const saveLineDrafts = async (
       };
     }
     
+    // Convert to JSON for Supabase
+    const jsonContent = JSON.parse(JSON.stringify(draftContent));
+    
     // Save to script_drafts table
     const { error } = await supabase
       .from('script_drafts')
       .upsert({
         script_id: scriptId,
         user_id: userId,
-        draft_content: draftContent,
+        draft_content: jsonContent,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'script_id,user_id'

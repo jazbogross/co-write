@@ -3,15 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronRight } from 'lucide-react';
 import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
-
-interface GroupedSuggestion {
-  id: string;
-  content: any;
-  status: string;
-  user: {
-    username: string;
-  };
-}
+import { GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 
 interface SuggestionGroupItemProps {
   suggestion: GroupedSuggestion;

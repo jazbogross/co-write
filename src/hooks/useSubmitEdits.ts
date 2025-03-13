@@ -20,12 +20,15 @@ const saveLinesToDatabase = async (
       ? { ops: [{ insert: content }] }
       : content;
     
+    // Convert to JSON for Supabase
+    const jsonContent = JSON.parse(JSON.stringify(contentToSave));
+    
     // Update script_content
     const { error } = await supabase
       .from('script_content')
       .upsert({
         script_id: scriptId,
-        content_delta: contentToSave,
+        content_delta: jsonContent,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'script_id'
@@ -61,13 +64,16 @@ const saveDraft = async (
       return false;
     }
     
+    // Convert to JSON for Supabase
+    const jsonContent = JSON.parse(JSON.stringify(currentContent));
+    
     // Save to script_drafts table
     const { error } = await supabase
       .from('script_drafts')
       .upsert({
         script_id: scriptId,
         user_id: userId,
-        draft_content: currentContent,
+        draft_content: jsonContent,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'script_id,user_id'
@@ -106,7 +112,7 @@ export const useSubmitEdits = (
       return captureContentFromDOM(quill);
     }
     
-    // Fallback to using the provided content and lineData
+    // Fallback to using the provided content
     console.log('📋 useSubmitEdits: Using provided content for save');
     return content;
   }, [quill, content]);
@@ -158,13 +164,16 @@ export const useSubmitEdits = (
       
       // Capture the most up-to-date content
       const contentToSave = currentContent || captureCurrentContent() || content;
+      const contentForDb = typeof contentToSave === 'string'
+        ? { ops: [{ insert: contentToSave }] }
+        : contentToSave;
       
       if (isAdmin) {
         // Save to database first
-        await saveLinesToDatabase(scriptId, lineData, contentToSave);
+        await saveLinesToDatabase(scriptId, lineData, contentForDb);
         
         // Then notify parent component for GitHub commit if needed
-        onSuggestChange(contentToSave);
+        onSuggestChange(contentForDb);
         toast.success('Changes saved successfully!');
       } else {
         if (!userId) {
