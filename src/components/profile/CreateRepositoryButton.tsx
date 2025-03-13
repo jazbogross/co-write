@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FolderPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface CreateRepositoryButtonProps {
   onRepositoryCreated: (repository: any) => void;
@@ -11,22 +11,20 @@ interface CreateRepositoryButtonProps {
 
 export function CreateRepositoryButton({ onRepositoryCreated }: CreateRepositoryButtonProps) {
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
 
   const handleCreateRepository = async () => {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        toast.error("You must be logged in to create a repository");
+        return;
+      }
 
       // Get the GitHub App installation ID
       const installationId = localStorage.getItem('github_app_installation_id');
       if (!installationId) {
-        toast({
-          title: "Error",
-          description: "Please install the GitHub App first",
-          variant: "destructive",
-        });
+        toast.error("Please install the GitHub App first");
         return;
       }
 
@@ -45,18 +43,11 @@ export function CreateRepositoryButton({ onRepositoryCreated }: CreateRepository
 
       if (data) {
         onRepositoryCreated(data);
-        toast({
-          title: "Success",
-          description: "Repository created successfully",
-        });
+        toast.success("Repository created successfully");
       }
     } catch (error) {
       console.error('Error creating repository:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create repository",
-        variant: "destructive",
-      });
+      toast.error("Failed to create repository");
     } finally {
       setLoading(false);
     }

@@ -3,11 +3,11 @@
  * DiffManager.ts - Manages diffs between original content and suggestions
  */
 import { LineData } from '@/types/lineTypes';
-import { generateLineDiff, LineDiff } from './contentDiff';
-import { LineDiffMap, ChangedLine, DiffSummary } from './diffManagerTypes';
+import { LineDiffMap, ChangedLine, DiffSummary, DiffChangeType } from './diffManagerTypes';
 import { groupConsecutiveChanges } from './lineGrouping';
 import { detectFormattingChanges } from './changeDetection';
 import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import { generateLineDiff } from './contentDiff';
 
 export class DiffManager {
   /**
@@ -83,7 +83,7 @@ export class DiffManager {
     
     // Process each line diff
     Object.entries(diffMap).forEach(([lineUuid, diff]) => {
-      if (diff.changeType === 'unchanged') return;
+      if (diff.changeType === DiffChangeType.UNCHANGED) return;
 
       console.log(`🟠 Processing Changed Line: ${lineUuid}`, {
           changeType: diff.changeType,
@@ -99,13 +99,13 @@ export class DiffManager {
       
       // Count by change type
       switch (diff.changeType) {
-        case 'addition':
+        case DiffChangeType.ADDED:
           additions++;
           break;
-        case 'deletion':
+        case DiffChangeType.DELETED:
           deletions++;
           break;
-        case 'modification':
+        case DiffChangeType.MODIFIED:
           modifications++;
           break;
       }
@@ -135,5 +135,4 @@ export class DiffManager {
   // Re-export utility functions for convenience
   static groupConsecutiveChanges = groupConsecutiveChanges;
   static detectFormattingChanges = detectFormattingChanges;
-
 }

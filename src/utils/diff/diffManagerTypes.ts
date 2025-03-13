@@ -60,5 +60,5 @@ export interface DiffSummary {
   changedLines: ChangedLine[];
 }
 
-// Re-export types as types (for isolatedModules)
-export type { DiffChangeType, DiffSegment, LineDiff };
+// Export the enum and interfaces as values, not just types
+export { DiffChangeType };

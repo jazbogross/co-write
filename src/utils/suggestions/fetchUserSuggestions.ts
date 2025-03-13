@@ -2,21 +2,26 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Fetch user suggestions from the database
+ * Fetch suggestions made by a specific user for a script
  */
-export const fetchUserSuggestions = async (
-  scriptId: string,
-  userId: string,
-  signal?: AbortSignal
-): Promise<any[]> => {
+export const fetchUserSuggestions = async (scriptId: string, userId: string) => {
   try {
-    // Query for all drafts for this user on this script
+    console.log('🔍 Fetching suggestions for user:', userId);
+    
     const { data, error } = await supabase
       .from('script_suggestions')
-      .select('*')
+      .select(`
+        id,
+        delta_diff,
+        status,
+        rejection_reason,
+        created_at,
+        updated_at,
+        profiles (username)
+      `)
       .eq('script_id', scriptId)
       .eq('user_id', userId)
-      .eq('status', 'draft');
+      .order('created_at', { ascending: false });
     
     if (error) {
       console.error('Error fetching user suggestions:', error);

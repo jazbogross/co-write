@@ -82,6 +82,23 @@ export const RepositoryManagementCard: React.FC<RepositoryManagementCardProps> =
     setSelectedRepo(repository);
     setIsPermissionsDialogOpen(true);
   };
+
+  const handleTogglePrivacy = async (repository: Repository) => {
+    try {
+      const { error } = await supabase
+        .from('scripts')
+        .update({ is_private: !repository.is_private })
+        .eq('id', repository.id);
+      
+      if (error) throw error;
+      
+      toast.success(`Repository is now ${!repository.is_private ? 'private' : 'public'}`);
+      fetchRepositories();
+    } catch (error) {
+      console.error('Error toggling repository privacy:', error);
+      toast.error('Failed to update repository privacy');
+    }
+  };
   
   return (
     <Card className="mb-6">
@@ -92,7 +109,7 @@ export const RepositoryManagementCard: React.FC<RepositoryManagementCardProps> =
             <RefreshCw className="h-4 w-4 mr-1" />
             Refresh
           </Button>
-          <CreateRepositoryButton userId={userId} onSuccess={fetchRepositories} />
+          <CreateRepositoryButton onRepositoryCreated={fetchRepositories} />
         </div>
       </CardHeader>
       <CardContent>
@@ -107,7 +124,13 @@ export const RepositoryManagementCard: React.FC<RepositoryManagementCardProps> =
           <div className="space-y-2">
             {repositories.map(repo => (
               <div key={repo.id} className="flex items-center justify-between">
-                <RepositoryListItem repository={repo} />
+                <RepositoryListItem 
+                  repository={repo}
+                  onTogglePrivacy={handleTogglePrivacy}
+                  onDelete={handleDeleteRepository}
+                  onOpenPermissions={openPermissionsDialog}
+                  loading={isLoading}
+                />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm">
@@ -137,7 +160,6 @@ export const RepositoryManagementCard: React.FC<RepositoryManagementCardProps> =
       {selectedRepo && (
         <RepositoryPermissionsDialog
           repositoryId={selectedRepo.id}
-          repository={selectedRepo}
           open={isPermissionsDialogOpen}
           onOpenChange={setIsPermissionsDialogOpen}
         />

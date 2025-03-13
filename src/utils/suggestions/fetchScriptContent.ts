@@ -28,8 +28,10 @@ export const fetchScriptContent = async (
     }
     
     // Transform to LineData format for compatibility
-    const content = data.content_delta && typeof data.content_delta === 'object' 
-      ? data.content_delta as unknown as DeltaContent
+    const content = data.content_delta 
+      ? (typeof data.content_delta === 'object' 
+          ? data.content_delta as DeltaContent
+          : JSON.parse(data.content_delta as string) as DeltaContent)
       : { ops: [{ insert: '\n' }] };
     
     // Create a single LineData entry with the full Delta

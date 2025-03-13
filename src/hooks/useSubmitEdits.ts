@@ -5,7 +5,7 @@ import { captureContentFromDOM, extractQuillContent } from '@/utils/saveDraftUti
 import { supabase } from '@/integrations/supabase/client';
 import { saveSuggestions } from '@/utils/suggestions';
 import { toast } from 'sonner';
-import { DeltaContent } from '@/utils/editor/types';
+import { DeltaContent, DeltaStatic } from '@/utils/editor/types';
 
 // Utility function to save lines to database
 const saveLinesToDatabase = async (
@@ -21,14 +21,14 @@ const saveLinesToDatabase = async (
       : content;
     
     // Convert to JSON for Supabase
-    const jsonContent = JSON.parse(JSON.stringify(contentToSave));
+    const jsonContent = JSON.stringify(contentToSave);
     
     // Update script_content
     const { error } = await supabase
       .from('script_content')
       .upsert({
         script_id: scriptId,
-        content_delta: jsonContent,
+        content_delta: JSON.parse(jsonContent),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'script_id'
@@ -65,7 +65,7 @@ const saveDraft = async (
     }
     
     // Convert to JSON for Supabase
-    const jsonContent = JSON.parse(JSON.stringify(currentContent));
+    const jsonContent = JSON.stringify(currentContent);
     
     // Save to script_drafts table
     const { error } = await supabase
@@ -73,7 +73,7 @@ const saveDraft = async (
       .upsert({
         script_id: scriptId,
         user_id: userId,
-        draft_content: jsonContent,
+        draft_content: JSON.parse(jsonContent),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'script_id,user_id'
@@ -164,9 +164,25 @@ export const useSubmitEdits = (
       
       // Capture the most up-to-date content
       const contentToSave = currentContent || captureCurrentContent() || content;
-      const contentForDb = typeof contentToSave === 'string'
-        ? { ops: [{ insert: contentToSave }] }
-        : contentToSave;
+      
+      // Ensure we have a valid DeltaContent
+      const ensureDeltaContent = (content: any): DeltaContent => {
+        if (typeof content === 'string') {
+          return { ops: [{ insert: content }] };
+        }
+        
+        // Handle DeltaStatic objects (which may not have required ops)
+        if (content && typeof content === 'object') {
+          if ('ops' in content) {
+            return { ops: content.ops || [] };
+          }
+        }
+        
+        // Fallback to empty Delta
+        return { ops: [{ insert: '\n' }] };
+      };
+      
+      const contentForDb = ensureDeltaContent(contentToSave);
       
       if (isAdmin) {
         // Save to database first

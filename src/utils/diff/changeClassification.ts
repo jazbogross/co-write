@@ -1,8 +1,8 @@
+
 /**
  * changeClassification.ts - Utilities for classifying changes
  */
-import { DiffSegment, DiffChangeType } from './contentDiff';
-import { ChangedLine } from './diffManagerTypes';
+import { DiffChangeType, ChangedLine } from './diffManagerTypes';
 
 export interface ChangeClassification {
   isAddition: boolean;
@@ -17,11 +17,11 @@ export interface ChangeClassification {
  */
 const generateChangeDescription = (changeType: DiffChangeType, segmentCount: number): string => {
   switch (changeType) {
-    case 'addition':
+    case DiffChangeType.ADDED:
       return 'Added new line';
-    case 'deletion':
+    case DiffChangeType.DELETED:
       return 'Deleted line';
-    case 'modification':
+    case DiffChangeType.MODIFIED:
       if (segmentCount <= 2) return 'Minor text change';
       return 'Modified text';
     default:
@@ -36,9 +36,9 @@ export const classifyChange = (changedLine: ChangedLine): ChangeClassification =
   const { diff } = changedLine;
   
   // Determine if this is an addition, deletion, or modification
-  const isAddition = diff.changeType === 'addition';
-  const isDeletion = diff.changeType === 'deletion';
-  const isModification = diff.changeType === 'modification';
+  const isAddition = diff.changeType === DiffChangeType.ADDED;
+  const isDeletion = diff.changeType === DiffChangeType.DELETED;
+  const isModification = diff.changeType === DiffChangeType.MODIFIED;
   
   // Check if any segments have formatting changes
   const hasFormatChanges = false; // This would require more complex Delta comparison

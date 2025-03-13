@@ -18,12 +18,15 @@ export const saveLinesToDatabase = async (
       ? { ops: [{ insert: content }] }
       : content;
     
+    // Convert to JSON for Supabase
+    const jsonContent = JSON.stringify(contentToSave);
+    
     // Update script_content
     const { error } = await supabase
       .from('script_content')
       .upsert({
         script_id: scriptId,
-        content_delta: JSON.parse(JSON.stringify(contentToSave)),
+        content_delta: JSON.parse(jsonContent),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'script_id'
@@ -41,7 +44,7 @@ export const saveLinesToDatabase = async (
   }
 };
 
-// Add missing exports for DeltaEditor.tsx
+// Add exports for DeltaEditor.tsx
 export const saveContent = async (
   scriptId: string,
   delta: any,
@@ -50,7 +53,7 @@ export const saveContent = async (
 ): Promise<boolean> => {
   try {
     // Convert the Delta to a JSON object for storage
-    const contentJson = JSON.parse(JSON.stringify(delta));
+    const contentJson = JSON.stringify(delta);
     
     if (isAdmin) {
       // For admins: Update the main content
@@ -58,7 +61,7 @@ export const saveContent = async (
         .from('script_content')
         .upsert({
           script_id: scriptId,
-          content_delta: contentJson,
+          content_delta: JSON.parse(contentJson),
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'script_id'
@@ -76,7 +79,7 @@ export const saveContent = async (
         .upsert({
           script_id: scriptId,
           user_id: userId,
-          draft_content: contentJson,
+          draft_content: JSON.parse(contentJson),
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'script_id,user_id'
