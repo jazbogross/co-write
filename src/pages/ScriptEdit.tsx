@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DeltaStatic } from "quill";
+import Delta from "quill-delta";
 
 const ScriptEdit = () => {
   const { id } = useParams();
@@ -121,8 +122,12 @@ const ScriptEdit = () => {
           toast.error("Failed to save changes");
         }
       } else {
-        // If not admin, create a suggestion
-        const suggestionId = await createSuggestion(id, { ops: [{ insert: '\n' }] }, delta);
+        // For non-admin users, we need to create a suggestion by comparing with the original
+        // Use an empty Delta with just a newline as a default original state if needed
+        const emptyDelta: DeltaStatic = new Delta([{ insert: '\n' }]);
+        
+        // Create a suggestion
+        const suggestionId = await createSuggestion(id, emptyDelta, delta);
         
         if (suggestionId) {
           toast.success("Your changes have been submitted for review");

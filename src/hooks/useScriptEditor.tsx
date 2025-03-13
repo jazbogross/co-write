@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { DeltaStatic } from 'quill';
 import ReactQuill from 'react-quill';
+import Delta from 'quill-delta';
 import { 
   fetchScriptContent, 
   saveScriptContent, 
@@ -61,7 +62,8 @@ export const useScriptEditor = ({
           console.log('Loaded original content');
         } else if (!hasDraft) {
           // Set empty content if we have neither original nor draft
-          setContent({ ops: [{ insert: '\n' }] });
+          // Create a proper Delta object with insert operation for empty content
+          setContent(new Delta([{ insert: '\n' }]));
         }
       } catch (error) {
         console.error('Error loading content:', error);
@@ -81,7 +83,7 @@ export const useScriptEditor = ({
         window.clearTimeout(draftTimerRef.current);
       }
     };
-  }, [scriptId, isAdmin]);
+  }, [scriptId, isAdmin, hasDraft]);
   
   // Save content (for admins) or create draft (for non-admins)
   const saveContent = useCallback(async () => {
@@ -144,7 +146,7 @@ export const useScriptEditor = ({
         window.clearTimeout(draftTimerRef.current);
       }
     };
-  }, [content, scriptId, isAdmin]);
+  }, [content, scriptId, isAdmin, saveDraft]);
   
   // Handle content change
   const handleChange = useCallback((newContent: DeltaStatic) => {

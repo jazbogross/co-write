@@ -77,7 +77,11 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
         <ReactQuill
           ref={quillRef}
           value={content || undefined}
-          onChange={handleChange}
+          onChange={(value, delta, source, editor) => {
+            // Extract the Delta content from the editor directly
+            const deltaContent = editor.getContents();
+            handleChange(deltaContent);
+          }}
           modules={modules}
           formats={formats}
           theme="snow"

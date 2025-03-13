@@ -2,6 +2,40 @@
 import { supabase } from '@/integrations/supabase/client';
 import { ScriptContent, ScriptDraft, ScriptSuggestion, ScriptVersion } from '@/types/lineTypes';
 import { DeltaStatic } from 'quill';
+import Delta from 'quill-delta';
+
+// Helper to safely convert between JSON and Delta types
+const convertToDeltaStatic = (jsonData: any): DeltaStatic => {
+  if (!jsonData) {
+    return new Delta([{ insert: '\n' }]);
+  }
+  
+  if (typeof jsonData === 'string') {
+    try {
+      return new Delta(JSON.parse(jsonData).ops);
+    } catch (e) {
+      console.error('Error parsing Delta JSON:', e);
+      return new Delta([{ insert: jsonData + '\n' }]);
+    }
+  }
+  
+  if (typeof jsonData === 'object' && jsonData !== null) {
+    if ('ops' in jsonData) {
+      return new Delta(jsonData.ops);
+    }
+  }
+  
+  return new Delta([{ insert: '\n' }]);
+};
+
+// Helper to safely serialize Delta for storage
+const serializeDelta = (delta: DeltaStatic): any => {
+  if (!delta) {
+    return { ops: [{ insert: '\n' }] };
+  }
+  
+  return delta;
+};
 
 /**
  * Fetches the full script content as a Delta object
@@ -26,7 +60,7 @@ export const fetchScriptContent = async (scriptId: string): Promise<ScriptConten
     
     return {
       scriptId,
-      contentDelta: data.content_delta,
+      contentDelta: convertToDeltaStatic(data.content_delta),
       version: data.version
     };
   } catch (error) {
@@ -59,14 +93,17 @@ export const saveScriptContent = async (
     const currentVersion = existingData?.version || 0;
     const newVersion = currentVersion + 1;
     
+    // Serialize Delta for storage
+    const serializedDelta = serializeDelta(contentDelta);
+    
     // Create or update script content
     const { error: updateError } = await supabase
       .from('script_content')
       .upsert({
         script_id: scriptId,
-        content_delta: contentDelta,
+        content_delta: serializedDelta,
         version: newVersion,
-        updated_at: new Date()
+        updated_at: new Date().toISOString()
       });
       
     if (updateError) {
@@ -84,8 +121,9 @@ export const saveScriptContent = async (
         .insert({
           script_id: scriptId,
           version_number: newVersion,
-          content_delta: contentDelta,
-          created_by: userId
+          content_delta: serializedDelta,
+          created_by: userId,
+          created_at: new Date().toISOString()
         });
         
       if (versionError) {
@@ -118,13 +156,16 @@ export const saveDraft = async (
       return false;
     }
     
+    // Serialize Delta for storage
+    const serializedDelta = serializeDelta(draftContent);
+    
     const { error } = await supabase
       .from('script_drafts')
       .upsert({
         script_id: scriptId,
         user_id: userId,
-        draft_content: draftContent,
-        updated_at: new Date()
+        draft_content: serializedDelta,
+        updated_at: new Date().toISOString()
       });
       
     if (error) {
@@ -178,7 +219,7 @@ export const loadDraft = async (scriptId: string): Promise<ScriptDraft | null> =
       id: data.id,
       scriptId,
       userId,
-      draftContent: data.draft_content,
+      draftContent: convertToDeltaStatic(data.draft_content),
       updatedAt: new Date(data.updated_at)
     };
   } catch (error) {
@@ -204,17 +245,18 @@ export const createSuggestion = async (
       return null;
     }
     
-    // Calculate the difference delta
-    // Note: In a real implementation, you would use Delta.diff() from Quill
-    // For now, we just store the entire suggested delta
+    // Calculate the difference delta 
+    // For our current implementation we'll just store the full suggested delta
+    // In a full implementation you would use originalDelta.diff(suggestedDelta)
     const deltaDiff = suggestedDelta;
+    const serializedDiff = serializeDelta(deltaDiff);
     
     const { data, error } = await supabase
       .from('script_suggestions')
       .insert({
         script_id: scriptId,
         user_id: userId,
-        delta_diff: deltaDiff,
+        delta_diff: serializedDiff,
         status: 'pending'
       })
       .select('id');
@@ -256,7 +298,7 @@ export const fetchSuggestions = async (scriptId: string): Promise<ScriptSuggesti
       id: item.id,
       scriptId: item.script_id,
       userId: item.user_id,
-      deltaDiff: item.delta_diff,
+      deltaDiff: convertToDeltaStatic(item.delta_diff),
       status: item.status,
       rejectionReason: item.rejection_reason,
       createdAt: new Date(item.created_at),
@@ -302,9 +344,14 @@ export const approveSuggestion = async (suggestionId: string): Promise<boolean> 
       return false;
     }
     
-    // Apply the suggestion - in a real implementation we would use Delta.compose()
-    // from Quill to apply the diff. For now, we just replace with the suggestion.
-    const updatedDelta = suggestion.delta_diff;
+    // In a real implementation, we would use Delta.compose() to apply the diff
+    // For now, we'll just update with the suggestion's delta_diff
+    const currentDelta = convertToDeltaStatic(scriptContent.content_delta);
+    const suggestionDelta = convertToDeltaStatic(suggestion.delta_diff);
+    
+    // Apply the suggestion to the current content
+    // In a full implementation: const updatedDelta = currentDelta.compose(suggestionDelta);
+    const updatedDelta = suggestionDelta; // Simplified for now
     
     // Save the updated content
     const saveResult = await saveScriptContent(
@@ -321,7 +368,10 @@ export const approveSuggestion = async (suggestionId: string): Promise<boolean> 
     // Update suggestion status
     const { error: updateError } = await supabase
       .from('script_suggestions')
-      .update({ status: 'approved', updated_at: new Date() })
+      .update({ 
+        status: 'approved', 
+        updated_at: new Date().toISOString() 
+      })
       .eq('id', suggestionId);
       
     if (updateError) {
@@ -350,7 +400,7 @@ export const rejectSuggestion = async (
       .update({ 
         status: 'rejected',
         rejection_reason: reason || 'No reason provided',
-        updated_at: new Date()
+        updated_at: new Date().toISOString()
       })
       .eq('id', suggestionId);
       
@@ -391,7 +441,7 @@ export const fetchVersionHistory = async (scriptId: string): Promise<ScriptVersi
       id: item.id,
       scriptId: item.script_id,
       versionNumber: item.version_number,
-      contentDelta: item.content_delta,
+      contentDelta: convertToDeltaStatic(item.content_delta),
       createdBy: item.created_by,
       createdAt: new Date(item.created_at)
     }));
@@ -422,10 +472,13 @@ export const restoreVersion = async (
       return false;
     }
     
+    // Convert to Delta for consistency
+    const versionDelta = convertToDeltaStatic(version.content_delta);
+    
     // Save as the new current version
     const saveResult = await saveScriptContent(
       scriptId,
-      version.content_delta,
+      versionDelta,
       true // create a new version entry
     );
     
