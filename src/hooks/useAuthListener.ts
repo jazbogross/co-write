@@ -28,11 +28,22 @@ export const useAuthListener = (): UseAuthListenerResult => {
         
         if (!isMounted) return;
         
-        if (hasSession && sessionData.session?.user) {
-          updateStateFromSession(sessionData.session, updateState);
-          
-          // Load full profile data in the background
-          loadFullUserProfile(sessionData.session, isMounted, updateState);
+        if (hasSession && sessionData.session) {
+          // Make sure we safely access session and user
+          if (sessionData.session.user) {
+            updateStateFromSession(sessionData.session, updateState);
+            
+            // Load full profile data in the background
+            loadFullUserProfile(sessionData.session, isMounted, updateState);
+          } else {
+            // Session exists but user data is missing
+            console.error("🎧 AuthListener: Session exists but user data is missing");
+            updateState({
+              user: null,
+              isAuthenticated: false,
+              loading: false
+            });
+          }
         } else {
           // No session exists
           if (isMounted) {
@@ -60,7 +71,18 @@ export const useAuthListener = (): UseAuthListenerResult => {
 
     // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      await handleAuthStateChange(event, session, isMounted, updateState);
+      if (session) {
+        await handleAuthStateChange(event, session, isMounted, updateState);
+      } else {
+        // Handle case where session is null (e.g., sign out)
+        if (isMounted && event === 'SIGNED_OUT') {
+          updateState({
+            isAuthenticated: false,
+            user: null,
+            loading: false
+          });
+        }
+      }
     });
 
     return () => {

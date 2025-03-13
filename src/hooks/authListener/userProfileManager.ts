@@ -4,6 +4,10 @@ import { AuthUser } from '@/services/authService';
 import { SessionData } from './types';
 
 export const getBasicUserData = (session: SessionData): AuthUser => {
+  if (!session.user || !session.user.id) {
+    throw new Error("Invalid session data: missing user ID");
+  }
+  
   return {
     id: session.user.id,
     email: session.user.email,
@@ -44,10 +48,16 @@ export const createFullUserData = (
   profile: any, 
   provider: string
 ): AuthUser => {
+  // Ensure we have a valid user ID
+  if (!userId) {
+    console.error("🎧 AuthListener: Missing user ID when creating full user data");
+    throw new Error("Cannot create user data without ID");
+  }
+  
   return {
     id: userId,
-    email: email,
-    username: profile?.username,
-    provider: provider
+    email: email || null,
+    username: profile?.username || null,
+    provider: provider || 'email'
   };
 };
