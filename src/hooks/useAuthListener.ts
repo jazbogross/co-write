@@ -46,23 +46,23 @@ export const useAuthListener = (): UseAuthListenerResult => {
               email: data.user.email,
               username: profile?.username
             });
+            setLoading(false);
+            setAuthChecked(true); // Make sure this is set to true
           }
         } else {
           console.log("🎧 AuthListener: Initial check - No user found");
           if (isMounted) {
             setUser(null);
+            setLoading(false);
+            setAuthChecked(true); // Make sure this is set to true
           }
         }
       } catch (error) {
         console.error("🎧 AuthListener: Error checking current user:", error);
         if (isMounted) {
           setUser(null);
-        }
-      } finally {
-        if (isMounted) {
-          console.log("🎧 AuthListener: Initial check complete, setting loading=false");
           setLoading(false);
-          setAuthChecked(true);
+          setAuthChecked(true); // Make sure this is set to true
         }
       }
     };
@@ -100,14 +100,14 @@ export const useAuthListener = (): UseAuthListenerResult => {
             username: profile?.username
           });
           setLoading(false);
-          setAuthChecked(true);
+          setAuthChecked(true); // Always ensure this is true after an auth state change
         }
       } else if (event === 'SIGNED_OUT') {
         console.log("🎧 AuthListener: User signed out");
         if (isMounted) {
           setUser(null);
           setLoading(false);
-          setAuthChecked(true);
+          setAuthChecked(true); // Always ensure this is true after an auth state change
         }
       } else if (event === 'USER_UPDATED') {
         console.log("🎧 AuthListener: User updated:", session?.user?.id);
@@ -120,10 +120,12 @@ export const useAuthListener = (): UseAuthListenerResult => {
             email: session.user.email,
             username: profile?.username
           });
+          setAuthChecked(true); // Always ensure this is true after an auth state change
         }
       } else if (event === 'TOKEN_REFRESHED') {
         console.log("🎧 AuthListener: Token refreshed for user:", session?.user?.id);
         // No need to update user state here as the session is just refreshed
+        setAuthChecked(true); // Ensure this is true even for token refreshes
       }
     });
 

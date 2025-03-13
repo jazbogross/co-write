@@ -53,7 +53,8 @@ export default function Profile() {
       authChecked
     });
     
-    if (userId === null && authCheckedOnce && authChecked) {
+    // Fix: Changed condition to check for either authChecked OR authCheckedOnce
+    if (userId === null && (authCheckedOnce || authChecked)) {
       console.log("📋 PROFILE: User is null and auth has been checked, resetting hasFetched");
       setHasFetched(false);
       
@@ -67,8 +68,8 @@ export default function Profile() {
   }, [userId, authCheckedOnce, authChecked, navigate, authLoading, userLoading, redirecting]);
 
   useEffect(() => {
-    // Only fetch data if user exists and we haven't fetched data yet and we've checked auth at least once
-    if (!userLoading && !authLoading && userId && !hasFetched && authCheckedOnce && authChecked) {
+    // Fix: Changed condition to check for either authChecked OR authCheckedOnce
+    if (!userLoading && !authLoading && userId && !hasFetched && (authCheckedOnce || authChecked)) {
       const getProfile = async () => {
         console.log("📋 PROFILE: Fetching profile data for user:", userId);
         try {
@@ -182,7 +183,8 @@ export default function Profile() {
       };
 
       getProfile();
-    } else if (!userLoading && !authLoading && !userId && authCheckedOnce && authChecked && !redirecting) {
+    } else if (!userLoading && !authLoading && !userId && (authCheckedOnce || authChecked) && !redirecting) {
+      // Fix: Changed condition to check for either authChecked OR authCheckedOnce
       // Redirect to auth page if not authenticated and we've checked auth status
       console.log("📋 PROFILE: No authenticated user and auth checked, redirecting to auth page");
       setRedirecting(true);
@@ -203,7 +205,7 @@ export default function Profile() {
   };
 
   // Handle the case where authentication check is still in progress
-  if (userLoading || authLoading || !authChecked || !authCheckedOnce) {
+  if (userLoading || authLoading || (!authChecked && !authCheckedOnce)) {
     console.log("📋 PROFILE: Rendering loading state - auth state is loading or not checked yet");
     return <div className="container py-8 text-center">Checking authentication...</div>;
   }
