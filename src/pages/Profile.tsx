@@ -34,6 +34,13 @@ export default function Profile() {
     hasFetched
   });
 
+  // Reset hasFetched when user changes
+  useEffect(() => {
+    if (userId === null) {
+      setHasFetched(false);
+    }
+  }, [userId]);
+
   useEffect(() => {
     // Only fetch data if user exists and we haven't fetched data yet
     if (!userLoading && userId && !hasFetched) {
@@ -41,6 +48,7 @@ export default function Profile() {
         console.log("📋 PROFILE: Fetching profile data for user:", userId);
         try {
           setLoading(true);
+          setFetchError(null);
           
           // Get user data
           const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -52,6 +60,11 @@ export default function Profile() {
           }
           
           const user = userData.user;
+          if (!user) {
+            console.error("📋 PROFILE: No user data found");
+            setFetchError("No user data found");
+            throw new Error("No user data found");
+          }
           
           // Get user profile data
           const { data, error } = await supabase
@@ -128,6 +141,7 @@ export default function Profile() {
 
           setScripts(formattedScripts);
           setHasFetched(true); // Mark that we've fetched data
+          setFetchError(null);
           console.log("📋 PROFILE: Data fetching complete, hasFetched set to true");
         } catch (error) {
           console.error("📋 PROFILE: Error loading profile:", error);
@@ -161,6 +175,11 @@ export default function Profile() {
   if (userLoading) {
     console.log("📋 PROFILE: Rendering loading state - user data is loading");
     return <div className="container py-8 text-center">Loading authentication...</div>;
+  }
+
+  if (!userId) {
+    console.log("📋 PROFILE: No user ID, should redirect to auth");
+    return <div className="container py-8 text-center">Not authenticated. Redirecting...</div>;
   }
 
   if (loading) {
