@@ -14,7 +14,7 @@ import { useUserData } from "@/hooks/useUserData";
 export default function Profile() {
   console.log("📋 PROFILE: Component rendering");
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, user, loading: authLoading, authChecked } = useAuth();
   const { userId, isLoading: userLoading, authProvider, authCheckedOnce } = useUserData();
   
   const [profile, setProfile] = useState<{ email: string; username: string }>({
@@ -27,26 +27,28 @@ export default function Profile() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   console.log("📋 PROFILE: Current states -", {
+    authLoading,
     userLoading,
     userExists: !!userId,
     userId,
     loading,
     hasFetched,
     authProvider,
-    authCheckedOnce
+    authCheckedOnce,
+    authChecked
   });
 
   // Reset hasFetched when user changes
   useEffect(() => {
-    if (userId === null && authCheckedOnce) {
+    if (userId === null && authCheckedOnce && authChecked) {
       console.log("📋 PROFILE: User is null and auth has been checked, resetting hasFetched");
       setHasFetched(false);
     }
-  }, [userId, authCheckedOnce]);
+  }, [userId, authCheckedOnce, authChecked]);
 
   useEffect(() => {
     // Only fetch data if user exists and we haven't fetched data yet and we've checked auth at least once
-    if (!userLoading && userId && !hasFetched && authCheckedOnce) {
+    if (!userLoading && !authLoading && userId && !hasFetched && authCheckedOnce && authChecked) {
       const getProfile = async () => {
         console.log("📋 PROFILE: Fetching profile data for user:", userId);
         try {
@@ -99,6 +101,7 @@ export default function Profile() {
             
             // Create a profile if one doesn't exist
             try {
+              console.log("📋 PROFILE: Creating new profile for user", userId);
               const { error: insertError } = await supabase
                 .from('profiles')
                 .upsert({ 
@@ -156,12 +159,12 @@ export default function Profile() {
       };
 
       getProfile();
-    } else if (!userLoading && !userId && authCheckedOnce) {
+    } else if (!userLoading && !authLoading && !userId && authCheckedOnce && authChecked) {
       // Redirect to auth page if not authenticated and we've checked auth status
       console.log("📋 PROFILE: No authenticated user and auth checked, redirecting to auth page");
       navigate("/auth");
     }
-  }, [userId, userLoading, navigate, hasFetched, authCheckedOnce]);
+  }, [userId, userLoading, authLoading, navigate, hasFetched, authCheckedOnce, authChecked]);
 
   const handleSignOut = async () => {
     try {
@@ -175,7 +178,7 @@ export default function Profile() {
   };
 
   // Handle the case where authentication check is still in progress
-  if (userLoading || !authCheckedOnce) {
+  if (userLoading || authLoading || !authChecked || !authCheckedOnce) {
     console.log("📋 PROFILE: Rendering loading state - auth state is loading or not checked yet");
     return <div className="container py-8 text-center">Checking authentication...</div>;
   }

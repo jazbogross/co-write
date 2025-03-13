@@ -14,18 +14,21 @@ export type Database = {
           github_access_token: string | null
           github_app_installation_id: string | null
           id: string
+          updated_at: string | null
           username: string | null
         }
         Insert: {
           github_access_token?: string | null
           github_app_installation_id?: string | null
           id: string
+          updated_at?: string | null
           username?: string | null
         }
         Update: {
           github_access_token?: string | null
           github_app_installation_id?: string | null
           id?: string
+          updated_at?: string | null
           username?: string | null
         }
         Relationships: []
@@ -202,6 +205,7 @@ export type Database = {
       scripts: {
         Row: {
           admin_id: string
+          content: Json | null
           created_at: string | null
           github_owner: string | null
           github_repo: string | null
@@ -212,6 +216,7 @@ export type Database = {
         }
         Insert: {
           admin_id: string
+          content?: Json | null
           created_at?: string | null
           github_owner?: string | null
           github_repo?: string | null
@@ -222,6 +227,7 @@ export type Database = {
         }
         Update: {
           admin_id?: string
+          content?: Json | null
           created_at?: string | null
           github_owner?: string | null
           github_repo?: string | null
