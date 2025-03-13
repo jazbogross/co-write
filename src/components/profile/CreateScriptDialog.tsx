@@ -8,11 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { useUserData } from "@/hooks/useUserData";
 
 interface CreateScriptDialogProps {
   open: boolean;
@@ -31,25 +33,38 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   const [isPrivate, setIsPrivate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
+  const { authProvider } = useUserData();
 
   const verifyGitHubConnection = async () => {
+    console.log("CreateScriptDialog: Verifying GitHub connection...");
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('No authenticated user found');
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('github_access_token')
-      .eq('id', user.id)
-      .single();
+    console.log("CreateScriptDialog: Auth provider:", authProvider);
+    
+    // First check if user authenticated with GitHub
+    if (authProvider === 'github') {
+      console.log("CreateScriptDialog: User authenticated with GitHub");
+      
+      // Now check if we have the access token
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('github_access_token')
+        .eq('id', user.id)
+        .single();
 
-    const accessToken = profile?.github_access_token;
-    if (!accessToken) {
-      throw new Error('GitHub not connected. Please connect your GitHub account in the profile settings.');
+      console.log("CreateScriptDialog: GitHub access token:", profile?.github_access_token ? "Found" : "Not found");
+      
+      if (profile?.github_access_token) {
+        return profile.github_access_token;
+      }
+      
+      throw new Error('GitHub access token not found. Please reconnect your GitHub account in profile settings.');
     }
-
-    return accessToken;
+    
+    throw new Error('GitHub not connected. Please connect your GitHub account in the profile settings.');
   };
 
   const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
@@ -137,6 +152,9 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Script</DialogTitle>
+          <DialogDescription>
+            Enter a title for your new script and choose visibility settings.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>

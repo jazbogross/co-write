@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,48 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signIn, signUp, user } = useAuth();
+
+  // Handle OAuth redirect with code
+  useEffect(() => {
+    const handleRedirect = async () => {
+      const params = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = params.get('access_token');
+      const providerToken = params.get('provider_token');
+      
+      if (accessToken && providerToken) {
+        console.log("Auth: Detected OAuth redirect with tokens");
+        try {
+          // Get the user to find their ID
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            console.log("Auth: Storing GitHub access token for user:", user.id);
+            // Store the github_access_token in the profiles table
+            const { error } = await supabase
+              .from('profiles')
+              .update({ 
+                github_access_token: providerToken,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', user.id);
+              
+            if (error) {
+              console.error("Auth: Error storing GitHub token:", error);
+            } else {
+              console.log("Auth: GitHub token stored successfully");
+            }
+          }
+        } catch (error) {
+          console.error("Auth: Error handling OAuth redirect:", error);
+        }
+        
+        // Clean up URL by removing hash
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    };
+    
+    handleRedirect();
+  }, []);
 
   // If user is already logged in, redirect to profile
   if (user) {

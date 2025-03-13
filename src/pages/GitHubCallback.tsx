@@ -2,73 +2,39 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
 
 export default function GitHubCallback() {
-  const { toast: uiToast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
     const handleCallback = async () => {
       console.log('GitHubCallback: useEffect: handleCallback: start');
       const params = new URLSearchParams(window.location.search);
-      const installationId = params.get("installation_id");
+      const code = params.get("code");
       const state = params.get("state");
 
-      console.log('GitHubCallback: useEffect: handleCallback: params:', { installationId, state });
+      console.log('GitHubCallback: useEffect: handleCallback: params:', { code: code ? "Found" : "Not found", state });
 
-      if (installationId) {
-        console.log('GitHubCallback: useEffect: handleCallback: verifying GitHub installation...', installationId);
+      if (code) {
+        console.log('GitHubCallback: useEffect: handleCallback: Found GitHub code, processing...');
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) {
-            throw new Error("No authenticated user found");
-          }
-
-          // Verify the installation
-          const { data, error } = await supabase.functions.invoke('verify-github-installation', {
-            body: { installationId }
-          });
-
-          console.log('GitHubCallback: useEffect: handleCallback: supabase function response:', { data, error });
-
-          if (error || !data?.active) {
-            console.error('GitHubCallback: useEffect: handleCallback: installation verification error:', error);
-            throw new Error(error?.message || 'Installation verification failed');
-          }
-
-          // If verification is successful, store the installation ID in the database
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ 
-              github_app_installation_id: installationId,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', user.id);
-
-          if (updateError) {
-            throw new Error('Failed to update profile with installation ID');
-          }
-
-          console.log('GitHubCallback: useEffect: handleCallback: storing installation ID in database');
-          toast.success("GitHub App installed successfully");
+          // The access token will be processed in Auth.tsx in the redirect handler
+          toast.success("GitHub authorization successful");
           
-          // Small delay to ensure database update is processed
-          setTimeout(() => {
-            const redirectPath = state ? decodeURIComponent(state) : "/profile";
-            console.log('GitHubCallback: useEffect: handleCallback: redirecting to', redirectPath);
-            navigate(redirectPath);
-          }, 1500);
+          // Redirect to the original page or profile
+          const redirectPath = state ? decodeURIComponent(state) : "/profile";
+          console.log('GitHubCallback: useEffect: handleCallback: redirecting to', redirectPath);
+          navigate(redirectPath);
         } catch (error: any) {
-          console.error('GitHubCallback: useEffect: handleCallback: installation verification error:', error);
-          toast.error("Failed to verify GitHub App installation");
+          console.error('GitHubCallback: useEffect: handleCallback: error:', error);
+          toast.error("Failed to process GitHub authorization");
           setTimeout(() => navigate('/profile'), 2000);
         }
       } else {
         // Navigate back to the original page or profile
         const redirectPath = state ? decodeURIComponent(state) : "/profile";
-        console.log('GitHubCallback: useEffect: handleCallback: no installation ID, redirecting to', redirectPath);
+        console.log('GitHubCallback: useEffect: handleCallback: no code, redirecting to', redirectPath);
         setTimeout(() => {
           navigate(redirectPath);
         }, 1000);

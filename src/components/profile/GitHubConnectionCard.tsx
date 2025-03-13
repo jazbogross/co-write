@@ -11,7 +11,7 @@ import { useUserData } from "@/hooks/useUserData";
 export function GitHubConnectionCard() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [installationId, setInstallationId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const { toast: uiToast } = useToast();
   const { userId, authProvider } = useUserData();
 
@@ -37,7 +37,7 @@ export function GitHubConnectionCard() {
       console.log("🔗 GITHUB: Fetching profile for user:", userId);
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("github_app_installation_id")
+        .select("github_access_token")
         .eq("id", userId)
         .maybeSingle();
 
@@ -47,15 +47,15 @@ export function GitHubConnectionCard() {
       }
 
       console.log("🔗 GITHUB: GitHub connection status:", profile);
+      setAccessToken(profile?.github_access_token || null);
       
-      // Check if user is authenticated via GitHub OR has an installation ID
-      if (authProvider === 'github' || profile?.github_app_installation_id) {
+      // Check if user is authenticated via GitHub OR has an access token
+      if (authProvider === 'github' || profile?.github_access_token) {
         console.log("🔗 GITHUB: GitHub is connected", 
-          profile?.github_app_installation_id 
-            ? `with installation ID: ${profile.github_app_installation_id}` 
+          profile?.github_access_token 
+            ? `with access token: ${profile.github_access_token.substring(0, 10)}...` 
             : "via auth provider");
         setIsConnected(true);
-        setInstallationId(profile?.github_app_installation_id || null);
       } else {
         console.log("🔗 GITHUB: GitHub is not connected");
         setIsConnected(false);
@@ -76,7 +76,7 @@ export function GitHubConnectionCard() {
         provider: 'github',
         options: {
           scopes: 'repo',
-          redirectTo: `${window.location.origin}/profile`,
+          redirectTo: `${window.location.origin}/auth`,
         },
       });
 
@@ -140,9 +140,9 @@ export function GitHubConnectionCard() {
                 Authenticated via GitHub
               </p>
             )}
-            {installationId && (
+            {accessToken && (
               <p className="text-xs text-muted-foreground">
-                Installation ID: {installationId}
+                Access token: {accessToken.substring(0, 10)}...
               </p>
             )}
           </div>
