@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
@@ -44,64 +45,74 @@ export const useAuthListener = (): UseAuthListenerResult => {
           
           // Set loading to false since we have the basic user data now
           setLoading(false);
-        }
-        
-        const { data } = await supabase.auth.getUser();
-        
-        if (!isMounted) {
-          console.log("🎧 AuthListener: Component unmounted, skipping state update");
-          return;
-        }
-        
-        if (data.user) {
-          console.log("🎧 AuthListener: Initial check - Found user:", data.user.id);
-          
-          try {
-            // Get user profile data
-            const { profile, error: profileError } = await getUserProfile(data.user.id);
-            
-            if (profileError) {
-              console.error("🎧 AuthListener: Error fetching profile:", profileError);
-            }
-            
-            // Get provider from app_metadata if available
-            const provider = data.user.app_metadata?.provider || 'email';
-            
-            if (isMounted) {
-              console.log("🎧 AuthListener: Setting initial user state", {
-                id: data.user.id,
-                hasProfile: !!profile,
-                provider: provider
-              });
-              
-              setUser({
-                id: data.user.id,
-                email: data.user.email,
-                username: profile?.username,
-                provider: provider
-              });
-              setIsAuthenticated(true);
-              setLoading(false);
-            }
-          } catch (profileError) {
-            console.error("🎧 AuthListener: Error in profile fetching:", profileError);
-            if (isMounted) {
-              // Even if profile fetch fails, we still have a valid user
-              setUser({
-                id: data.user.id,
-                email: data.user.email,
-                provider: data.user.app_metadata?.provider || 'email'
-              });
-              setIsAuthenticated(true);
-              setLoading(false);
-            }
-          }
         } else {
-          console.log("🎧 AuthListener: Initial check - No user found");
+          // No session exists
           if (isMounted) {
             setUser(null);
             setIsAuthenticated(false);
             setLoading(false);
+          }
+        }
+        
+        // Still get the full user data, but don't block on it
+        if (sessionExists && sessionData.session?.user) {
+          const { data } = await supabase.auth.getUser();
+          
+          if (!isMounted) {
+            console.log("🎧 AuthListener: Component unmounted, skipping state update");
+            return;
+          }
+          
+          if (data.user) {
+            console.log("🎧 AuthListener: Initial check - Found user:", data.user.id);
+            
+            try {
+              // Get user profile data
+              const { profile, error: profileError } = await getUserProfile(data.user.id);
+              
+              if (profileError) {
+                console.error("🎧 AuthListener: Error fetching profile:", profileError);
+              }
+              
+              // Get provider from app_metadata if available
+              const provider = data.user.app_metadata?.provider || 'email';
+              
+              if (isMounted) {
+                console.log("🎧 AuthListener: Setting initial user state", {
+                  id: data.user.id,
+                  hasProfile: !!profile,
+                  provider: provider
+                });
+                
+                setUser({
+                  id: data.user.id,
+                  email: data.user.email,
+                  username: profile?.username,
+                  provider: provider
+                });
+                setIsAuthenticated(true);
+                setLoading(false);
+              }
+            } catch (profileError) {
+              console.error("🎧 AuthListener: Error in profile fetching:", profileError);
+              if (isMounted) {
+                // Even if profile fetch fails, we still have a valid user
+                setUser({
+                  id: data.user.id,
+                  email: data.user.email,
+                  provider: data.user.app_metadata?.provider || 'email'
+                });
+                setIsAuthenticated(true);
+                setLoading(false);
+              }
+            }
+          } else {
+            console.log("🎧 AuthListener: Initial check - No user found");
+            if (isMounted) {
+              setUser(null);
+              setIsAuthenticated(false);
+              setLoading(false);
+            }
           }
         }
       } catch (error) {
@@ -145,6 +156,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
         setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
+        setUser(null);
         setLoading(false);
       }
       

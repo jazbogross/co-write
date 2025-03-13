@@ -57,6 +57,8 @@ export default function Profile() {
 
   // Fetch user data when authenticated
   useEffect(() => {
+    let isMounted = true;
+    
     if (!authLoading && isAuthenticated && user?.id && !hasFetched) {
       const getProfile = async () => {
         console.log("📋 PROFILE: Fetching profile data for user:", user.id);
@@ -81,17 +83,21 @@ export default function Profile() {
           // If profile exists, set the profile state
           if (data) {
             console.log("📋 PROFILE: Profile data found:", data);
-            setProfile({
-              email: user?.email || "",
-              username: data.username || "",
-            });
+            if (isMounted) {
+              setProfile({
+                email: user?.email || "",
+                username: data.username || "",
+              });
+            }
           } else {
             console.log("📋 PROFILE: No profile data found, using defaults");
             // If profile doesn't exist yet
-            setProfile({
-              email: user?.email || "",
-              username: user?.email?.split("@")[0] || "",
-            });
+            if (isMounted) {
+              setProfile({
+                email: user?.email || "",
+                username: user?.email?.split("@")[0] || "",
+              });
+            }
             
             // Create a profile if one doesn't exist
             try {
@@ -141,21 +147,31 @@ export default function Profile() {
             profiles: { username: "" } // Add a default profiles property
           }));
 
-          setScripts(formattedScripts);
-          setHasFetched(true); // Mark that we've fetched data
-          setFetchError(null);
-          console.log("📋 PROFILE: Data fetching complete, hasFetched set to true");
+          if (isMounted) {
+            setScripts(formattedScripts);
+            setHasFetched(true); // Mark that we've fetched data
+            setFetchError(null);
+            setLoading(false); // Important: Set loading to false here
+            console.log("📋 PROFILE: Data fetching complete, hasFetched set to true");
+          }
         } catch (error) {
           console.error("📋 PROFILE: Error loading profile:", error);
-          toast.error("Failed to load profile");
-        } finally {
-          setLoading(false);
-          console.log("📋 PROFILE: Loading state set to false");
+          if (isMounted) {
+            toast.error("Failed to load profile");
+            setLoading(false); // Make sure to set loading to false even on error
+          }
         }
       };
 
       getProfile();
+    } else if (!authLoading && isAuthenticated && user?.id && hasFetched) {
+      // If we've already fetched data, make sure loading is false
+      setLoading(false);
     }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [user, authLoading, navigate, hasFetched, isAuthenticated]);
 
   const handleSignOut = async () => {
