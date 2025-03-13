@@ -8,13 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useUserData } from "@/hooks/useUserData";
+import { toast } from "sonner";
 
 interface CreateScriptDialogProps {
   open: boolean;
@@ -32,8 +32,8 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
   const [newTitle, setNewTitle] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const { toast } = useToast();
-  const { authProvider } = useUserData();
+  const { toast: uiToast } = useToast();
+  const { userId, authProvider } = useUserData();
 
   const verifyGitHubConnection = async () => {
     console.log("CreateScriptDialog: Verifying GitHub connection...");
@@ -44,26 +44,60 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
 
     console.log("CreateScriptDialog: Auth provider:", authProvider);
     
-    // First check if user authenticated with GitHub
-    if (authProvider === 'github') {
-      console.log("CreateScriptDialog: User authenticated with GitHub");
+    // First get the profile to check for GitHub access token
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('github_access_token')
+      .eq('id', user.id)
+      .single();
       
-      // Now check if we have the access token
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('github_access_token')
-        .eq('id', user.id)
-        .single();
-
-      console.log("CreateScriptDialog: GitHub access token:", profile?.github_access_token ? "Found" : "Not found");
-      
-      if (profile?.github_access_token) {
-        return profile.github_access_token;
-      }
-      
-      throw new Error('GitHub access token not found. Please reconnect your GitHub account in profile settings.');
+    if (profileError) {
+      console.error("CreateScriptDialog: Error fetching profile:", profileError);
+      throw new Error('Error verifying GitHub connection');
     }
     
+    console.log("CreateScriptDialog: Profile data:", profile ? "Found" : "Not found");
+    console.log("CreateScriptDialog: GitHub access token:", profile?.github_access_token ? "Present" : "Not present");
+    
+    // If user is authenticated via GitHub OR has a valid access token
+    if (authProvider === 'github' && profile?.github_access_token) {
+      console.log("CreateScriptDialog: GitHub connection verified");
+      return profile.github_access_token;
+    } else if (profile?.github_access_token) {
+      console.log("CreateScriptDialog: Using stored GitHub access token");
+      return profile.github_access_token;
+    }
+    
+    // If we don't have a token but user was authenticated via GitHub, try to get a fresh token
+    if (authProvider === 'github' && !profile?.github_access_token) {
+      console.log("CreateScriptDialog: User authenticated via GitHub but missing token");
+      
+      // Get the session to extract a fresh provider token
+      const { data: sessionData } = await supabase.auth.getSession();
+      const providerToken = sessionData?.session?.provider_token;
+      
+      if (providerToken) {
+        console.log("CreateScriptDialog: Found provider token in session, updating profile");
+        
+        // Update the profile with the token
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            github_access_token: providerToken,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+          
+        if (updateError) {
+          console.error("CreateScriptDialog: Failed to update GitHub token:", updateError);
+          throw new Error('Failed to update GitHub token');
+        }
+        
+        return providerToken;
+      }
+    }
+    
+    console.error("CreateScriptDialog: GitHub connection not found");
     throw new Error('GitHub not connected. Please connect your GitHub account in the profile settings.');
   };
 
@@ -95,7 +129,7 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
 
   const handleCreate = async () => {
     if (!newTitle.trim()) {
-      toast({
+      uiToast({
         title: "Error",
         description: "Please enter a script title",
         variant: "destructive",
@@ -105,18 +139,18 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
 
     setIsCreating(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No user found");
+      if (!userId) throw new Error("No user found");
 
       // First verify GitHub connection and create repository
       const repo = await createGitHubRepository(newTitle);
+      console.log("CreateScriptDialog: GitHub repository created:", repo);
 
       // Then create the script in our database
       const { data: script, error: scriptError } = await supabase
         .from("scripts")
         .insert([{
           title: newTitle,
-          admin_id: user.id,
+          admin_id: userId,
           is_private: isPrivate,
           content: "",
           github_repo: repo.name,
@@ -131,17 +165,10 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       onScriptCreated(script);
       setNewTitle("");
       onOpenChange(false);
-      toast({
-        title: "Success",
-        description: "New script and GitHub repository created",
-      });
+      toast.success("New script and GitHub repository created");
     } catch (error: any) {
       console.error("Script creation error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create script and repository",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Failed to create script and repository");
     } finally {
       setIsCreating(false);
     }
@@ -152,11 +179,8 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Script</DialogTitle>
-          <DialogDescription>
-            Enter a title for your new script and choose visibility settings.
-          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 py-4">
           <div>
             <Label htmlFor="title">Script Title</Label>
             <Input
