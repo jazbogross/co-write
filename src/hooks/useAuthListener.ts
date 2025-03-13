@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
@@ -42,6 +41,9 @@ export const useAuthListener = (): UseAuthListenerResult => {
             email: sessionData.session.user.email,
             provider: sessionData.session.user.app_metadata?.provider || 'email'
           });
+          
+          // Set loading to false since we have the basic user data now
+          setLoading(false);
         }
         
         const { data } = await supabase.auth.getUser();
@@ -138,8 +140,12 @@ export const useAuthListener = (): UseAuthListenerResult => {
           email: session.user.email,
           provider: session.user.app_metadata?.provider || 'email'
         });
+        
+        // Set loading to false since we have the basic user data now
+        setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
+        setLoading(false);
       }
       
       if (event === 'SIGNED_IN' && session?.user) {
@@ -211,6 +217,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
               provider: provider
             });
             setIsAuthenticated(true);
+            setLoading(false);
           } catch (profileError) {
             console.error("🎧 AuthListener: Error fetching profile on user update:", profileError);
             // Keep user authenticated even if profile fetch fails
@@ -220,6 +227,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
               provider: session.user.app_metadata?.provider || 'email'
             });
             setIsAuthenticated(true);
+            setLoading(false);
           }
         }
       } else if (event === 'TOKEN_REFRESHED') {
@@ -227,6 +235,8 @@ export const useAuthListener = (): UseAuthListenerResult => {
         // No need to update user state here as the session is just refreshed
         if (session?.user) {
           setIsAuthenticated(true);
+          // Make sure loading is false
+          setLoading(false);
         }
       }
     });
