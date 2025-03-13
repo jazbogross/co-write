@@ -1,33 +1,47 @@
 
-import { DeltaContent } from '@/utils/editor/types';
+import { DeltaStatic } from 'quill';
 
-export interface LineData {
-  uuid: string;
-  lineNumber: number;
-  content: string | DeltaContent;
-  originalAuthor: string | null;
-  editedBy: string[];
-  hasDraft?: boolean;
-  originalContent?: string | DeltaContent;
-  originalLineNumber?: number;
+// Main script content Delta type
+export interface ScriptContent {
+  scriptId: string;
+  contentDelta: DeltaStatic;
+  version: number;
 }
 
-// Add Quill LineTracking type definitions
+// Script suggestion type
+export interface ScriptSuggestion {
+  id: string;
+  scriptId: string;
+  userId: string;
+  deltaDiff: DeltaStatic;
+  status: 'pending' | 'approved' | 'rejected' | 'draft';
+  rejectionReason?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Script draft type
+export interface ScriptDraft {
+  id?: string;
+  scriptId: string;
+  userId: string;
+  draftContent: DeltaStatic;
+  updatedAt?: Date;
+}
+
+// Script version history
+export interface ScriptVersion {
+  id: string;
+  scriptId: string;
+  versionNumber: number;
+  contentDelta: DeltaStatic;
+  createdBy?: string;
+  createdAt: Date;
+}
+
+// Add Quill LineTracking type definitions for backwards compatibility
 declare module 'quill' {
   interface Quill {
-    lineTracking?: {
-      initialize: () => void;
-      setProgrammaticUpdate: (value: boolean) => void;
-      getLineUuid: (oneBasedIndex: number) => string | undefined;
-      setLineUuid: (oneBasedIndex: number, uuid: string) => void;
-      getContentToUuidMap: () => Map<string, string>;
-      getDomUuidMap: () => Map<number, string>;
-      getLastOperation: () => { type: string, lineIndex: number, movedContent?: string } | null;
-      getChangeHistory: (uuid: string) => { content: string, timestamp: number }[];
-      refreshLineUuids: (lineData: any[]) => void; 
-      forceRefreshUuids: () => void;
-      saveCursorPosition: () => void;
-      restoreCursorPosition: () => void;
-    };
+    getModule(name: string): any;
   }
 }

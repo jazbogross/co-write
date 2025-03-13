@@ -9,7 +9,229 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          github_access_token: string | null
+          github_app_installation_id: string | null
+          id: string
+          username: string | null
+        }
+        Insert: {
+          github_access_token?: string | null
+          github_app_installation_id?: string | null
+          id: string
+          username?: string | null
+        }
+        Update: {
+          github_access_token?: string | null
+          github_app_installation_id?: string | null
+          id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      repository_permissions: {
+        Row: {
+          created_at: string | null
+          id: string
+          permission_type: string | null
+          repository_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          permission_type?: string | null
+          repository_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          permission_type?: string | null
+          repository_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repository_permissions_repository_id_fkey"
+            columns: ["repository_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      script_content: {
+        Row: {
+          content_delta: Json
+          script_id: string
+          updated_at: string | null
+          version: number
+        }
+        Insert: {
+          content_delta?: Json
+          script_id: string
+          updated_at?: string | null
+          version?: number
+        }
+        Update: {
+          content_delta?: Json
+          script_id?: string
+          updated_at?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_content_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: true
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      script_drafts: {
+        Row: {
+          draft_content: Json
+          id: string
+          script_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          draft_content: Json
+          id?: string
+          script_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          draft_content?: Json
+          id?: string
+          script_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_drafts_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      script_suggestions: {
+        Row: {
+          created_at: string | null
+          delta_diff: Json
+          id: string
+          rejection_reason: string | null
+          script_id: string | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          delta_diff: Json
+          id?: string
+          rejection_reason?: string | null
+          script_id?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          delta_diff?: Json
+          id?: string
+          rejection_reason?: string | null
+          script_id?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_suggestions_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      script_versions: {
+        Row: {
+          content_delta: Json
+          created_at: string | null
+          created_by: string | null
+          id: string
+          script_id: string | null
+          version_number: number
+        }
+        Insert: {
+          content_delta: Json
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          script_id?: string | null
+          version_number: number
+        }
+        Update: {
+          content_delta?: Json
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          script_id?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_versions_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scripts: {
+        Row: {
+          admin_id: string
+          created_at: string | null
+          github_owner: string | null
+          github_repo: string | null
+          id: string
+          is_private: boolean | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string | null
+          github_owner?: string | null
+          github_repo?: string | null
+          id?: string
+          is_private?: boolean | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string | null
+          github_owner?: string | null
+          github_repo?: string | null
+          id?: string
+          is_private?: boolean | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
