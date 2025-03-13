@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
@@ -34,17 +33,23 @@ export const useAuthListener = (): UseAuthListenerResult => {
           
           // Get user profile data
           const { profile } = await getUserProfile(data.user.id);
+
+          // Determine the provider from metadata or session info
+          const { data: sessionData } = await supabase.auth.getSession();
+          const provider = sessionData.session?.provider_id || 'email';
           
           if (isMounted) {
             console.log("🎧 AuthListener: Setting initial user state", {
               id: data.user.id,
-              hasProfile: !!profile
+              hasProfile: !!profile,
+              provider: provider
             });
             
             setUser({
               id: data.user.id,
               email: data.user.email,
-              username: profile?.username
+              username: profile?.username,
+              provider: provider
             });
             setIsAuthenticated(true);
             setLoading(false);
@@ -88,16 +93,21 @@ export const useAuthListener = (): UseAuthListenerResult => {
         // Get user profile data
         const { profile } = await getUserProfile(session.user.id);
         
+        // Determine the provider
+        const provider = session.provider_id || 'email';
+        
         if (isMounted) {
           console.log("🎧 AuthListener: Setting user state after sign in", {
             id: session.user.id,
-            hasProfile: !!profile
+            hasProfile: !!profile,
+            provider: provider
           });
           
           setUser({
             id: session.user.id,
             email: session.user.email,
-            username: profile?.username
+            username: profile?.username,
+            provider: provider
           });
           setIsAuthenticated(true);
           setLoading(false);
@@ -114,11 +124,13 @@ export const useAuthListener = (): UseAuthListenerResult => {
         // Handle user update if needed
         if (session?.user && isMounted) {
           const { profile } = await getUserProfile(session.user.id);
+          const provider = session.provider_id || 'email';
           
           setUser({
             id: session.user.id,
             email: session.user.email,
-            username: profile?.username
+            username: profile?.username,
+            provider: provider
           });
           setIsAuthenticated(true);
         }
