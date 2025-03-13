@@ -11,6 +11,11 @@ export const checkCurrentSession = async (isMounted: boolean): Promise<{
   const { data: sessionData } = await supabase.auth.getSession();
   const hasSession = !!sessionData.session;
   
+  console.log("🎧 AuthListener: Session check result:", { 
+    hasSession, 
+    userId: hasSession ? sessionData.session?.user?.id : 'none' 
+  });
+  
   return { sessionData, hasSession };
 };
 
@@ -19,7 +24,7 @@ export const updateStateFromSession = (
   setState: (state: Partial<AuthState>) => void,
 ): void => {
   try {
-    console.log("🎧 AuthListener: Session exists, setting isAuthenticated to true and basic user data");
+    console.log("🎧 AuthListener: Updating state from session");
     
     // Safely create basic user data, checking for nullish values
     if (!session.user || !session.user.id) {
@@ -34,11 +39,14 @@ export const updateStateFromSession = (
     
     const basicUserData = getBasicUserData(session);
     
+    // Important: Set loading to false as soon as we have basic user data
     setState({
       user: basicUserData,
       isAuthenticated: true,
       loading: false
     });
+    
+    console.log("🎧 AuthListener: Session exists, setting isAuthenticated to true and basic user data");
   } catch (error) {
     console.error("🎧 AuthListener: Error updating state from session:", error);
     setState({
@@ -57,6 +65,7 @@ export const loadFullUserProfile = async (
   try {
     if (!session.user || !session.user.id) {
       console.error("🎧 AuthListener: Cannot load profile, user data is invalid");
+      setState({ loading: false });
       return;
     }
     
@@ -72,6 +81,8 @@ export const loadFullUserProfile = async (
     if (error) {
       // Even if profile fetch fails, we still have a valid user
       console.log("🎧 AuthListener: Using basic user data due to profile fetch error");
+      // Make sure loading is false even on error
+      setState({ loading: false });
       return;
     }
     
@@ -81,11 +92,13 @@ export const loadFullUserProfile = async (
     if (isMounted) {
       console.log("🎧 AuthListener: Setting full user data with profile");
       setState({
-        user: createFullUserData(userId, session.user.email, profile, provider)
+        user: createFullUserData(userId, session.user.email, profile, provider),
+        loading: false
       });
     }
   } catch (error) {
     console.error("🎧 AuthListener: Error loading full user profile:", error);
-    // Don't change authentication state on profile load error
+    // Set loading to false even on error to avoid UI being stuck
+    setState({ loading: false });
   }
 };

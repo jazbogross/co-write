@@ -15,12 +15,12 @@ interface AuthContextType {
   isAuthenticated: boolean;
 }
 
+// Create auth context with a default undefined value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   console.log("🔑 AuthProvider: Initializing");
   const { user, loading, isAuthenticated } = useAuthListener();
-  const navigate = useNavigate();
 
   console.log("🔑 AuthProvider: Current state:", { 
     isAuthenticated, 
@@ -28,10 +28,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     userId: user?.id
   });
 
+  const navigate = useNavigate();
+
   const signIn = async (email: string, password: string): Promise<boolean> => {
     console.log("🔑 AuthProvider: signIn: Starting for:", email);
     const { success } = await signInWithPassword(email, password);
     console.log("🔑 AuthProvider: signIn: Result:", success);
+    if (success) {
+      navigate('/');
+    }
     return success;
   };
 
@@ -39,6 +44,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.log("🔑 AuthProvider: signUp: Starting for:", email);
     const { success } = await signUpWithPassword(email, password, username);
     console.log("🔑 AuthProvider: signUp: Result:", success);
+    if (success) {
+      navigate('/');
+    }
     return success;
   };
 
@@ -58,16 +66,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return success;
   };
 
+  // Provide a stable context value
+  const contextValue: AuthContextType = {
+    user, 
+    loading, 
+    signIn, 
+    signUp, 
+    signOut, 
+    resetPassword,
+    isAuthenticated
+  };
+
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      loading, 
-      signIn, 
-      signUp, 
-      signOut, 
-      resetPassword,
-      isAuthenticated
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

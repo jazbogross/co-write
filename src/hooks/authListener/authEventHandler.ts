@@ -19,16 +19,24 @@ export const handleAuthStateChange = async (
   }
   
   try {
+    if (event === 'SIGNED_OUT') {
+      console.log("🎧 AuthListener: User signed out");
+      setState({
+        isAuthenticated: false,
+        user: null,
+        loading: false
+      });
+      return;
+    }
+    
     // Validate session before proceeding
     if (!session || !session.user) {
       console.error("🎧 AuthListener: Invalid session in auth state change event");
-      if (event === 'SIGNED_OUT') {
-        setState({
-          isAuthenticated: false,
-          user: null,
-          loading: false
-        });
-      }
+      setState({
+        isAuthenticated: false,
+        user: null,
+        loading: false
+      });
       return;
     }
     
@@ -47,5 +55,7 @@ export const handleAuthStateChange = async (
     }
   } catch (error) {
     console.error("🎧 AuthListener: Error handling auth state change:", error);
+    // Ensure we set loading to false even on error
+    setState({ loading: false });
   }
 };

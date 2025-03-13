@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
 import { UseAuthListenerResult, AuthState } from './authListener/types';
@@ -13,6 +13,9 @@ export const useAuthListener = (): UseAuthListenerResult => {
     isAuthenticated: false
   });
   
+  // Use a ref to track initialization and avoid duplicate work
+  const isInitializedRef = useRef(false);
+  
   const updateState = (newState: Partial<AuthState>) => {
     setState(prev => ({ ...prev, ...newState }));
   };
@@ -23,6 +26,14 @@ export const useAuthListener = (): UseAuthListenerResult => {
     
     const initialize = async () => {
       try {
+        // Skip initialization if already done
+        if (isInitializedRef.current) {
+          console.log("🎧 AuthListener: Already initialized, skipping");
+          return;
+        }
+        
+        isInitializedRef.current = true;
+        
         // Check for current session
         const { sessionData, hasSession } = await checkCurrentSession(isMounted);
         
@@ -31,6 +42,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
         if (hasSession && sessionData.session) {
           // Make sure we safely access session and user
           if (sessionData.session.user) {
+            console.log("🎧 AuthListener: Session found for user:", sessionData.session.user.id);
             updateStateFromSession(sessionData.session, updateState);
             
             // Load full profile data in the background
@@ -46,6 +58,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
           }
         } else {
           // No session exists
+          console.log("🎧 AuthListener: No session found, setting not authenticated");
           if (isMounted) {
             updateState({
               user: null,
@@ -71,18 +84,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
 
     // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        await handleAuthStateChange(event, session, isMounted, updateState);
-      } else {
-        // Handle case where session is null (e.g., sign out)
-        if (isMounted && event === 'SIGNED_OUT') {
-          updateState({
-            isAuthenticated: false,
-            user: null,
-            loading: false
-          });
-        }
-      }
+      await handleAuthStateChange(event, session, isMounted, updateState);
     });
 
     return () => {
