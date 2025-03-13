@@ -3,9 +3,10 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export default function GitHubCallback() {
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,7 +41,10 @@ export default function GitHubCallback() {
           // If verification is successful, store the installation ID in the database
           const { error: updateError } = await supabase
             .from('profiles')
-            .update({ github_app_installation_id: installationId })
+            .update({ 
+              github_app_installation_id: installationId,
+              updated_at: new Date().toISOString()
+            })
             .eq('id', user.id);
 
           if (updateError) {
@@ -48,34 +52,42 @@ export default function GitHubCallback() {
           }
 
           console.log('GitHubCallback: useEffect: handleCallback: storing installation ID in database');
-          toast({
-            title: "Success",
-            description: "GitHub App installed successfully",
-          });
+          toast.success("GitHub App installed successfully");
+          
+          // Small delay to ensure database update is processed
+          setTimeout(() => {
+            const redirectPath = state ? decodeURIComponent(state) : "/profile";
+            console.log('GitHubCallback: useEffect: handleCallback: redirecting to', redirectPath);
+            navigate(redirectPath);
+          }, 1500);
         } catch (error: any) {
           console.error('GitHubCallback: useEffect: handleCallback: installation verification error:', error);
-          toast({
-            title: "Error",
-            description: "Failed to verify GitHub App installation",
-            variant: "destructive",
-          });
+          toast.error("Failed to verify GitHub App installation");
+          setTimeout(() => navigate('/profile'), 2000);
         }
+      } else {
+        // Navigate back to the original page or profile
+        const redirectPath = state ? decodeURIComponent(state) : "/profile";
+        console.log('GitHubCallback: useEffect: handleCallback: no installation ID, redirecting to', redirectPath);
+        setTimeout(() => {
+          navigate(redirectPath);
+        }, 1000);
       }
-
-      // Navigate back to the original page or profile
-      const redirectPath = state ? decodeURIComponent(state) : "/profile";
-      console.log('GitHubCallback: useEffect: handleCallback: redirecting to', redirectPath);
-      setTimeout(() => {
-        navigate(redirectPath);
-      }, 1500);
     };
 
     handleCallback();
-  }, [navigate, toast]);
+  }, [navigate]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <p>Verifying GitHub installation...</p>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <div className="text-center space-y-4">
+        <h1 className="text-2xl font-bold">GitHub Connection</h1>
+        <p>Processing GitHub integration...</p>
+        <div className="flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
+        <p className="text-sm text-muted-foreground">You will be redirected shortly.</p>
+      </div>
     </div>
   );
 }

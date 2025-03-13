@@ -6,35 +6,39 @@ import { Github } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
+import { useUserData } from "@/hooks/useUserData";
 
 export function GitHubConnectionCard() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [installationId, setInstallationId] = useState<string | null>(null);
   const { toast: uiToast } = useToast();
+  const { userId, authProvider } = useUserData();
 
   useEffect(() => {
     console.log("🔗 GITHUB: Checking GitHub connection status...");
-    checkGitHubConnection();
-  }, []);
+    if (userId) {
+      checkGitHubConnection();
+    } else {
+      setIsLoading(false);
+      setIsConnected(false);
+    }
+  }, [userId]);
 
   const checkGitHubConnection = async () => {
     try {
       setIsLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) {
-        console.log("🔗 GITHUB: No user found");
-        setIsConnected(false);
-        setIsLoading(false);
-        return;
+      // First check if user is authenticated via GitHub
+      if (authProvider === 'github') {
+        console.log("🔗 GITHUB: User is authenticated via GitHub");
       }
-
-      console.log("🔗 GITHUB: Fetching profile for user:", user.id);
+      
+      console.log("🔗 GITHUB: Fetching profile for user:", userId);
       const { data: profile, error } = await supabase
         .from("profiles")
         .select("github_app_installation_id")
-        .eq("id", user.id)
+        .eq("id", userId)
         .maybeSingle();
 
       if (error) {
@@ -43,10 +47,15 @@ export function GitHubConnectionCard() {
       }
 
       console.log("🔗 GITHUB: GitHub connection status:", profile);
-      if (profile?.github_app_installation_id) {
-        console.log("🔗 GITHUB: GitHub is connected with installation ID:", profile.github_app_installation_id);
+      
+      // Check if user is authenticated via GitHub OR has an installation ID
+      if (authProvider === 'github' || profile?.github_app_installation_id) {
+        console.log("🔗 GITHUB: GitHub is connected", 
+          profile?.github_app_installation_id 
+            ? `with installation ID: ${profile.github_app_installation_id}` 
+            : "via auth provider");
         setIsConnected(true);
-        setInstallationId(profile.github_app_installation_id);
+        setInstallationId(profile?.github_app_installation_id || null);
       } else {
         console.log("🔗 GITHUB: GitHub is not connected");
         setIsConnected(false);
@@ -126,9 +135,16 @@ export function GitHubConnectionCard() {
               <Github className="mr-2 h-4 w-4 text-green-500" />
               <span className="text-green-600">Connected to GitHub</span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Installation ID: {installationId}
-            </p>
+            {authProvider === 'github' && (
+              <p className="text-xs text-muted-foreground">
+                Authenticated via GitHub
+              </p>
+            )}
+            {installationId && (
+              <p className="text-xs text-muted-foreground">
+                Installation ID: {installationId}
+              </p>
+            )}
           </div>
         ) : (
           <Button
