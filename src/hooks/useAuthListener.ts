@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
@@ -32,29 +31,45 @@ export const useAuthListener = (): UseAuthListenerResult => {
         if (data.user) {
           console.log("🎧 AuthListener: Initial check - Found user:", data.user.id);
           
-          // Get user profile data
-          const { profile } = await getUserProfile(data.user.id);
-
-          // Determine the provider from metadata or session info
-          const { data: sessionData } = await supabase.auth.getSession();
-          // Get provider from app_metadata if available
-          const provider = data.user.app_metadata?.provider || 'email';
-          
-          if (isMounted) {
-            console.log("🎧 AuthListener: Setting initial user state", {
-              id: data.user.id,
-              hasProfile: !!profile,
-              provider: provider
-            });
+          try {
+            // Get user profile data
+            const { profile, error: profileError } = await getUserProfile(data.user.id);
             
-            setUser({
-              id: data.user.id,
-              email: data.user.email,
-              username: profile?.username,
-              provider: provider
-            });
-            setIsAuthenticated(true);
-            setLoading(false);
+            if (profileError) {
+              console.error("🎧 AuthListener: Error fetching profile:", profileError);
+            }
+            
+            // Get provider from app_metadata if available
+            const provider = data.user.app_metadata?.provider || 'email';
+            
+            if (isMounted) {
+              console.log("🎧 AuthListener: Setting initial user state", {
+                id: data.user.id,
+                hasProfile: !!profile,
+                provider: provider
+              });
+              
+              setUser({
+                id: data.user.id,
+                email: data.user.email,
+                username: profile?.username,
+                provider: provider
+              });
+              setIsAuthenticated(true);
+              setLoading(false);
+            }
+          } catch (profileError) {
+            console.error("🎧 AuthListener: Error in profile fetching:", profileError);
+            if (isMounted) {
+              // Even if profile fetch fails, we still have a valid user
+              setUser({
+                id: data.user.id,
+                email: data.user.email,
+                provider: data.user.app_metadata?.provider || 'email'
+              });
+              setIsAuthenticated(true);
+              setLoading(false);
+            }
           }
         } else {
           console.log("🎧 AuthListener: Initial check - No user found");
@@ -92,27 +107,45 @@ export const useAuthListener = (): UseAuthListenerResult => {
       if (event === 'SIGNED_IN' && session?.user) {
         console.log("🎧 AuthListener: User signed in:", session.user.id);
         
-        // Get user profile data
-        const { profile } = await getUserProfile(session.user.id);
-        
-        // Get provider from app_metadata if available
-        const provider = session.user.app_metadata?.provider || 'email';
-        
-        if (isMounted) {
-          console.log("🎧 AuthListener: Setting user state after sign in", {
-            id: session.user.id,
-            hasProfile: !!profile,
-            provider: provider
-          });
+        try {
+          // Get user profile data
+          const { profile, error: profileError } = await getUserProfile(session.user.id);
           
-          setUser({
-            id: session.user.id,
-            email: session.user.email,
-            username: profile?.username,
-            provider: provider
-          });
-          setIsAuthenticated(true);
-          setLoading(false);
+          if (profileError) {
+            console.error("🎧 AuthListener: Error fetching profile on sign in:", profileError);
+          }
+          
+          // Get provider from app_metadata if available
+          const provider = session.user.app_metadata?.provider || 'email';
+          
+          if (isMounted) {
+            console.log("🎧 AuthListener: Setting user state after sign in", {
+              id: session.user.id,
+              hasProfile: !!profile,
+              provider: provider
+            });
+            
+            setUser({
+              id: session.user.id,
+              email: session.user.email,
+              username: profile?.username,
+              provider: provider
+            });
+            setIsAuthenticated(true);
+            setLoading(false);
+          }
+        } catch (profileError) {
+          console.error("🎧 AuthListener: Error fetching profile on sign in:", profileError);
+          if (isMounted) {
+            // Even if profile fetch fails, we still have authenticated user
+            setUser({
+              id: session.user.id,
+              email: session.user.email,
+              provider: session.user.app_metadata?.provider || 'email'
+            });
+            setIsAuthenticated(true);
+            setLoading(false);
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         console.log("🎧 AuthListener: User signed out");
@@ -125,16 +158,31 @@ export const useAuthListener = (): UseAuthListenerResult => {
         console.log("🎧 AuthListener: User updated:", session?.user?.id);
         // Handle user update if needed
         if (session?.user && isMounted) {
-          const { profile } = await getUserProfile(session.user.id);
-          const provider = session.user.app_metadata?.provider || 'email';
-          
-          setUser({
-            id: session.user.id,
-            email: session.user.email,
-            username: profile?.username,
-            provider: provider
-          });
-          setIsAuthenticated(true);
+          try {
+            const { profile, error: profileError } = await getUserProfile(session.user.id);
+            if (profileError) {
+              console.error("🎧 AuthListener: Error fetching profile on user update:", profileError);
+            }
+            
+            const provider = session.user.app_metadata?.provider || 'email';
+            
+            setUser({
+              id: session.user.id,
+              email: session.user.email,
+              username: profile?.username,
+              provider: provider
+            });
+            setIsAuthenticated(true);
+          } catch (profileError) {
+            console.error("🎧 AuthListener: Error fetching profile on user update:", profileError);
+            // Keep user authenticated even if profile fetch fails
+            setUser({
+              id: session.user.id,
+              email: session.user.email,
+              provider: session.user.app_metadata?.provider || 'email'
+            });
+            setIsAuthenticated(true);
+          }
         }
       } else if (event === 'TOKEN_REFRESHED') {
         console.log("🎧 AuthListener: Token refreshed for user:", session?.user?.id);
