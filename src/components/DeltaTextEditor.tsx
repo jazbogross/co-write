@@ -77,7 +77,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
         <ReactQuill
           ref={quillRef}
           value={content || undefined}
-          onChange={(value, delta, source, editor) => {
+          onChange={(content, delta, source, editor) => {
             // Extract the Delta content from the editor directly
             const deltaContent = editor.getContents();
             handleChange(deltaContent);

@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { DeltaTextEditor } from "@/components/DeltaTextEditor";
 import { toast } from "sonner";
-import { createSuggestion, saveScriptContent } from "@/services/scriptService";
+import { createSuggestion, saveScriptContent, fetchScriptContent } from "@/services/scriptService";
 import {
   Card,
   CardContent,
@@ -27,6 +27,7 @@ const ScriptEdit = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [githubToken, setGithubToken] = useState<string | null>(null);
+  const [originalContent, setOriginalContent] = useState<DeltaStatic | null>(null);
 
   useEffect(() => {
     const loadScript = async () => {
@@ -71,6 +72,15 @@ const ScriptEdit = () => {
           }
         }
 
+        // Load original content for diff comparison
+        const content = await fetchScriptContent(id);
+        if (content) {
+          setOriginalContent(content.contentDelta);
+        } else {
+          // Initialize with empty Delta if no content exists
+          setOriginalContent(new Delta([{ insert: '\n' }]) as unknown as DeltaStatic);
+        }
+
         setScript(scriptData);
         setIsAdmin(user.id === scriptData.admin_id);
         setLoading(false);
@@ -85,7 +95,7 @@ const ScriptEdit = () => {
   }, [id, navigate]);
 
   const handleSuggestChange = async (delta: DeltaStatic) => {
-    if (!script || !id) return;
+    if (!script || !id || !originalContent) return;
 
     try {
       if (isAdmin) {
@@ -122,12 +132,8 @@ const ScriptEdit = () => {
           toast.error("Failed to save changes");
         }
       } else {
-        // For non-admin users, we need to create a suggestion by comparing with the original
-        // Use an empty Delta with just a newline as a default original state if needed
-        const emptyDelta: DeltaStatic = new Delta([{ insert: '\n' }]);
-        
-        // Create a suggestion
-        const suggestionId = await createSuggestion(id, emptyDelta, delta);
+        // For non-admin users, create a suggestion by comparing with the original
+        const suggestionId = await createSuggestion(id, originalContent, delta);
         
         if (suggestionId) {
           toast.success("Your changes have been submitted for review");

@@ -1,5 +1,6 @@
 
 import { useCallback, useRef } from 'react';
+import { DeltaStatic, DeltaOperation } from 'quill';
 import { DeltaContent } from '@/utils/editor/types';
 import { isDeltaObject, extractPlainTextFromDelta, safelyParseDelta } from '@/utils/editor';
 import { insertContentWithLineBreaks } from '@/utils/editor/content/insertionUtils';
@@ -8,7 +9,7 @@ import { insertContentWithLineBreaks } from '@/utils/editor/content/insertionUti
  * Hook to handle updating editor content programmatically
  */
 export const useEditorContentManagement = (
-  setContent: (content: string | DeltaContent) => void
+  setContent: (content: string | DeltaContent | DeltaStatic) => void
 ) => {
   // Prevent recursive updates
   const isUpdatingEditorRef = useRef(false);
@@ -20,7 +21,7 @@ export const useEditorContentManagement = (
    */
   const updateEditorContent = useCallback((
     editor: any,
-    newContent: string | DeltaContent, 
+    newContent: string | DeltaContent | DeltaStatic, 
     forceUpdate: boolean = false
   ) => {
     // Prevent recursive updates
@@ -51,9 +52,11 @@ export const useEditorContentManagement = (
       
       console.log(`📝 useEditorContentManagement: Updating content (attempt ${currentAttempt}), force=${forceUpdate}, type=${typeof newContent}`);
       
-      // Save cursor position before making changes if we have lineTracking
-      if (editor.lineTracking) {
-        // Notify line tracking about programmatic update
+      // Check if editor has lineTracking module
+      const hasLineTracking = editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function';
+      
+      // Notify line tracking about programmatic update if available
+      if (hasLineTracking) {
         editor.lineTracking.setProgrammaticUpdate(true);
       }
       
@@ -72,7 +75,7 @@ export const useEditorContentManagement = (
       
       // Get UUIDs from lineTracking as well to ensure we have as many as possible
       let lineTrackingUuids = new Map<number, string>();
-      if (editor.lineTracking && typeof editor.lineTracking.getDomUuidMap === 'function') {
+      if (hasLineTracking && typeof editor.lineTracking.getDomUuidMap === 'function') {
         try {
           lineTrackingUuids = editor.lineTracking.getDomUuidMap();
         } catch (error) {
@@ -133,7 +136,7 @@ export const useEditorContentManagement = (
         });
         
         // Ensure any lineTracking knows about the applied UUIDs
-        if (editor.lineTracking && typeof editor.lineTracking.initialize === 'function') {
+        if (hasLineTracking && typeof editor.lineTracking.initialize === 'function') {
           editor.lineTracking.initialize();
         }
         
@@ -175,8 +178,8 @@ export const useEditorContentManagement = (
         console.error('📝 useEditorContentManagement: Fallback insert failed:', fallbackError);
       }
     } finally {
-      // Turn off programmatic update mode
-      if (editor && editor.lineTracking) {
+      // Turn off programmatic update mode if available
+      if (editor && editor.lineTracking && typeof editor.lineTracking.setProgrammaticUpdate === 'function') {
         editor.lineTracking.setProgrammaticUpdate(false);
       }
       isUpdatingEditorRef.current = false;

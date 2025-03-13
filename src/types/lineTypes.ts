@@ -16,8 +16,8 @@ export interface ScriptSuggestion {
   deltaDiff: DeltaStatic;
   status: 'pending' | 'approved' | 'rejected' | 'draft';
   rejectionReason?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Script draft type
@@ -26,7 +26,7 @@ export interface ScriptDraft {
   scriptId: string;
   userId: string;
   draftContent: DeltaStatic;
-  updatedAt?: Date;
+  updatedAt?: string;
 }
 
 // Script version history
@@ -36,10 +36,10 @@ export interface ScriptVersion {
   versionNumber: number;
   contentDelta: DeltaStatic;
   createdBy?: string;
-  createdAt: Date;
+  createdAt: string;
 }
 
-// LineData type for backward compatibility
+// LineData type for backward compatibility with existing components and utilities
 export interface LineData {
   uuid: string;
   lineNumber: number;
@@ -48,6 +48,7 @@ export interface LineData {
   editedBy?: string[] | null;
   hasDraft?: boolean;
   originalContent?: any;
+  originalLineNumber?: number;
 }
 
 // Add QuillCompatibleDelta for helpers
@@ -79,6 +80,7 @@ declare module 'quill' {
       saveCursorPosition?: () => void;
       restoreCursorPosition?: () => void;
       setLineUuid?: (oneBasedIndex: number, uuid: string, editor?: any) => void;
+      setProgrammaticUpdate?: (value: boolean) => void;
     };
   }
 }
