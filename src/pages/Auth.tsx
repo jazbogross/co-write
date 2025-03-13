@@ -43,17 +43,52 @@ const Auth = () => {
             console.log("Auth: Auth provider from metadata:", user.app_metadata?.provider);
             console.log("Auth: Storing GitHub access token");
             
+            // Detailed logging for debugging
+            console.log("Auth: GitHub token to store:", providerToken.substring(0, 10) + "...");
+            
             // Store the github_access_token in the profiles table
-            const { error: updateError } = await supabase
+            // Use upsert instead of update to handle the case where a profile might not exist yet
+            const { data: profileData, error: profileCheckError } = await supabase
               .from('profiles')
-              .update({ 
-                github_access_token: providerToken,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', user.id);
+              .select()
+              .eq('id', user.id)
+              .single();
+              
+            if (profileCheckError && profileCheckError.code !== 'PGRST116') {
+              console.error("Auth: Error checking profile:", profileCheckError);
+              throw profileCheckError;
+            }
+            
+            let updateError;
+            
+            if (!profileData) {
+              console.log("Auth: No existing profile found, creating one");
+              // Create a new profile
+              const { error } = await supabase
+                .from('profiles')
+                .insert({ 
+                  id: user.id,
+                  username: user.email?.split('@')[0] || 'user',
+                  github_access_token: providerToken,
+                  updated_at: new Date().toISOString()
+                });
+              updateError = error;
+            } else {
+              console.log("Auth: Existing profile found, updating token");
+              // Update existing profile
+              const { error } = await supabase
+                .from('profiles')
+                .update({ 
+                  github_access_token: providerToken,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
+              updateError = error;
+            }
               
             if (updateError) {
               console.error("Auth: Error storing GitHub token:", updateError);
+              console.log("Auth: Error details:", JSON.stringify(updateError));
               toast.error("Failed to store GitHub access token. Please try again or contact support.");
             } else {
               console.log("Auth: GitHub token stored successfully");
