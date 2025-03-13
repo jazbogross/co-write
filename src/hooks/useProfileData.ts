@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -27,53 +26,66 @@ export function useProfileData() {
 
   // Fetch user data when authenticated
   useEffect(() => {
+    console.log("📋 PROFILE: useProfileData effect triggered", { 
+      authLoading, 
+      isAuthenticated, 
+      userId: user?.id, 
+      hasFetched 
+    });
+
     let isMounted = true;
     
-    if (!authLoading && isAuthenticated && user?.id && !hasFetched) {
-      fetchUserData(user.id, isMounted);
-    } else if (!authLoading && isAuthenticated && user?.id && hasFetched) {
-      // If we've already fetched data, make sure loading is false
-      setLoading(false);
-    }
+    const fetchData = async () => {
+      // Only fetch if we're authenticated, have a user ID, and haven't fetched yet
+      // OR if we're authenticated with a user ID but our last fetch was for a different user ID
+      if (authLoading || !isAuthenticated || !user?.id) {
+        // If auth is still loading or user isn't authenticated, keep loading state
+        return;
+      }
+      
+      // If we've already fetched data for this user, don't fetch again
+      if (hasFetched) {
+        setLoading(false);
+        return;
+      }
+      
+      console.log("📋 PROFILE: Fetching profile data for user:", user.id);
+      
+      try {
+        setLoading(true);
+        setFetchError(null);
+        
+        // Get user profile data
+        const profileData = await fetchProfileData(user.id);
+        
+        // If profile exists, set the profile state
+        if (profileData) {
+          handleProfileData(profileData, user.id, isMounted);
+        } else {
+          handleMissingProfile(user.id, isMounted);
+        }
+
+        // Fetch user scripts
+        const scriptsData = await fetchUserScripts(user.id);
+        
+        if (isMounted) {
+          setScripts(scriptsData);
+          setHasFetched(true);
+          setFetchError(null);
+          setLoading(false);
+          console.log("📋 PROFILE: Data fetching complete, hasFetched set to true");
+        }
+      } catch (error) {
+        handleFetchError(error, isMounted);
+      }
+    };
+    
+    fetchData();
     
     return () => {
       isMounted = false;
     };
-  }, [user, authLoading, hasFetched, isAuthenticated]);
-
-  /**
-   * Fetches user profile data from Supabase
-   */
-  const fetchUserData = async (userId: string, isMounted: boolean) => {
-    console.log("📋 PROFILE: Fetching profile data for user:", userId);
-    try {
-      setLoading(true);
-      setFetchError(null);
-      
-      // Get user profile data
-      const profileData = await fetchProfileData(userId);
-      
-      // If profile exists, set the profile state
-      if (profileData) {
-        handleProfileData(profileData, userId, isMounted);
-      } else {
-        handleMissingProfile(userId, isMounted);
-      }
-
-      // Fetch user scripts
-      const scriptsData = await fetchUserScripts(userId);
-      
-      if (isMounted) {
-        setScripts(scriptsData);
-        setHasFetched(true);
-        setFetchError(null);
-        setLoading(false);
-        console.log("📋 PROFILE: Data fetching complete, hasFetched set to true");
-      }
-    } catch (error) {
-      handleFetchError(error, isMounted);
-    }
-  };
+  }, [user?.id, authLoading, isAuthenticated, hasFetched]);
 
   /**
    * Fetches profile data from Supabase
@@ -186,10 +198,20 @@ export function useProfileData() {
   const handleFetchError = (error: any, isMounted: boolean) => {
     console.error("📋 PROFILE: Error loading profile:", error);
     if (isMounted) {
+      setFetchError(error.message || "Failed to load profile");
       toast.error("Failed to load profile");
       setLoading(false); // Make sure to set loading to false even on error
+      setHasFetched(true); // Mark as fetched to prevent continuous retry loops
     }
   };
+
+  // Reset fetched state if user changes
+  useEffect(() => {
+    if (user?.id) {
+      // If the user ID changes, reset the hasFetched state
+      setHasFetched(false);
+    }
+  }, [user?.id]);
 
   return {
     profile,
