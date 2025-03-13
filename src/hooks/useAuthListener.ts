@@ -2,255 +2,65 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
-import { getUserProfile } from '@/services/authService';
-
-interface UseAuthListenerResult {
-  user: AuthUser | null;
-  loading: boolean;
-  isAuthenticated: boolean;
-}
+import { UseAuthListenerResult, AuthState } from './authListener/types';
+import { checkCurrentSession, updateStateFromSession, loadFullUserProfile } from './authListener/sessionManager';
+import { handleAuthStateChange } from './authListener/authEventHandler';
 
 export const useAuthListener = (): UseAuthListenerResult => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    loading: true,
+    isAuthenticated: false
+  });
+  
+  const updateState = (newState: Partial<AuthState>) => {
+    setState(prev => ({ ...prev, ...newState }));
+  };
 
   useEffect(() => {
     console.log("🎧 AuthListener: Setting up authentication listener");
     let isMounted = true;
     
-    const checkCurrentUser = async () => {
-      console.log("🎧 AuthListener: Checking for current user session");
+    const initialize = async () => {
       try {
-        // Immediately set session state based on session existence
-        const { data: sessionData } = await supabase.auth.getSession();
+        // Check for current session
+        const { sessionData, hasSession } = await checkCurrentSession(isMounted);
         
-        if (!isMounted) {
-          console.log("🎧 AuthListener: Component unmounted, skipping state update");
-          return;
-        }
+        if (!isMounted) return;
         
-        // Immediately update authentication state if session exists
-        const sessionExists = !!sessionData.session;
-        if (sessionExists && sessionData.session?.user) {
-          console.log("🎧 AuthListener: Session exists, setting isAuthenticated to true and basic user data");
-          setIsAuthenticated(true);
+        if (hasSession && sessionData.session?.user) {
+          updateStateFromSession(sessionData.session, updateState);
           
-          // Set basic user information immediately
-          setUser({
-            id: sessionData.session.user.id,
-            email: sessionData.session.user.email,
-            provider: sessionData.session.user.app_metadata?.provider || 'email'
-          });
-          
-          // Set loading to false since we have the basic user data now
-          setLoading(false);
+          // Load full profile data in the background
+          loadFullUserProfile(sessionData.session, isMounted, updateState);
         } else {
           // No session exists
           if (isMounted) {
-            setUser(null);
-            setIsAuthenticated(false);
-            setLoading(false);
-          }
-        }
-        
-        // Still get the full user data, but don't block on it
-        if (sessionExists && sessionData.session?.user) {
-          const { data } = await supabase.auth.getUser();
-          
-          if (!isMounted) {
-            console.log("🎧 AuthListener: Component unmounted, skipping state update");
-            return;
-          }
-          
-          if (data.user) {
-            console.log("🎧 AuthListener: Initial check - Found user:", data.user.id);
-            
-            try {
-              // Get user profile data
-              const { profile, error: profileError } = await getUserProfile(data.user.id);
-              
-              if (profileError) {
-                console.error("🎧 AuthListener: Error fetching profile:", profileError);
-              }
-              
-              // Get provider from app_metadata if available
-              const provider = data.user.app_metadata?.provider || 'email';
-              
-              if (isMounted) {
-                console.log("🎧 AuthListener: Setting initial user state", {
-                  id: data.user.id,
-                  hasProfile: !!profile,
-                  provider: provider
-                });
-                
-                setUser({
-                  id: data.user.id,
-                  email: data.user.email,
-                  username: profile?.username,
-                  provider: provider
-                });
-                setIsAuthenticated(true);
-                setLoading(false);
-              }
-            } catch (profileError) {
-              console.error("🎧 AuthListener: Error in profile fetching:", profileError);
-              if (isMounted) {
-                // Even if profile fetch fails, we still have a valid user
-                setUser({
-                  id: data.user.id,
-                  email: data.user.email,
-                  provider: data.user.app_metadata?.provider || 'email'
-                });
-                setIsAuthenticated(true);
-                setLoading(false);
-              }
-            }
-          } else {
-            console.log("🎧 AuthListener: Initial check - No user found");
-            if (isMounted) {
-              setUser(null);
-              setIsAuthenticated(false);
-              setLoading(false);
-            }
+            updateState({
+              user: null,
+              isAuthenticated: false,
+              loading: false
+            });
           }
         }
       } catch (error) {
         console.error("🎧 AuthListener: Error checking current user:", error);
         if (isMounted) {
-          setUser(null);
-          setIsAuthenticated(false);
-          setLoading(false);
+          updateState({
+            user: null,
+            isAuthenticated: false,
+            loading: false
+          });
         }
       }
     };
 
-    // Check current user immediately
-    checkCurrentUser();
+    // Initialize immediately
+    initialize();
 
     // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`🎧 AuthListener: Auth state change event: ${event}`, {
-        sessionExists: !!session,
-        userId: session?.user?.id
-      });
-      
-      if (!isMounted) {
-        console.log("🎧 AuthListener: Component unmounted, skipping auth state change handling");
-        return;
-      }
-      
-      // Immediately update authentication state if session exists
-      if (session && session.user) {
-        console.log("🎧 AuthListener: Session exists in auth event, setting isAuthenticated to true");
-        setIsAuthenticated(true);
-        
-        // Set basic user information immediately
-        setUser({
-          id: session.user.id,
-          email: session.user.email,
-          provider: session.user.app_metadata?.provider || 'email'
-        });
-        
-        // Set loading to false since we have the basic user data now
-        setLoading(false);
-      } else if (event === 'SIGNED_OUT') {
-        setIsAuthenticated(false);
-        setUser(null);
-        setLoading(false);
-      }
-      
-      if (event === 'SIGNED_IN' && session?.user) {
-        console.log("🎧 AuthListener: User signed in:", session.user.id);
-        
-        try {
-          // Get user profile data
-          const { profile, error: profileError } = await getUserProfile(session.user.id);
-          
-          if (profileError) {
-            console.error("🎧 AuthListener: Error fetching profile on sign in:", profileError);
-          }
-          
-          // Get provider from app_metadata if available
-          const provider = session.user.app_metadata?.provider || 'email';
-          
-          if (isMounted) {
-            console.log("🎧 AuthListener: Setting user state after sign in", {
-              id: session.user.id,
-              hasProfile: !!profile,
-              provider: provider
-            });
-            
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              username: profile?.username,
-              provider: provider
-            });
-            setIsAuthenticated(true);
-            setLoading(false);
-          }
-        } catch (profileError) {
-          console.error("🎧 AuthListener: Error fetching profile on sign in:", profileError);
-          if (isMounted) {
-            // Even if profile fetch fails, we still have authenticated user
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              provider: session.user.app_metadata?.provider || 'email'
-            });
-            setIsAuthenticated(true);
-            setLoading(false);
-          }
-        }
-      } else if (event === 'SIGNED_OUT') {
-        console.log("🎧 AuthListener: User signed out");
-        if (isMounted) {
-          setUser(null);
-          setIsAuthenticated(false);
-          setLoading(false);
-        }
-      } else if (event === 'USER_UPDATED') {
-        console.log("🎧 AuthListener: User updated:", session?.user?.id);
-        // Handle user update if needed
-        if (session?.user && isMounted) {
-          try {
-            const { profile, error: profileError } = await getUserProfile(session.user.id);
-            if (profileError) {
-              console.error("🎧 AuthListener: Error fetching profile on user update:", profileError);
-            }
-            
-            const provider = session.user.app_metadata?.provider || 'email';
-            
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              username: profile?.username,
-              provider: provider
-            });
-            setIsAuthenticated(true);
-            setLoading(false);
-          } catch (profileError) {
-            console.error("🎧 AuthListener: Error fetching profile on user update:", profileError);
-            // Keep user authenticated even if profile fetch fails
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              provider: session.user.app_metadata?.provider || 'email'
-            });
-            setIsAuthenticated(true);
-            setLoading(false);
-          }
-        }
-      } else if (event === 'TOKEN_REFRESHED') {
-        console.log("🎧 AuthListener: Token refreshed for user:", session?.user?.id);
-        // No need to update user state here as the session is just refreshed
-        if (session?.user) {
-          setIsAuthenticated(true);
-          // Make sure loading is false
-          setLoading(false);
-        }
-      }
+      await handleAuthStateChange(event, session, isMounted, updateState);
     });
 
     return () => {
@@ -262,11 +72,15 @@ export const useAuthListener = (): UseAuthListenerResult => {
 
   useEffect(() => {
     console.log("🎧 AuthListener: Auth state updated:", { 
-      isAuthenticated, 
-      loading, 
-      userId: user?.id
+      isAuthenticated: state.isAuthenticated, 
+      loading: state.loading, 
+      userId: state.user?.id
     });
-  }, [user, loading, isAuthenticated]);
+  }, [state.user, state.loading, state.isAuthenticated]);
 
-  return { user, loading, isAuthenticated };
+  return {
+    user: state.user,
+    loading: state.loading,
+    isAuthenticated: state.isAuthenticated
+  };
 };
