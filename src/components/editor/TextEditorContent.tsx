@@ -1,19 +1,16 @@
 
-// Update the TextEditorContent.tsx to handle UUID refresh
-// File: src/components/editor/TextEditorContent.tsx
-
 import React, { useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import { LineNumbers } from './LineNumbers';
 import { isDeltaObject } from '@/utils/editor';
 
 interface TextEditorContentProps {
-  content: any; // Changed from string to any to support Delta objects
+  content: any; 
   lineCount: number;
   quillRef: React.RefObject<ReactQuill>;
   modules: any;
   formats: string[];
-  onChange: (value: any) => void; // Changed from string to any
+  onChange: (value: any) => void;
 }
 
 export const TextEditorContent: React.FC<TextEditorContentProps> = ({
@@ -58,10 +55,10 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
     isEditorMountedRef.current = true;
     
     const editor = quillRef.current?.getEditor();
-    if (editor && editor.lineTracking) {
-      // Call LineTracker's initialize method if it exists
-      if (typeof editor.lineTracking.initialize === 'function') {
-        editor.lineTracking.initialize();
+    if (editor) {
+      const lineTrackingModule = editor.getModule('lineTracking');
+      if (lineTrackingModule && typeof lineTrackingModule.initialize === 'function') {
+        lineTrackingModule.initialize();
       }
     }
   };

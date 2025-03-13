@@ -9,168 +9,83 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      github_repositories: {
-        Row: {
-          created_at: string
-          id: string
-          is_private: boolean | null
-          name: string
-          owner: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_private?: boolean | null
-          name: string
-          owner: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_private?: boolean | null
-          name?: string
-          owner?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "github_repositories_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
-          created_at: string
-          email: string
           github_access_token: string | null
           github_app_installation_id: string | null
           id: string
-          role: Database["public"]["Enums"]["app_role"]
-          updated_at: string
-          username: string
+          username: string | null
         }
         Insert: {
-          created_at?: string
-          email: string
           github_access_token?: string | null
           github_app_installation_id?: string | null
           id: string
-          role?: Database["public"]["Enums"]["app_role"]
-          updated_at?: string
-          username: string
+          username?: string | null
         }
         Update: {
-          created_at?: string
-          email?: string
           github_access_token?: string | null
           github_app_installation_id?: string | null
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          updated_at?: string
-          username?: string
+          username?: string | null
         }
         Relationships: []
       }
       repository_permissions: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
-          permission_type: string
-          repository_id: string
-          updated_at: string
-          user_id: string
+          permission_type: string | null
+          repository_id: string | null
+          user_id: string | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
-          permission_type: string
-          repository_id: string
-          updated_at?: string
-          user_id: string
+          permission_type?: string | null
+          repository_id?: string | null
+          user_id?: string | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
-          permission_type?: string
-          repository_id?: string
-          updated_at?: string
-          user_id?: string
+          permission_type?: string | null
+          repository_id?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "repository_permissions_repository_id_fkey"
             columns: ["repository_id"]
             isOneToOne: false
-            referencedRelation: "github_repositories"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "repository_permissions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "scripts"
             referencedColumns: ["id"]
           },
         ]
       }
       script_content: {
         Row: {
-          content: string
-          created_at: string
-          draft: string | null
-          edited_by: Json | null
-          id: string
-          line_number: number | null
-          line_number_draft: number | null
-          original_author: string | null
-          script_id: string | null
-          updated_at: string
+          content_delta: Json
+          script_id: string
+          updated_at: string | null
+          version: number
         }
         Insert: {
-          content: string
-          created_at?: string
-          draft?: string | null
-          edited_by?: Json | null
-          id?: string
-          line_number?: number | null
-          line_number_draft?: number | null
-          original_author?: string | null
-          script_id?: string | null
-          updated_at?: string
+          content_delta?: Json
+          script_id: string
+          updated_at?: string | null
+          version?: number
         }
         Update: {
-          content?: string
-          created_at?: string
-          draft?: string | null
-          edited_by?: Json | null
-          id?: string
-          line_number?: number | null
-          line_number_draft?: number | null
-          original_author?: string | null
-          script_id?: string | null
-          updated_at?: string
+          content_delta?: Json
+          script_id?: string
+          updated_at?: string | null
+          version?: number
         }
         Relationships: [
           {
-            foreignKeyName: "script_content_original_author_fkey"
-            columns: ["original_author"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "script_content_script_id_fkey"
             columns: ["script_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "scripts"
             referencedColumns: ["id"]
           },
@@ -178,27 +93,24 @@ export type Database = {
       }
       script_drafts: {
         Row: {
-          content: Json
-          created_at: string
+          draft_content: Json
           id: string
-          script_id: string
-          updated_at: string
+          script_id: string | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
-          content: Json
-          created_at?: string
+          draft_content: Json
           id?: string
-          script_id: string
-          updated_at?: string
+          script_id?: string | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
-          content?: Json
-          created_at?: string
+          draft_content?: Json
           id?: string
-          script_id?: string
-          updated_at?: string
+          script_id?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -209,104 +121,37 @@ export type Database = {
             referencedRelation: "scripts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "script_drafts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      script_permissions: {
-        Row: {
-          created_at: string
-          id: string
-          permission_type: string
-          script_id: string | null
-          updated_at: string
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          permission_type: string
-          script_id?: string | null
-          updated_at?: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          permission_type?: string
-          script_id?: string | null
-          updated_at?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "script_permissions_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "script_permissions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
         ]
       }
       script_suggestions: {
         Row: {
-          branch_name: string | null
-          content: string
-          created_at: string
-          draft: string | null
+          created_at: string | null
+          delta_diff: Json
           id: string
-          line_number: number | null
-          line_number_draft: number | null
-          line_uuid: string | null
-          metadata: Json | null
           rejection_reason: string | null
-          script_id: string
+          script_id: string | null
           status: string
-          updated_at: string
+          updated_at: string | null
           user_id: string
         }
         Insert: {
-          branch_name?: string | null
-          content: string
-          created_at?: string
-          draft?: string | null
+          created_at?: string | null
+          delta_diff: Json
           id?: string
-          line_number?: number | null
-          line_number_draft?: number | null
-          line_uuid?: string | null
-          metadata?: Json | null
           rejection_reason?: string | null
-          script_id: string
+          script_id?: string | null
           status?: string
-          updated_at?: string
+          updated_at?: string | null
           user_id: string
         }
         Update: {
-          branch_name?: string | null
-          content?: string
-          created_at?: string
-          draft?: string | null
+          created_at?: string | null
+          delta_diff?: Json
           id?: string
-          line_number?: number | null
-          line_number_draft?: number | null
-          line_uuid?: string | null
-          metadata?: Json | null
           rejection_reason?: string | null
-          script_id?: string
+          script_id?: string | null
           status?: string
-          updated_at?: string
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -317,11 +162,39 @@ export type Database = {
             referencedRelation: "scripts"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      script_versions: {
+        Row: {
+          content_delta: Json
+          created_at: string | null
+          created_by: string | null
+          id: string
+          script_id: string | null
+          version_number: number
+        }
+        Insert: {
+          content_delta: Json
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          script_id?: string | null
+          version_number: number
+        }
+        Update: {
+          content_delta?: Json
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          script_id?: string | null
+          version_number?: number
+        }
+        Relationships: [
           {
-            foreignKeyName: "script_suggestions_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "script_versions_script_id_fkey"
+            columns: ["script_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "scripts"
             referencedColumns: ["id"]
           },
         ]
@@ -329,43 +202,35 @@ export type Database = {
       scripts: {
         Row: {
           admin_id: string
-          created_at: string
+          created_at: string | null
           github_owner: string | null
           github_repo: string | null
           id: string
           is_private: boolean | null
           title: string
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
           admin_id: string
-          created_at?: string
+          created_at?: string | null
           github_owner?: string | null
           github_repo?: string | null
           id?: string
           is_private?: boolean | null
           title: string
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
           admin_id?: string
-          created_at?: string
+          created_at?: string | null
           github_owner?: string | null
           github_repo?: string | null
           id?: string
           is_private?: boolean | null
           title?: string
-          updated_at?: string
+          updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "scripts_admin_id_fkey"
-            columns: ["admin_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
@@ -375,8 +240,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      app_role: "admin" | "editor"
-      suggestion_status: "pending" | "approved" | "rejected"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never

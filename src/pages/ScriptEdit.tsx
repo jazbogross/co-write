@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { TextEditor } from "@/components/TextEditor";
-import { useToast } from "@/hooks/use-toast";
+import { DeltaTextEditor } from "@/components/DeltaTextEditor";
+import { toast } from "sonner";
+import { createSuggestion, saveScriptContent } from "@/services/scriptService";
 import {
   Card,
   CardContent,
@@ -11,13 +12,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DeltaContent } from "@/utils/editor/types";
-import { toast } from "sonner";
+import { DeltaStatic } from "quill";
+import Delta from "quill-delta";
 
 const ScriptEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [script, setScript] = useState<{
     title: string;
     admin_id: string;
@@ -26,18 +26,13 @@ const ScriptEdit = () => {
   } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [originalContent, setOriginalContent] = useState("");
   const [githubToken, setGithubToken] = useState<string | null>(null);
 
   useEffect(() => {
     const loadScript = async () => {
       try {
         if (!id) {
-          toast({
-            title: "Error",
-            description: "No script ID provided",
-            variant: "destructive",
-          });
+          toast.error("No script ID provided");
           navigate("/profile");
           return;
         }
@@ -49,7 +44,7 @@ const ScriptEdit = () => {
           return;
         }
 
-        // Get script data (without content - we'll get that from script_content)
+        // Get script data
         const { data: scriptData, error: scriptError } = await supabase
           .from("scripts")
           .select("title, admin_id, github_owner, github_repo")
@@ -58,11 +53,7 @@ const ScriptEdit = () => {
 
         if (scriptError) throw scriptError;
         if (!scriptData) {
-          toast({
-            title: "Error",
-            description: "Script not found",
-            variant: "destructive",
-          });
+          toast.error("Script not found");
           navigate("/profile");
           return;
         }
@@ -80,73 +71,69 @@ const ScriptEdit = () => {
           }
         }
 
-        // Fetch script content from script_content table
-        const { data: contentData, error: contentError } = await supabase
-          .from("script_content")
-          .select("content")
-          .eq("script_id", id)
-          .order("line_number", { ascending: true });
-
-        if (!contentError && contentData && contentData.length > 0) {
-          // Combine the content from all lines
-          const combinedContent = contentData.map(line => line.content).join("\n");
-          setOriginalContent(combinedContent);
-          console.log("Original content loaded:", combinedContent.substring(0, 100) + "...");
-        } else {
-          console.log("No content found or error fetching content:", contentError);
-          setOriginalContent("");
-        }
-
         setScript(scriptData);
         setIsAdmin(user.id === scriptData.admin_id);
         setLoading(false);
       } catch (error) {
         console.error("Error loading script:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load script",
-          variant: "destructive",
-        });
+        toast.error("Failed to load script");
         navigate("/profile");
       }
     };
 
     loadScript();
-  }, [id, navigate, toast]);
+  }, [id, navigate]);
 
-  const handleSuggestChange = async (updatedContent: string | DeltaContent) => {
-    if (!script || !id || !isAdmin) return;
+  const handleSuggestChange = async (delta: DeltaStatic) => {
+    if (!script || !id) return;
 
     try {
-      // If we have a GitHub token and repo info, commit to GitHub
-      if (githubToken && script.github_owner && script.github_repo) {
-        // Convert content to JSON string if it's an object
-        const contentToSave = typeof updatedContent === 'string' 
-          ? updatedContent 
-          : JSON.stringify(updatedContent, null, 2);
-
-        console.log("Committing content to GitHub:", contentToSave.substring(0, 100) + "...");
+      if (isAdmin) {
+        // If admin, save directly
+        const success = await saveScriptContent(id, delta, true);
         
-        // Call the Supabase function to commit changes to GitHub
-        const { data, error } = await supabase.functions.invoke("commit-script-changes", {
-          body: {
-            scriptId: id,
-            content: contentToSave,
-            githubAccessToken: githubToken
+        if (success) {
+          toast.success("Changes saved successfully");
+          
+          // If we have GitHub integration, commit changes to GitHub
+          if (githubToken && script.github_owner && script.github_repo) {
+            try {
+              // Call the Supabase function to commit changes to GitHub
+              const { data, error } = await supabase.functions.invoke("commit-script-changes", {
+                body: {
+                  scriptId: id,
+                  content: JSON.stringify(delta),
+                  githubAccessToken: githubToken
+                }
+              });
+
+              if (error) {
+                console.error("Error committing to GitHub:", error);
+                toast.error("Changes saved but failed to commit to GitHub");
+              } else {
+                toast.success("Changes saved and committed to GitHub");
+              }
+            } catch (githubError) {
+              console.error("Error with GitHub integration:", githubError);
+              toast.error("Changes saved but failed to sync with GitHub");
+            }
           }
-        });
-
-        if (error) {
-          console.error("Error committing to GitHub:", error);
-          toast.error("Failed to commit changes to GitHub");
-          return;
+        } else {
+          toast.error("Failed to save changes");
         }
-
-        console.log("Successfully committed to GitHub:", data);
-        toast.success("Changes saved and committed to GitHub");
       } else {
-        // Just save locally without GitHub commit
-        toast.success("Changes saved successfully");
+        // For non-admin users, we need to create a suggestion by comparing with the original
+        // Use an empty Delta with just a newline as a default original state if needed
+        const emptyDelta: DeltaStatic = new Delta([{ insert: '\n' }]);
+        
+        // Create a suggestion
+        const suggestionId = await createSuggestion(id, emptyDelta, delta);
+        
+        if (suggestionId) {
+          toast.success("Your changes have been submitted for review");
+        } else {
+          toast.error("Failed to submit changes");
+        }
       }
     } catch (error) {
       console.error("Error saving changes:", error);
@@ -162,10 +149,8 @@ const ScriptEdit = () => {
     return null;
   }
 
-  console.log("Rendering TextEditor with scriptId:", id);
-
   return (
-    <div className="container min-w-sreen">
+    <div className="container min-w-screen">
       <Card>
         <CardHeader>
           <CardTitle>{script.title}</CardTitle>
@@ -174,9 +159,8 @@ const ScriptEdit = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <TextEditor
+          <DeltaTextEditor
             isAdmin={isAdmin}
-            originalContent={originalContent}
             scriptId={id}
             onSuggestChange={handleSuggestChange}
           />
