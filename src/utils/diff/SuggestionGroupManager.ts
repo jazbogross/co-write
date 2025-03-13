@@ -1,23 +1,23 @@
 
-import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+/**
+ * SuggestionGroupManager - Utilities for grouping suggestions by user
+ */
+import { DeltaContent } from '@/utils/editor/types';
 
 export interface GroupedSuggestion {
   id: string;
-  content: any;
+  content: string | DeltaContent;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  delta_diff: any;
   original_content?: any;
-  status: string;
-  rejection_reason?: string;
-  created_at: string;
-  user_id: string;
 }
 
 export interface UserGroup {
-  user: {
-    id: string;
-    username: string;
-  };
-  count: number;
+  userId: string;
+  username: string;
   suggestions: GroupedSuggestion[];
+  count?: number;
 }
 
 export class SuggestionGroupManager {
@@ -25,81 +25,36 @@ export class SuggestionGroupManager {
    * Group suggestions by user
    */
   static groupByUser(suggestions: any[]): UserGroup[] {
-    if (!suggestions || suggestions.length === 0) {
-      return [];
-    }
-    
-    // Group by user_id
+    // Map to store user groups
     const userGroups = new Map<string, UserGroup>();
     
     suggestions.forEach(suggestion => {
       const userId = suggestion.user_id;
-      const username = suggestion.profiles?.username || 'Unknown user';
+      const username = suggestion.profiles?.username || 'Unknown User';
       
-      // Skip suggestions without a user
-      if (!userId) return;
-      
-      // Get or create user group
       if (!userGroups.has(userId)) {
         userGroups.set(userId, {
-          user: {
-            id: userId,
-            username
-          },
-          count: 0,
-          suggestions: []
+          userId,
+          username,
+          suggestions: [],
+          count: 0
         });
       }
       
+      // Add suggestion to user's group
       const group = userGroups.get(userId)!;
-      
-      // Add suggestion to group
       group.suggestions.push({
         id: suggestion.id,
-        content: suggestion.delta_diff || suggestion.content,
-        original_content: suggestion.original_content,
+        content: suggestion.content || suggestion.delta_diff,
         status: suggestion.status,
-        rejection_reason: suggestion.rejection_reason,
-        created_at: suggestion.created_at,
-        user_id: userId
+        createdAt: suggestion.created_at,
+        delta_diff: suggestion.delta_diff,
+        original_content: suggestion.original_content
       });
-      
-      // Increment count
-      group.count++;
+      group.count = group.suggestions.length;
     });
     
-    // Convert map to array and sort by most recent suggestion
-    return Array.from(userGroups.values())
-      .sort((a, b) => {
-        const aDate = new Date(a.suggestions[0].created_at).getTime();
-        const bDate = new Date(b.suggestions[0].created_at).getTime();
-        return bDate - aDate; // Most recent first
-      });
-  }
-  
-  /**
-   * Get content text for display
-   */
-  static getContentText(content: any): string {
-    if (!content) return '';
-    
-    if (isDeltaObject(content)) {
-      return extractPlainTextFromDelta(content);
-    }
-    
-    if (typeof content === 'string') {
-      try {
-        const parsed = JSON.parse(content);
-        if (isDeltaObject(parsed)) {
-          return extractPlainTextFromDelta(parsed);
-        }
-      } catch (e) {
-        // Not JSON, use as is
-      }
-      
-      return content;
-    }
-    
-    return String(content);
+    // Convert map to array
+    return Array.from(userGroups.values());
   }
 }

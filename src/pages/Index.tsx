@@ -1,188 +1,191 @@
 
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "sonner";
-import { Script } from "@/types/repository";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { CalendarIcon, GitForkIcon, LockIcon, EyeIcon, Users } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth';
 
-export default function Index() {
+interface Script {
+  id: string;
+  title: string;
+  created_at: string;
+  admin_id: string;
+  is_private?: boolean;
+  profiles: {
+    username: string;
+  };
+}
+
+export const Index = () => {
+  const { user } = useAuth();
   const [scripts, setScripts] = useState<Script[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [title, setTitle] = useState("");
-  const [isPrivate, setIsPrivate] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const navigate = useNavigate();
-
+  const [isLoading, setIsLoading] = useState(true);
+  
   useEffect(() => {
-    checkAuth();
-    loadScripts();
-  }, []);
-
-  const checkAuth = async () => {
-    const { data } = await supabase.auth.getUser();
-    if (data.user) {
-      setUser(data.user);
-    }
-  };
-
-  const loadScripts = async () => {
+    fetchScripts();
+  }, [user]);
+  
+  const fetchScripts = async () => {
+    setIsLoading(true);
+    
     try {
-      setLoading(true);
-      const { data: scriptData, error } = await supabase
-        .from("scripts")
-        .select(`
-          id,
-          title,
-          created_at,
-          admin_id,
-          github_repo,
-          github_owner,
-          profiles (
-            username
-          )
-        `)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Transform the data to include proper username handling
-      const transformedScripts = scriptData.map(script => ({
-        id: script.id,
-        title: script.title,
-        admin_id: script.admin_id,
-        github_repo: script.github_repo || "",
-        github_owner: script.github_owner || "",
-        created_at: script.created_at,
-        is_private: script.is_private,
-        profiles: {
-          username: script.profiles?.username || "Unknown user"
-        }
-      }));
-
-      setScripts(transformedScripts);
-    } catch (error) {
-      console.error("Error loading scripts:", error);
-      toast.error("Failed to load scripts");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreate = async () => {
-    if (!title.trim()) {
-      toast.error("Title is required");
-      return;
-    }
-
-    if (!user) {
-      toast.error("You must be logged in to create a script");
-      navigate("/auth");
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("scripts")
-        .insert({
-          title,
-          admin_id: user.id,
-          is_private: isPrivate,
-        })
-        .select();
-
-      if (error) throw error;
-
-      if (data && data[0]) {
-        toast.success("Script created successfully");
-        setTitle("");
-        loadScripts();
+      if (user) {
+        // If user is logged in, fetch all public scripts and user's private scripts
+        const { data, error } = await supabase
+          .from('scripts')
+          .select(`
+            id,
+            title,
+            created_at,
+            admin_id,
+            is_private,
+            github_repo,
+            github_owner,
+            admin:admin_id(username)
+          `);
+          
+        if (error) throw error;
         
-        // Navigate to edit page
-        navigate(`/script/${data[0].id}`);
+        const formattedScripts = data.map(script => ({
+          id: script.id,
+          title: script.title,
+          created_at: script.created_at,
+          admin_id: script.admin_id,
+          is_private: script.is_private ?? false,
+          profiles: {
+            username: script.admin?.username || 'Unknown'
+          }
+        }));
+        
+        setScripts(formattedScripts);
+      } else {
+        // If no user is logged in, fetch only public scripts
+        const { data, error } = await supabase
+          .from('scripts')
+          .select(`
+            id,
+            title,
+            created_at,
+            admin_id,
+            is_private,
+            github_repo,
+            github_owner,
+            admin:admin_id(username)
+          `)
+          .eq('is_private', false);
+          
+        if (error) throw error;
+        
+        const formattedScripts = data.map(script => ({
+          id: script.id,
+          title: script.title,
+          created_at: script.created_at,
+          admin_id: script.admin_id,
+          is_private: false,
+          profiles: {
+            username: script.admin?.username || 'Unknown'
+          }
+        }));
+        
+        setScripts(formattedScripts);
       }
     } catch (error) {
-      console.error("Error creating script:", error);
-      toast.error("Failed to create script");
+      console.error('Error fetching scripts:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
-
+  
   return (
-    <div className="container py-8">
-      <h1 className="text-3xl font-bold mb-8">All Scripts</h1>
-
-      {user && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Create New Script</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-end gap-4">
-              <div className="flex-1">
-                <Input
-                  placeholder="Script title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="mb-2"
-                />
-              </div>
-              <div className="flex items-center gap-2 mb-2">
-                <label className="text-sm">
-                  <input
-                    type="checkbox"
-                    checked={isPrivate}
-                    onChange={(e) => setIsPrivate(e.target.checked)}
-                    className="mr-2"
-                  />
-                  Private
-                </label>
-              </div>
-              <Button onClick={handleCreate}>Create</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {loading ? (
-        <div className="text-center py-8">Loading scripts...</div>
+    <div className="container mx-auto py-8">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-3xl font-bold">Script Library</h2>
+        {user && (
+          <Button asChild>
+            <Link to="/profile">Manage Your Scripts</Link>
+          </Button>
+        )}
+      </div>
+      
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="space-y-2">
+                <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+              </CardHeader>
+              <CardContent className="h-16 bg-gray-100 rounded"></CardContent>
+              <CardFooter className="flex justify-between">
+                <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+                <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
       ) : scripts.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">No scripts found</p>
-          {!user && (
-            <p className="mt-4">
-              <Link to="/auth" className="text-primary hover:underline">
-                Sign in
-              </Link>{" "}
-              to create your own scripts
-            </p>
+        <div className="text-center py-20">
+          <h3 className="text-xl font-medium text-gray-600 mb-4">No scripts found</h3>
+          {user ? (
+            <Button asChild>
+              <Link to="/profile">Create Your First Script</Link>
+            </Button>
+          ) : (
+            <Button asChild>
+              <Link to="/auth">Sign In to Create Scripts</Link>
+            </Button>
           )}
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {scripts.map((script) => (
-            <Card key={script.id} className="overflow-hidden">
-              <CardHeader className="p-4">
-                <CardTitle className="text-xl">{script.title}</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  By {script.profiles.username}
-                </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {scripts.map(script => (
+            <Card key={script.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <span className="truncate">{script.title}</span>
+                  {script.is_private && (
+                    <LockIcon className="ml-2 h-4 w-4 text-amber-500" />
+                  )}
+                </CardTitle>
+                <CardDescription className="flex items-center text-sm">
+                  <CalendarIcon className="mr-1 h-3 w-3" />
+                  {format(new Date(script.created_at), 'MMM d, yyyy')}
+                </CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <p className="text-xs text-muted-foreground mb-4">
-                  Created on{" "}
-                  {new Date(script.created_at).toLocaleDateString()}
-                </p>
-                <Button asChild className="w-full">
-                  <Link to={`/script/${script.id}`}>View Script</Link>
-                </Button>
+              <CardContent>
+                <div className="flex items-center space-x-2 mb-4">
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback>{script.profiles.username[0]}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm text-gray-600">{script.profiles.username}</span>
+                </div>
               </CardContent>
+              <CardFooter className="flex justify-between">
+                <Button asChild variant="secondary" size="sm">
+                  <Link to={`/script/${script.id}`}>
+                    <EyeIcon className="mr-1 h-4 w-4" />
+                    View
+                  </Link>
+                </Button>
+                {user && (
+                  <Button asChild size="sm">
+                    <Link to={`/script/${script.id}/edit`}>
+                      <GitForkIcon className="mr-1 h-4 w-4" />
+                      Edit
+                    </Link>
+                  </Button>
+                )}
+              </CardFooter>
             </Card>
           ))}
         </div>
       )}
     </div>
   );
-}
+};
+
+export default Index;

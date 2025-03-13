@@ -1,61 +1,58 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { v4 as uuidv4 } from 'uuid';
 import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
-import { isDeltaObject } from '@/utils/editor';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
 
 /**
- * Save suggestions to the database
+ * Save user suggestions to the database
  */
 export const saveSuggestions = async (
   scriptId: string,
   lineData: LineData[],
-  originalContent: string,
+  content: string | DeltaContent | null,
   userId: string
 ): Promise<boolean> => {
   try {
-    // For the new approach, we use a single Delta diff
-    // Get the original content first
-    const { data: scriptData } = await supabase
+    console.log('💾 Saving suggestions:', { scriptId, userId });
+    
+    // First, get the current content to compare against
+    const { data: currentContent } = await supabase
       .from('script_content')
       .select('content_delta')
       .eq('script_id', scriptId)
       .single();
     
-    if (!scriptData) {
-      console.error('Original script content not found');
+    if (!currentContent?.content_delta) {
+      console.error('No current content found for script');
       return false;
     }
     
-    // Extract suggested content (Delta) from lineData
-    // In the simplified approach, we would expect a single Delta
-    let suggestedContent: DeltaContent;
+    // Determine what to use as the suggestion content
+    const suggestionContent = content || (lineData.length > 0 ? lineData[0].content : null);
     
-    if (lineData.length > 0 && isDeltaObject(lineData[0].content)) {
-      suggestedContent = lineData[0].content;
-    } else {
-      // Fallback to building from line data
-      suggestedContent = {
-        ops: lineData.flatMap(line => {
-          const content = isDeltaObject(line.content) 
-            ? line.content.ops 
-            : [{ insert: String(line.content) + '\n' }];
-          return content;
-        })
-      };
+    if (!suggestionContent) {
+      console.error('No suggestion content provided');
+      return false;
     }
     
-    // Compare original and suggested content to generate diff
-    // Using QuillJS Delta, we can generate a diff
-    // For now, just store the entire suggested Delta
+    // Format the content as a Delta object
+    const deltaDiff = isDeltaObject(suggestionContent) 
+      ? suggestionContent 
+      : { ops: [{ insert: String(suggestionContent) }] };
     
-    // Save to script_suggestions table
+    // Convert Delta to a JSON-serializable format
+    const jsonContent = JSON.stringify(deltaDiff);
+    
+    // Create the suggestion record
     const { error } = await supabase
       .from('script_suggestions')
       .insert({
+        id: uuidv4(),
         script_id: scriptId,
         user_id: userId,
-        delta_diff: suggestedContent,
+        delta_diff: JSON.parse(jsonContent),
         status: 'pending',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

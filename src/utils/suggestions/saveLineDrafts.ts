@@ -5,36 +5,32 @@ import { DeltaContent } from '@/utils/editor/types';
 import { isDeltaObject } from '@/utils/editor';
 
 /**
- * Save line drafts to the database
+ * Save user drafts to the database
  */
 export const saveLineDrafts = async (
   scriptId: string,
   lineData: LineData[],
-  originalContent: string,
   userId: string
 ): Promise<boolean> => {
   try {
+    console.log('💾 Saving drafts for user:', userId);
+    
+    // For the simplified Delta approach, we take content from lineData
     if (!lineData || lineData.length === 0) {
-      console.error('No line data to save');
+      console.error('No line data provided');
       return false;
     }
     
-    // Extract draft content (Delta) from lineData
-    let draftContent: DeltaContent;
+    // Get content from first line
+    const content = lineData[0].content;
     
-    if (isDeltaObject(lineData[0].content)) {
-      draftContent = lineData[0].content;
-    } else {
-      // Fallback: Build Delta from lineData
-      draftContent = {
-        ops: lineData.flatMap(line => {
-          const content = isDeltaObject(line.content) 
-            ? line.content.ops 
-            : [{ insert: String(line.content) + '\n' }];
-          return content;
-        })
-      };
-    }
+    // Ensure content is in Delta format
+    const draftContent = isDeltaObject(content) 
+      ? content 
+      : { ops: [{ insert: String(content) }] };
+    
+    // Convert to JSON for storage
+    const jsonContent = JSON.stringify(draftContent);
     
     // Save to script_drafts table
     const { error } = await supabase
@@ -42,14 +38,14 @@ export const saveLineDrafts = async (
       .upsert({
         script_id: scriptId,
         user_id: userId,
-        draft_content: draftContent,
+        draft_content: JSON.parse(jsonContent),
         updated_at: new Date().toISOString()
-      }, {
+      }, { 
         onConflict: 'script_id,user_id'
       });
     
     if (error) {
-      console.error('Error saving line drafts:', error);
+      console.error('Error saving draft:', error);
       return false;
     }
     

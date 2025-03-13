@@ -6,7 +6,7 @@ import { RejectionDialog } from './suggestions/RejectionDialog';
 import { SuggestionGroup } from './suggestions/SuggestionGroup';
 import { SuggestionDetail } from './suggestions/SuggestionDetail';
 import { useSuggestionManager } from '@/hooks/useSuggestionManager';
-import { UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
+import { UserGroup, GroupedSuggestion, Suggestion } from '@/utils/diff/SuggestionGroupManager';
 
 interface SuggestionListProps {
   scriptId: string;
@@ -42,14 +42,9 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
           ) : (
             groupedSuggestions.map((group: UserGroup) => (
               <SuggestionGroup
-                key={group.user.id}
+                key={group.userId}
                 group={group}
-                onApprove={handleApprove}
-                onReject={(id) => {
-                  setSelectedSuggestionId(id);
-                  setIsRejectionDialogOpen(true);
-                }}
-                onExpandItem={handleExpandSuggestion}
+                onExpandSuggestion={handleExpandSuggestion}
               />
             ))
           )}
@@ -84,7 +79,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
           
           {expandedSuggestion && (
             <SuggestionDetail
-              suggestion={expandedSuggestion}
+              suggestion={expandedSuggestion as Suggestion}
               originalContent={originalContent}
               onApprove={(id) => {
                 handleApprove([id]);

@@ -1,77 +1,78 @@
 
-/**
- * diffTestUtils.ts - Utilities for testing diff functionality
- */
-import { LineDiff, DiffSegment } from './contentDiff';
-import { DiffManager } from './DiffManager';
-import { ChangedLine } from './diffManagerTypes';
-import { LineData } from '@/types/lineTypes';
+import { LineDiff, DiffSegment, DiffChangeType, ChangedLine } from './diffManagerTypes';
+import { DeltaContent } from '@/utils/editor/types';
 
 /**
- * Format a diff for console output
+ * Creates a mock diff between original and suggested content
  */
-export const logFormattedDiff = (diff: LineDiff): void => {
-  console.log('Diff:');
-  console.log(`Original: "${diff.originalContent}"`);
-  console.log(`Suggested: "${diff.suggestedContent}"`);
-  console.log(`Change type: ${diff.changeType}`);
+export const createMockDiff = (
+  original: string | DeltaContent,
+  suggested: string | DeltaContent
+): LineDiff => {
+  // For simplicity in testing, use strings
+  const originalText = typeof original === 'string' ? original : JSON.stringify(original);
+  const suggestedText = typeof suggested === 'string' ? suggested : JSON.stringify(suggested);
   
-  console.log('Segments:');
-  diff.segments.forEach((segment, i) => {
-    console.log(`  ${i+1}. [${segment.type}] "${segment.content}"`);
-  });
+  // Basic segments for testing
+  const segments: DiffSegment[] = [
+    { text: originalText, type: DiffChangeType.DELETED },
+    { text: suggestedText, type: DiffChangeType.ADDED }
+  ];
+  
+  return {
+    segments,
+    changeType: DiffChangeType.MODIFIED
+  };
 };
 
 /**
- * Simulate applying the diff to the original content to verify correctness
+ * Creates a test line with original and suggested content
  */
-export const applyDiff = (diff: LineDiff): string => {
-  let result = '';
-  
-  diff.segments.forEach(segment => {
-    if (segment.type !== 'deletion') {
-      result += segment.content;
-    }
-  });
-  
-  return result;
+export const createTestChangedLine = (
+  lineUuid: string,
+  lineNumber: number,
+  original: string | DeltaContent,
+  suggested: string | DeltaContent
+): ChangedLine => {
+  return {
+    lineUuid,
+    lineNumber,
+    originalContent: original,
+    suggestedContent: suggested,
+    diff: createMockDiff(original, suggested)
+  };
 };
 
 /**
- * Test if applying the diff results in the expected content
+ * Creates arrays of lines for testing
  */
-export const validateDiff = (diff: LineDiff): boolean => {
-  const result = applyDiff(diff);
-  return result === diff.suggestedContent;
-};
-
-/**
- * Convert LineData arrays to an example for testing
- */
-export const createDiffExample = (originalLines: LineData[], suggestedLines: LineData[]): void => {
-  const diffMap = DiffManager.generateDiff(originalLines, suggestedLines);
-  const summary = DiffManager.generateDiffSummary(originalLines, suggestedLines);
+export const createTestLineArrays = (
+  count: number,
+  withChanges: boolean = true
+): { originalLines: any[], suggestedLines: any[] } => {
+  const originalLines = [];
+  const suggestedLines = [];
   
-  console.log('======= DIFF EXAMPLE =======');
-  console.log(`Total changes: ${summary.totalChanges}`);
-  console.log(`Additions: ${summary.additions}`);
-  console.log(`Deletions: ${summary.deletions}`);
-  console.log(`Modifications: ${summary.modifications}`);
-  
-  console.log('\nChanged lines:');
-  summary.changedLines.forEach((line, i) => {
-    console.log(`\n--- Change ${i+1} (Line ${line.lineNumber}) ---`);
-    logFormattedDiff(line.diff);
+  for (let i = 0; i < count; i++) {
+    const uuid = `test-uuid-${i}`;
+    const originalContent = `Original line ${i}`;
+    const suggestedContent = withChanges ? `Changed line ${i}` : originalContent;
     
-    const valid = validateDiff(line.diff);
-    console.log(`Validation: ${valid ? 'PASSED' : 'FAILED'}`);
-  });
+    originalLines.push({
+      uuid,
+      lineNumber: i + 1,
+      content: originalContent
+    });
+    
+    suggestedLines.push({
+      uuid,
+      lineNumber: i + 1,
+      content: suggestedContent
+    });
+  }
   
-  console.log('\nConsecutive groups:');
-  const groups = DiffManager.groupConsecutiveChanges(summary.changedLines);
-  groups.forEach((group, i) => {
-    console.log(`Group ${i+1}: Lines ${group[0].lineNumber}-${group[group.length-1].lineNumber} (${group.length} lines)`);
-  });
-  
-  console.log('==========================');
+  return {
+    originalLines,
+    suggestedLines
+  };
 };

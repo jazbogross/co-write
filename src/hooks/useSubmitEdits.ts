@@ -5,7 +5,7 @@ import { captureContentFromDOM, extractQuillContent } from '@/utils/saveDraftUti
 import { supabase } from '@/integrations/supabase/client';
 import { saveSuggestions } from '@/utils/suggestions';
 import { toast } from 'sonner';
-import { DeltaContent } from '@/utils/editor/types';
+import { DeltaContent, DeltaStatic } from '@/utils/editor/types';
 
 // Utility function to save lines to database
 const saveLinesToDatabase = async (
@@ -20,12 +20,15 @@ const saveLinesToDatabase = async (
       ? { ops: [{ insert: content }] }
       : content;
     
+    // Convert to JSON for Supabase
+    const jsonContent = JSON.stringify(contentToSave);
+    
     // Update script_content
     const { error } = await supabase
       .from('script_content')
       .upsert({
         script_id: scriptId,
-        content_delta: contentToSave,
+        content_delta: JSON.parse(jsonContent),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'script_id'
@@ -61,13 +64,16 @@ const saveDraft = async (
       return false;
     }
     
+    // Convert to JSON for Supabase
+    const jsonContent = JSON.stringify(currentContent);
+    
     // Save to script_drafts table
     const { error } = await supabase
       .from('script_drafts')
       .upsert({
         script_id: scriptId,
         user_id: userId,
-        draft_content: currentContent,
+        draft_content: JSON.parse(jsonContent),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'script_id,user_id'
@@ -106,7 +112,7 @@ export const useSubmitEdits = (
       return captureContentFromDOM(quill);
     }
     
-    // Fallback to using the provided content and lineData
+    // Fallback to using the provided content
     console.log('📋 useSubmitEdits: Using provided content for save');
     return content;
   }, [quill, content]);
@@ -159,12 +165,31 @@ export const useSubmitEdits = (
       // Capture the most up-to-date content
       const contentToSave = currentContent || captureCurrentContent() || content;
       
+      // Ensure we have a valid DeltaContent
+      const ensureDeltaContent = (content: any): DeltaContent => {
+        if (typeof content === 'string') {
+          return { ops: [{ insert: content }] };
+        }
+        
+        // Handle DeltaStatic objects (which may not have required ops)
+        if (content && typeof content === 'object') {
+          if ('ops' in content) {
+            return { ops: content.ops || [] };
+          }
+        }
+        
+        // Fallback to empty Delta
+        return { ops: [{ insert: '\n' }] };
+      };
+      
+      const contentForDb = ensureDeltaContent(contentToSave);
+      
       if (isAdmin) {
         // Save to database first
-        await saveLinesToDatabase(scriptId, lineData, contentToSave);
+        await saveLinesToDatabase(scriptId, lineData, contentForDb);
         
         // Then notify parent component for GitHub commit if needed
-        onSuggestChange(contentToSave);
+        onSuggestChange(contentForDb);
         toast.success('Changes saved successfully!');
       } else {
         if (!userId) {
