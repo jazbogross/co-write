@@ -1,26 +1,27 @@
 
 import { LineData } from '@/types/lineTypes';
-import { logDraftLoading, logDraftLineData } from './draftLoggingUtils';
 
 /**
- * Finalizes line data after drafts are applied
- * Sorts by line number and ensures sequential numbering
+ * Finalize line data after applying drafts
  */
 export const finalizeLineData = (
   processedDraftLines: LineData[],
   appliedSuggestionCount: number
 ): LineData[] => {
-  // Sort processed lines by line number
-  processedDraftLines.sort((a, b) => a.lineNumber - b.lineNumber);
+  // If no drafts were applied, return original lines
+  if (appliedSuggestionCount === 0) {
+    return processedDraftLines;
+  }
   
-  // Renumber lines to ensure sequential numbering
-  const finalLineData = processedDraftLines.map((line, index) => ({
-    ...line,
-    lineNumber: index + 1
-  }));
+  // Sort by line number
+  const sortedLines = [...processedDraftLines].sort(
+    (a, b) => a.lineNumber - b.lineNumber
+  );
   
-  logDraftLoading(`Applied suggestion drafts to ${appliedSuggestionCount} lines`);
-  logDraftLineData('Processed', finalLineData);
+  // Ensure line numbers are sequential
+  sortedLines.forEach((line, index) => {
+    line.lineNumber = index + 1;
+  });
   
-  return finalLineData;
+  return sortedLines;
 };

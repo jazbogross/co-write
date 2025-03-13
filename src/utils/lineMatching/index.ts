@@ -1,28 +1,26 @@
 
-// Export utility functions
-export { isContentEmpty, getPlainTextContent } from './contentUtils';
-export { handleEnterAtZero } from './enterAtZeroStrategy';
-export { matchNonEmptyLines } from './nonEmptyLineStrategy';
-export { matchRemainingLines } from './positionFallbackStrategy';
+import { LineData } from '@/types/lineTypes';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import { enterAtZeroStrategy } from './enterAtZeroStrategy';
+import { nonEmptyLineStrategy } from './nonEmptyLineStrategy';
 
-// Helper to generate stats template
-export const generateStatsTemplate = () => ({
-  preserved: 0,
-  regenerated: 0,
-  matchStrategy: {} as Record<string, number>
-});
+/**
+ * Finds matching strategy for line operations
+ */
+export const findMatchingStrategy = (index: number, operation: any) => {
+  // Check each strategy in order
+  if (enterAtZeroStrategy.applies(index, operation)) {
+    return enterAtZeroStrategy;
+  }
+  
+  // Default strategy
+  return nonEmptyLineStrategy;
+};
 
-// Helper for special operations handling
-export const handleSpecialOperations = (
-  operation: any,
-  contents: any[],
-  prevData: any[],
-  usedIndices: Set<number>,
-  userId: string | null,
-  editor: any
-) => {
-  return {
-    success: false,
-    stats: generateStatsTemplate()
-  };
+/**
+ * Exports all strategies
+ */
+export const lineMatchingStrategies = {
+  enterAtZeroStrategy,
+  nonEmptyLineStrategy
 };

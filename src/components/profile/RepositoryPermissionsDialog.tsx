@@ -1,215 +1,238 @@
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
-import { Repository, Permission, User } from "./types";
-import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { User } from '../profile/types';
 
 interface RepositoryPermissionsDialogProps {
-  repository: Repository;
+  repositoryId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onPermissionsUpdated: () => void;
 }
 
-export const RepositoryPermissionsDialog = ({
-  repository,
+export const RepositoryPermissionsDialog: React.FC<RepositoryPermissionsDialogProps> = ({
+  repositoryId,
   open,
   onOpenChange,
-}: RepositoryPermissionsDialogProps) => {
-  const [permissions, setPermissions] = useState<Permission[]>([]);
+  onPermissionsUpdated,
+}) => {
+  const [email, setEmail] = useState("");
+  const [permission, setPermission] = useState<string>("read");
+  const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string>("");
-  const [permissionType, setPermissionType] = useState<"view" | "edit">("view");
-  const [isLoading, setIsLoading] = useState(true);
+  const [permissions, setPermissions] = useState<any[]>([]);
 
   useEffect(() => {
     if (open) {
-      loadPermissions();
-      loadUsers();
+      fetchUsers();
+      fetchPermissions();
     }
-  }, [open, repository.id]);
+  }, [open, repositoryId]);
 
-  const loadPermissions = async () => {
-    setIsLoading(true);
+  const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from("repository_permissions")
-        .select("*, profiles:user_id(*)")
-        .eq("repository_id", repository.id);
-
-      if (error) throw error;
-
-      // Transform to Permission type with user info
-      const formattedPermissions = data.map((p) => ({
-        id: p.id,
-        user_id: p.user_id,
-        repository_id: p.repository_id,
-        permission_type: p.permission_type as "view" | "edit" | "admin",
-        user: p.profiles ? {
-          id: p.profiles.id || '',
-          username: p.profiles.username || 'Unknown User'
-        } : undefined
-      }));
-
-      setPermissions(formattedPermissions);
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username');
+      
+      if (data) {
+        setUsers(data.map(user => ({
+          id: user.id,
+          username: user.username || 'No username'
+        })));
+      }
     } catch (error) {
-      console.error("Error loading permissions:", error);
-      toast.error("Failed to load repository permissions");
-    } finally {
-      setIsLoading(false);
+      console.error('Error fetching users:', error);
     }
   };
 
-  const loadUsers = async () => {
+  const fetchPermissions = async () => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, username");
-
-      if (error) throw error;
-
-      setUsers(data.map(u => ({
-        id: u.id,
-        username: u.username
-      })));
+      const { data } = await supabase
+        .from('repository_permissions')
+        .select(`
+          id, 
+          repository_id, 
+          user_id, 
+          permission_type,
+          profiles (
+            username
+          )
+        `)
+        .eq('repository_id', repositoryId);
+      
+      if (data) {
+        setPermissions(data);
+      }
     } catch (error) {
-      console.error("Error loading users:", error);
+      console.error('Error fetching permissions:', error);
     }
   };
 
   const handleAddPermission = async () => {
-    if (!selectedUser) return;
+    if (!email) {
+      toast.error('Please enter an email address');
+      return;
+    }
 
+    setLoading(true);
     try {
-      const { error } = await supabase.from("repository_permissions").insert({
-        repository_id: repository.id,
-        user_id: selectedUser,
-        permission_type: permissionType,
-      });
+      // Find user by email
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', email)
+        .single();
 
-      if (error) throw error;
+      if (userError || !userData) {
+        toast.error('User not found');
+        return;
+      }
 
-      toast.success("User permission added successfully");
-      loadPermissions();
-      setSelectedUser("");
+      // Check if permission already exists
+      const { data: existingPermission } = await supabase
+        .from('repository_permissions')
+        .select('id')
+        .eq('repository_id', repositoryId)
+        .eq('user_id', userData.id)
+        .single();
+
+      if (existingPermission) {
+        // Update existing permission
+        const { error: updateError } = await supabase
+          .from('repository_permissions')
+          .update({ permission_type: permission })
+          .eq('id', existingPermission.id);
+
+        if (updateError) throw updateError;
+        toast.success('Permission updated successfully');
+      } else {
+        // Create new permission
+        const { error: insertError } = await supabase
+          .from('repository_permissions')
+          .insert({
+            repository_id: repositoryId,
+            user_id: userData.id,
+            permission_type: permission,
+          });
+
+        if (insertError) throw insertError;
+        toast.success('Permission added successfully');
+      }
+
+      // Clear form and refresh permissions
+      setEmail('');
+      fetchPermissions();
+      onPermissionsUpdated();
     } catch (error) {
-      console.error("Error adding permission:", error);
-      toast.error("Failed to add user permission");
+      console.error('Error adding permission:', error);
+      toast.error('Failed to add permission');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRemovePermission = async (permissionId: string) => {
     try {
       const { error } = await supabase
-        .from("repository_permissions")
+        .from('repository_permissions')
         .delete()
-        .eq("id", permissionId);
+        .eq('id', permissionId);
 
       if (error) throw error;
-
-      toast.success("Permission removed successfully");
-      loadPermissions();
+      toast.success('Permission removed successfully');
+      fetchPermissions();
+      onPermissionsUpdated();
     } catch (error) {
-      console.error("Error removing permission:", error);
-      toast.error("Failed to remove permission");
+      console.error('Error removing permission:', error);
+      toast.error('Failed to remove permission');
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            Manage Access to {repository.name}
-          </DialogTitle>
+          <DialogTitle>Manage Access</DialogTitle>
         </DialogHeader>
-
         <div className="space-y-4">
-          <div className="flex flex-col space-y-4">
-            <div className="grid grid-cols-4 gap-4">
-              <select
-                className="col-span-2 px-3 py-2 border rounded"
-                value={selectedUser}
-                onChange={(e) => setSelectedUser(e.target.value)}
-              >
-                <option value="">Select a user</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.username || user.id}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="px-3 py-2 border rounded"
-                value={permissionType}
-                onChange={(e) => setPermissionType(e.target.value as "view" | "edit")}
-              >
-                <option value="view">View</option>
-                <option value="edit">Edit</option>
-              </select>
-              <Button onClick={handleAddPermission}>Add</Button>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email or Username</Label>
+            <Input
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter email or username"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="permission">Permission Level</Label>
+            <Select value={permission} onValueChange={setPermission}>
+              <SelectTrigger id="permission">
+                <SelectValue placeholder="Select permission" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="read">Read</SelectItem>
+                <SelectItem value="write">Write</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="border rounded">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Permission
-                  </th>
-                  <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={3} className="px-6 py-4">
-                      Loading permissions...
-                    </td>
-                  </tr>
-                ) : permissions.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="px-6 py-4">
-                      No permissions found
-                    </td>
-                  </tr>
-                ) : (
-                  permissions.map((permission) => (
-                    <tr key={permission.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {permission.user?.username || "Unknown User"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap capitalize">
-                        {permission.permission_type}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleRemovePermission(permission.id)}
-                        >
-                          Remove
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <Button onClick={handleAddPermission} disabled={loading} className="w-full">
+            {loading ? 'Adding...' : 'Add User'}
+          </Button>
+
+          {permissions.length > 0 && (
+            <div className="border rounded-md mt-4 p-2">
+              <h3 className="text-sm font-medium mb-2">Current Permissions</h3>
+              <div className="space-y-2">
+                {permissions.map((perm) => (
+                  <div key={perm.id} className="flex justify-between items-center p-2 bg-background border rounded-md">
+                    <div>
+                      <span className="text-sm font-medium">
+                        {perm.profiles?.username || 'Unknown user'}
+                      </span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ({perm.permission_type})
+                      </span>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleRemovePermission(perm.id)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

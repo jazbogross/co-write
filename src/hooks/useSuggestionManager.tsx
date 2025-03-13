@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { SuggestionGroupManager, UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
-import { generateLineDiff } from '@/utils/diff/contentDiff';
 
 export function useSuggestionManager(scriptId: string) {
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -12,98 +11,55 @@ export function useSuggestionManager(scriptId: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [expandedSuggestion, setExpandedSuggestion] = useState<GroupedSuggestion | null>(null);
-  const [originalContent, setOriginalContent] = useState<string | any>('');
+  const [originalContent, setOriginalContent] = useState<any>(null);
   const { toast } = useToast();
-
-  // Helper function to normalize content
-  const normalizeContent = (content: any): string => {
-    if (typeof content === 'string') {
-      try {
-        // Check if it's stringified JSON/Delta
-        const parsed = JSON.parse(content);
-        if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
-          return extractPlainTextFromDelta(parsed);
-        }
-      } catch (e) {
-        // Not JSON, use as is
-        return content;
-      }
-      return content;
-    } else if (isDeltaObject(content)) {
-      return extractPlainTextFromDelta(content);
-    }
-    return String(content);
-  };
 
   const loadSuggestions = async () => {
     try {
-      // First, fetch all suggestions
+      setIsLoading(true);
+      
+      // First, fetch all suggestions with the user profiles
       const { data, error } = await supabase
         .from('script_suggestions')
         .select(`
           id,
-          content,
+          delta_diff,
           status,
           rejection_reason,
-          line_uuid,
-          line_number,
-          metadata,
+          script_id,
           user_id,
+          created_at,
+          updated_at,
           profiles (
             username
           )
         `)
         .eq('script_id', scriptId)
         .neq('status', 'draft')
-        .neq('status', 'unchanged')  // Filter out unchanged suggestions
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      // If we have suggestions with line_uuids, fetch the original content
-      // for each unique line_uuid from script_content
-      if (data && data.length > 0) {
-        const lineUuids = data
-          .filter(item => item.line_uuid)
-          .map(item => item.line_uuid);
-        
-        if (lineUuids.length > 0) {
-          const { data: contentData, error: contentError } = await supabase
-            .from('script_content')
-            .select('id, content')
-            .in('id', lineUuids);
-            
-          if (contentError) throw contentError;
-          
-          // Create a map of line_uuid to original content
-          const originalContentMap = new Map();
-          if (contentData) {
-            contentData.forEach(item => {
-              originalContentMap.set(item.id, item.content);
-            });
-          }
-          
-          // Enhance each suggestion with the original content
-          const enhancedData = data.map(suggestion => ({
-            ...suggestion,
-            original_content: suggestion.line_uuid ? 
-              originalContentMap.get(suggestion.line_uuid) : null
-          }));
-          
-          setSuggestions(enhancedData);
-          
-          // Group suggestions by user
-          const grouped = SuggestionGroupManager.groupByUser(enhancedData);
-          setGroupedSuggestions(grouped);
-        } else {
-          setSuggestions(data);
-          const grouped = SuggestionGroupManager.groupByUser(data);
-          setGroupedSuggestions(grouped);
-        }
-      } else {
-        setSuggestions([]);
-        setGroupedSuggestions([]);
-      }
+      // Fetch original content for comparison
+      const { data: contentData } = await supabase
+        .from('script_content')
+        .select('content_delta')
+        .eq('script_id', scriptId)
+        .single();
+      
+      const originalDelta = contentData?.content_delta || { ops: [{ insert: '\n' }] };
+      
+      // Enhance each suggestion with the original content
+      const enhancedData = data ? data.map(suggestion => ({
+        ...suggestion,
+        original_content: originalDelta
+      })) : [];
+      
+      setSuggestions(enhancedData);
+      
+      // Group suggestions by user
+      const grouped = SuggestionGroupManager.groupByUser(enhancedData);
+      setGroupedSuggestions(grouped);
     } catch (error) {
       console.error('Error loading suggestions:', error);
       toast({
@@ -129,51 +85,22 @@ export function useSuggestionManager(scriptId: string) {
         // Get the suggestion details first
         const { data: suggestionData, error: suggestionError } = await supabase
           .from('script_suggestions')
-          .select('*')
+          .select('delta_diff, user_id')
           .eq('id', id)
-          .maybeSingle(); // Use maybeSingle instead of single
+          .single();
 
         if (suggestionError) throw suggestionError;
         if (!suggestionData) throw new Error('Suggestion not found');
 
-        // Update the script_content with the suggestion
-        if (suggestionData.line_uuid) {
-          // Get the current content to inspect existing edited_by
-          const { data: contentData, error: contentError } = await supabase
-            .from('script_content')
-            .select('edited_by')
-            .eq('id', suggestionData.line_uuid)
-            .maybeSingle(); // Use maybeSingle instead of single
-            
-          if (contentError) throw contentError;
-          
-          // Make sure we have an array
-          let editedByArray = [];
-          if (contentData && contentData.edited_by) {
-            editedByArray = Array.isArray(contentData.edited_by) ? 
-              contentData.edited_by : 
-              (typeof contentData.edited_by === 'string' ? 
-                JSON.parse(contentData.edited_by) : 
-                []);
-            
-            // Only add the user if not already in the array
-            if (!editedByArray.includes(suggestionData.user_id)) {
-              editedByArray.push(suggestionData.user_id);
-            }
-          } else {
-            editedByArray = [suggestionData.user_id];
-          }
-          
-          const { error: updateError } = await supabase
-            .from('script_content')
-            .update({ 
-              content: suggestionData.content,
-              edited_by: editedByArray
-            })
-            .eq('id', suggestionData.line_uuid);
+        // Update the script_content with the suggestion delta
+        const { error: updateError } = await supabase
+          .from('script_content')
+          .update({ 
+            content_delta: suggestionData.delta_diff
+          })
+          .eq('script_id', scriptId);
 
-          if (updateError) throw updateError;
-        }
+        if (updateError) throw updateError;
 
         // Update suggestion status
         const { error: statusError } = await supabase
@@ -282,12 +209,17 @@ export function useSuggestionManager(scriptId: string) {
     if (!foundSuggestion) return;
     setExpandedSuggestion(foundSuggestion);
     
-    // If the suggestion has a line_uuid, we've already fetched the original content
-    // during loadSuggestions, so we can use it directly
-    if (foundSuggestion.line_uuid && foundSuggestion.original_content) {
-      setOriginalContent(foundSuggestion.original_content);
+    // Get the original content for comparison
+    const { data } = await supabase
+      .from('script_content')
+      .select('content_delta')
+      .eq('script_id', scriptId)
+      .single();
+    
+    if (data?.content_delta) {
+      setOriginalContent(data.content_delta);
     } else {
-      setOriginalContent('');
+      setOriginalContent({ ops: [{ insert: '\n' }] });
     }
   };
 

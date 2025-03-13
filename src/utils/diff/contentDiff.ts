@@ -1,9 +1,26 @@
+
 /**
  * Utilities for content diffing
  */
-import { LineDiff } from './diffManagerTypes';
 import { DeltaContent } from '@/utils/editor/types';
 import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+
+/**
+ * Types for the diff system
+ */
+export type DiffChangeType = 'unchanged' | 'addition' | 'deletion' | 'modification';
+
+export interface DiffSegment {
+  type: 'unchanged' | 'addition' | 'deletion';
+  content: string;
+}
+
+export interface LineDiff {
+  original: string;
+  suggested: string;
+  changeType: DiffChangeType;
+  segments: DiffSegment[];
+}
 
 /**
  * Generates a simple diff between two text contents
@@ -14,8 +31,8 @@ export function generateLineDiff(original: string, suggested: string): LineDiff 
     return {
       original,
       suggested,
-      changeType: 'unchanged' as const,
-      segments: [{ type: 'unchanged' as const, content: original }]
+      changeType: 'unchanged',
+      segments: [{ type: 'unchanged', content: original }]
     };
   }
   
@@ -23,10 +40,10 @@ export function generateLineDiff(original: string, suggested: string): LineDiff 
   return {
     original,
     suggested,
-    changeType: 'modification' as const,
+    changeType: 'modification',
     segments: [
-      { type: 'deletion' as const, content: original },
-      { type: 'addition' as const, content: suggested }
+      { type: 'deletion', content: original },
+      { type: 'addition', content: suggested }
     ]
   };
 }

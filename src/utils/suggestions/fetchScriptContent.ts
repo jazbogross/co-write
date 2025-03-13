@@ -1,39 +1,48 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { logDraftLoading } from './draftLoggingUtils';
+import { LineData } from '@/types/lineTypes';
+import { DeltaContent } from '@/utils/editor/types';
 
 /**
- * Fetches original lines from script_content for a given script
+ * Fetch script content from the database
  */
-export const fetchScriptContent = async (scriptId: string, signal?: AbortSignal) => {
+export const fetchScriptContent = async (
+  scriptId: string,
+  signal?: AbortSignal
+): Promise<LineData[]> => {
   try {
-    const query = supabase
+    const { data, error } = await supabase
       .from('script_content')
-      .select('id, line_number, content')
+      .select('*')
       .eq('script_id', scriptId)
-      .order('line_number', { ascending: true });
-
-    // Add abort signal to the request if provided
-    if (signal) {
-      query.abortSignal(signal);
-    }
-
-    const { data: originalLines, error: originalLinesError } = await query;
-      
-    if (originalLinesError) {
-      logDraftLoading('Error fetching original lines:', originalLinesError);
-      return null;
+      .single();
+    
+    if (error) {
+      console.error('Error fetching script content:', error);
+      return [];
     }
     
-    if (!originalLines || originalLines.length === 0) {
-      logDraftLoading('No original lines found for script:', scriptId);
-      return null;
+    if (!data) {
+      console.error('No script content found');
+      return [];
     }
     
-    logDraftLoading(`Found ${originalLines.length} original lines`);
-    return originalLines;
+    // Transform to LineData format for compatibility
+    const content = data.content_delta as DeltaContent;
+    
+    // Create a single LineData entry with the full Delta
+    const lineData: LineData[] = [{
+      uuid: scriptId, // Use script ID as the UUID
+      lineNumber: 1,
+      content: content,
+      originalAuthor: null,
+      editedBy: [],
+      hasDraft: false
+    }];
+    
+    return lineData;
   } catch (error) {
-    logDraftLoading('Error fetching script content:', error);
-    return null;
+    console.error('Error in fetchScriptContent:', error);
+    return [];
   }
 };

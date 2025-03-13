@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LineData } from '@/hooks/useLineData';
-import { isDeltaObject, combineDeltaContents, extractPlainTextFromDelta } from '@/utils/editor';
+import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
 
@@ -51,38 +51,18 @@ export const useDraftLoader = ({
       // Log the UUIDs present in lineData
       console.log('📙 useDraftLoader: LineData UUIDs:', lineData.map(line => line.uuid));
 
-      // Create a copy of the current lineData to work with
-      const currentLineData = [...lineData];
+      // Use first line's content directly
+      const draftContent = lineData.length > 0 ? lineData[0].content : null;
 
-      // Filter out only active lines that have content
-      const deltaContents = currentLineData
-        .filter(line => line.content !== null && line.content !== undefined)
-        .map(line => line.content);
-
-      console.log('📙 useDraftLoader: Processing', deltaContents.length, 'content items');
-
-      const combinedDelta = combineDeltaContents(deltaContents);
-
-      if (combinedDelta) {
-        console.log('📙 useDraftLoader: Final Delta ops count:', combinedDelta.ops.length);
-
+      if (draftContent) {
         // Force update to ensure content is actually applied
-        updateEditorContent(combinedDelta, true);
-
-        // Wait for content update to complete before refreshing UUIDs
-        await new Promise(resolve => setTimeout(resolve, 50));
-
-        if (editor.lineTracking?.refreshLineUuids) {
-          console.log('📙 useDraftLoader: Refreshing line UUIDs from lineData');
-          editor.lineTracking.refreshLineUuids(currentLineData);
-        }
+        updateEditorContent(draftContent, true);
         
         // Verify line count matches expected
         const verifyLines = editor.getLines(0);
-        console.log(`📙 useDraftLoader: Applied content, expected ${currentLineData.length} lines, found ${verifyLines.length} lines`);
-        
+        console.log(`📙 useDraftLoader: Applied content, found ${verifyLines.length} lines`);
       } else {
-        throw new Error('📙 useDraftLoader: Failed to create combined Delta.');
+        throw new Error('📙 useDraftLoader: No draft content to apply.');
       }
 
       setDraftApplied(true);

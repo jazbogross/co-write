@@ -3,8 +3,8 @@
  * diffManagerTypes.ts - Type definitions for DiffManager
  */
 import { LineData } from '@/types/lineTypes';
-import { LineDiff } from './contentDiff';
 import { DeltaContent } from '@/utils/editor/types';
+import { DiffChangeType, DiffSegment, LineDiff } from './contentDiff';
 
 /**
  * Map of line UUIDs to their diffs
@@ -34,3 +34,5 @@ export interface DiffSummary {
   modifications: number;
   changedLines: ChangedLine[];
 }
+
+export { DiffChangeType, DiffSegment, LineDiff };
