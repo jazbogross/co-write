@@ -12,20 +12,19 @@ interface AuthContextType {
   signUp: (email: string, password: string, username: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
-  authChecked: boolean;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   console.log("🔑 AuthProvider: Initializing");
-  const { user, loading, authChecked } = useAuthListener();
+  const { user, loading, isAuthenticated } = useAuthListener();
   const navigate = useNavigate();
 
   console.log("🔑 AuthProvider: Current state:", { 
-    isAuthenticated: !!user, 
+    isAuthenticated, 
     loading, 
-    authChecked,
     userId: user?.id
   });
 
@@ -67,7 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signUp, 
       signOut, 
       resetPassword,
-      authChecked
+      isAuthenticated
     }}>
       {children}
     </AuthContext.Provider>

@@ -20,7 +20,7 @@ interface Script {
 
 export const Index = () => {
   console.log("🏠 INDEX: Component rendering");
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [scripts, setScripts] = useState<Script[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasFetched, setHasFetched] = useState(false);
@@ -28,6 +28,7 @@ export const Index = () => {
 
   console.log("🏠 INDEX: Current states -", {
     authLoading,
+    isAuthenticated,
     userExists: !!user,
     userId: user?.id,
     isLoading,
@@ -47,7 +48,7 @@ export const Index = () => {
     setIsLoading(true);
     
     try {
-      if (user) {
+      if (isAuthenticated && user) {
         console.log("🏠 INDEX: User is logged in, fetching all scripts for user:", user.id);
         // If user is logged in, fetch all public scripts and user's private scripts
         const { data, error } = await supabase
@@ -184,7 +185,7 @@ export const Index = () => {
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-bold">Script Library</h2>
-        {user && (
+        {isAuthenticated && user && (
           <Button asChild>
             <Link to="/profile">Manage Your Scripts</Link>
           </Button>

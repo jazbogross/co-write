@@ -9,7 +9,6 @@ import { ScriptsCard } from "@/components/profile/ScriptsCard";
 import { GitHubConnectionCard } from "@/components/profile/GitHubConnectionCard";
 import { useAuth } from "@/hooks/useAuth";
 import { Script } from "@/types/repository";
-import { useUserData } from "@/hooks/useUserData";
 
 export default function Profile() {
   const renderCountRef = useRef(0);
@@ -18,8 +17,7 @@ export default function Profile() {
   console.log(`📋 PROFILE: Component rendering (render #${renderCountRef.current})`);
   
   const navigate = useNavigate();
-  const { signOut, user, loading: authLoading, authChecked } = useAuth();
-  const { userId, isLoading: userLoading, authProvider, authCheckedOnce } = useUserData();
+  const { signOut, user, loading: authLoading, isAuthenticated } = useAuth();
   
   const [profile, setProfile] = useState<{ email: string; username: string }>({
     email: "",
@@ -34,69 +32,43 @@ export default function Profile() {
   console.log("📋 PROFILE: Current states -", {
     renderCount: renderCountRef.current,
     authLoading,
-    userLoading,
-    userExists: !!userId,
-    userId,
+    isAuthenticated,
+    userExists: !!user,
+    userId: user?.id,
     loading,
     hasFetched,
-    authProvider,
-    authCheckedOnce,
-    authChecked,
     redirecting
   });
 
-  // Reset hasFetched when user changes
+  // Redirect to auth if not authenticated
   useEffect(() => {
-    console.log("📋 PROFILE: User or auth check state changed:", {
-      userId,
-      authCheckedOnce,
-      authChecked
+    console.log("📋 PROFILE: Auth state changed:", {
+      userId: user?.id,
+      isAuthenticated,
+      authLoading
     });
     
-    // Fix: Changed condition to check for either authChecked OR authCheckedOnce
-    if (userId === null && (authCheckedOnce || authChecked)) {
-      console.log("📋 PROFILE: User is null and auth has been checked, resetting hasFetched");
-      setHasFetched(false);
-      
-      // Only redirect if not already redirecting
-      if (!redirecting && !authLoading && !userLoading) {
-        console.log("📋 PROFILE: No user is authenticated, redirecting to auth page");
-        setRedirecting(true);
-        navigate("/auth");
-      }
+    if (!authLoading && !isAuthenticated && !redirecting) {
+      console.log("📋 PROFILE: User is not authenticated, redirecting to auth page");
+      setRedirecting(true);
+      navigate("/auth");
     }
-  }, [userId, authCheckedOnce, authChecked, navigate, authLoading, userLoading, redirecting]);
+  }, [user, isAuthenticated, navigate, authLoading, redirecting]);
 
+  // Fetch user data when authenticated
   useEffect(() => {
-    // Fix: Changed condition to check for either authChecked OR authCheckedOnce
-    if (!userLoading && !authLoading && userId && !hasFetched && (authCheckedOnce || authChecked)) {
+    if (!authLoading && isAuthenticated && user?.id && !hasFetched) {
       const getProfile = async () => {
-        console.log("📋 PROFILE: Fetching profile data for user:", userId);
+        console.log("📋 PROFILE: Fetching profile data for user:", user.id);
         try {
           setLoading(true);
           setFetchError(null);
-          
-          // Get user data
-          const { data: userData, error: userError } = await supabase.auth.getUser();
-          
-          if (userError) {
-            console.error("📋 PROFILE: Error fetching user:", userError);
-            setFetchError(`User fetch error: ${userError.message}`);
-            throw userError;
-          }
-          
-          const user = userData.user;
-          if (!user) {
-            console.error("📋 PROFILE: No user data found");
-            setFetchError("No user data found");
-            throw new Error("No user data found");
-          }
           
           // Get user profile data
           const { data, error } = await supabase
             .from('profiles')
             .select('username, github_access_token')
-            .eq('id', userId)
+            .eq('id', user.id)
             .maybeSingle();
 
           if (error && error.code !== 'PGRST116') {
@@ -123,11 +95,11 @@ export default function Profile() {
             
             // Create a profile if one doesn't exist
             try {
-              console.log("📋 PROFILE: Creating new profile for user", userId);
+              console.log("📋 PROFILE: Creating new profile for user", user.id);
               const { error: insertError } = await supabase
                 .from('profiles')
                 .upsert({ 
-                  id: userId, 
+                  id: user.id, 
                   username: user?.email?.split("@")[0] || "",
                   updated_at: new Date().toISOString() 
                 });
@@ -144,11 +116,11 @@ export default function Profile() {
           }
 
           // Fetch user scripts
-          console.log("📋 PROFILE: Fetching scripts for user:", userId);
+          console.log("📋 PROFILE: Fetching scripts for user:", user.id);
           const { data: scriptsData, error: scriptsError } = await supabase
             .from('scripts')
             .select('id, title, created_at, is_private, admin_id')
-            .eq('admin_id', userId);
+            .eq('admin_id', user.id);
 
           if (scriptsError) {
             console.error("📋 PROFILE: Error fetching scripts:", scriptsError);
@@ -183,14 +155,8 @@ export default function Profile() {
       };
 
       getProfile();
-    } else if (!userLoading && !authLoading && !userId && (authCheckedOnce || authChecked) && !redirecting) {
-      // Fix: Changed condition to check for either authChecked OR authCheckedOnce
-      // Redirect to auth page if not authenticated and we've checked auth status
-      console.log("📋 PROFILE: No authenticated user and auth checked, redirecting to auth page");
-      setRedirecting(true);
-      navigate("/auth");
     }
-  }, [userId, userLoading, authLoading, navigate, hasFetched, authCheckedOnce, authChecked, redirecting]);
+  }, [user, authLoading, navigate, hasFetched, isAuthenticated]);
 
   const handleSignOut = async () => {
     try {
@@ -205,14 +171,14 @@ export default function Profile() {
   };
 
   // Handle the case where authentication check is still in progress
-  if (userLoading || authLoading || (!authChecked && !authCheckedOnce)) {
-    console.log("📋 PROFILE: Rendering loading state - auth state is loading or not checked yet");
+  if (authLoading) {
+    console.log("📋 PROFILE: Rendering loading state - auth state is loading");
     return <div className="container py-8 text-center">Checking authentication...</div>;
   }
 
   // Handle the case where the user is not authenticated
-  if (!userId) {
-    console.log("📋 PROFILE: No user ID, should redirect to auth");
+  if (!isAuthenticated || !user) {
+    console.log("📋 PROFILE: No authenticated user, redirecting...");
     return <div className="container py-8 text-center">Not authenticated. Redirecting...</div>;
   }
 
