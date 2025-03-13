@@ -8,6 +8,7 @@ import { UserProfileCard } from "@/components/profile/UserProfileCard";
 import { ScriptsCard } from "@/components/profile/ScriptsCard";
 import { GitHubConnectionCard } from "@/components/profile/GitHubConnectionCard";
 import { useAuth } from "@/hooks/useAuth";
+import { Script } from "@/types/repository";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function Profile() {
     email: "",
     username: "",
   });
+  const [scripts, setScripts] = useState<Script[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,6 +53,18 @@ export default function Profile() {
             username: user.email?.split("@")[0] || "",
           });
         }
+
+        // Fetch user scripts
+        const { data: scriptsData, error: scriptsError } = await supabase
+          .from('scripts')
+          .select('id, title, created_at, is_private, profiles(username)')
+          .eq('admin_id', user.id);
+
+        if (scriptsError) {
+          throw scriptsError;
+        }
+
+        setScripts(scriptsData || []);
       } catch (error) {
         console.error("Error loading profile:", error);
         toast.error("Failed to load profile");
@@ -91,7 +105,7 @@ export default function Profile() {
           <GitHubConnectionCard />
         </div>
         <div>
-          <ScriptsCard />
+          <ScriptsCard scripts={scripts} />
         </div>
       </div>
       <div className="flex justify-center mt-8">
