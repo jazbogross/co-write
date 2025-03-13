@@ -5,37 +5,24 @@ import { toast } from 'sonner';
 import { loadUserDrafts } from '@/utils/suggestions/loadUserDrafts';
 import { LineData } from '@/types/lineTypes';
 
-interface UseNonAdminDraftLoaderParams {
-  scriptId: string;
-  userId: string | null;
-  setLineData: React.Dispatch<React.SetStateAction<LineData[]>>;
-  contentToUuidMapRef: React.MutableRefObject<Map<string, string>>;
-}
-
-interface UseNonAdminDraftLoaderResult {
-  loadDrafts: () => Promise<{ success: boolean; lineData?: LineData[] }>;
-  isLoadingDrafts: boolean;
-  hasDrafts: boolean;
-}
-
 /**
  * Hook for loading draft data for non-admin users
  */
-export const useNonAdminDraftLoader = ({
-  scriptId,
-  userId,
-  setLineData,
-  contentToUuidMapRef
-}: UseNonAdminDraftLoaderParams): UseNonAdminDraftLoaderResult => {
+export const useNonAdminDraftLoader = () => {
   const [isLoadingDrafts, setIsLoadingDrafts] = useState(false);
   const [hasDrafts, setHasDrafts] = useState(false);
 
   /**
-   * Load drafts from the database
+   * Load drafts for a specific script and user
    */
-  const loadDrafts = useCallback(async (): Promise<{ success: boolean; lineData?: LineData[] }> => {
+  const loadNonAdminDrafts = useCallback(async (
+    scriptId: string,
+    userId: string | null,
+    contentToUuidMapRef: React.MutableRefObject<Map<string, string>>,
+    setLineData: React.Dispatch<React.SetStateAction<LineData[]>>
+  ): Promise<boolean> => {
     if (!userId || !scriptId) {
-      return { success: false };
+      return false;
     }
 
     setIsLoadingDrafts(true);
@@ -55,7 +42,8 @@ export const useNonAdminDraftLoader = ({
       if (!userHasDrafts) {
         // No drafts found
         console.log('No drafts found for user:', userId);
-        return { success: true, lineData: [] };
+        setIsLoadingDrafts(false);
+        return true;
       }
       
       // Load the draft content
@@ -63,22 +51,18 @@ export const useNonAdminDraftLoader = ({
       
       // Update line data
       setLineData(draftLineData);
-      
-      return { 
-        success: true,
-        lineData: draftLineData
-      };
+      setIsLoadingDrafts(false);
+      return true;
     } catch (error) {
       console.error('Error loading drafts:', error);
       toast.error('Failed to load your drafts');
-      return { success: false };
-    } finally {
       setIsLoadingDrafts(false);
+      return false;
     }
-  }, [scriptId, userId, setLineData, contentToUuidMapRef]);
+  }, []);
 
   return {
-    loadDrafts,
+    loadNonAdminDrafts,
     isLoadingDrafts,
     hasDrafts
   };
