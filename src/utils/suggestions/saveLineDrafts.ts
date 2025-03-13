@@ -1,57 +1,57 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
-import { isDeltaObject } from '@/utils/editor';
+import { LineData } from '@/types/lineTypes';
+import { combineDeltaContents } from '@/utils/editor/operations/deltaCombination';
 
 /**
- * Save user drafts to the database
+ * Save line drafts to the database
  */
 export const saveLineDrafts = async (
   scriptId: string,
-  lineData: LineData[],
-  userId: string
-): Promise<boolean> => {
+  userId: string | null,
+  lineData: LineData[]
+): Promise<{ success: boolean; error?: any }> => {
+  if (!userId) {
+    console.error('Cannot save drafts without user ID');
+    return { success: false, error: 'No user ID provided' };
+  }
+  
+  if (!lineData || lineData.length === 0) {
+    console.error('No line data to save');
+    return { success: false, error: 'No line data to save' };
+  }
+  
   try {
-    console.log('💾 Saving drafts for user:', userId);
+    // In the simplified Delta approach, just save the complete Delta content
     
-    // For the simplified Delta approach, we take content from lineData
-    if (!lineData || lineData.length === 0) {
-      console.error('No line data provided');
-      return false;
+    // Extract the Delta content (should be in the first and only line)
+    const deltaContent = lineData[0].content;
+    
+    // Check if we have valid Delta content
+    if (!deltaContent || !('ops' in deltaContent)) {
+      console.error('Invalid Delta content');
+      return { success: false, error: 'Invalid Delta content' };
     }
     
-    // Get content from first line
-    const content = lineData[0].content;
-    
-    // Ensure content is in Delta format
-    const draftContent = isDeltaObject(content) 
-      ? content 
-      : { ops: [{ insert: String(content) }] };
-    
-    // Convert to JSON for storage
-    const jsonContent = JSON.stringify(draftContent);
-    
-    // Save to script_drafts table
+    // Save draft to script_drafts table
     const { error } = await supabase
       .from('script_drafts')
       .upsert({
         script_id: scriptId,
         user_id: userId,
-        draft_content: JSON.parse(jsonContent),
+        draft_content: deltaContent as any,
         updated_at: new Date().toISOString()
-      }, { 
-        onConflict: 'script_id,user_id'
-      });
+      }, { onConflict: 'script_id, user_id' });
     
     if (error) {
-      console.error('Error saving draft:', error);
-      return false;
+      console.error('Error saving drafts:', error);
+      return { success: false, error };
     }
     
-    return true;
+    return { success: true };
   } catch (error) {
     console.error('Error in saveLineDrafts:', error);
-    return false;
+    return { success: false, error };
   }
 };

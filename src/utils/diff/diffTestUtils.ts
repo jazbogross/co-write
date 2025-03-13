@@ -1,78 +1,70 @@
 
-import { LineDiff, DiffSegment, DiffChangeType, ChangedLine } from './diffManagerTypes';
+/**
+ * Utilities for testing diff generation
+ */
+import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
+import { LineDiff, DiffSegment, DiffChangeType } from './diffManagerTypes';
 
 /**
- * Creates a mock diff between original and suggested content
+ * Create a test diff for the given original and suggested content
  */
-export const createMockDiff = (
+export const createTestDiff = (
   original: string | DeltaContent,
   suggested: string | DeltaContent
 ): LineDiff => {
-  // For simplicity in testing, use strings
-  const originalText = typeof original === 'string' ? original : JSON.stringify(original);
-  const suggestedText = typeof suggested === 'string' ? suggested : JSON.stringify(suggested);
-  
-  // Basic segments for testing
-  const segments: DiffSegment[] = [
-    { text: originalText, type: DiffChangeType.DELETED },
-    { text: suggestedText, type: DiffChangeType.ADDED }
-  ];
-  
   return {
-    segments,
+    segments: [
+      { text: typeof original === 'string' ? original : JSON.stringify(original), type: DiffChangeType.DELETED },
+      { text: typeof suggested === 'string' ? suggested : JSON.stringify(suggested), type: DiffChangeType.ADDED }
+    ],
     changeType: DiffChangeType.MODIFIED
   };
 };
 
 /**
- * Creates a test line with original and suggested content
+ * Create test line data with original and suggested content
  */
-export const createTestChangedLine = (
+export const createTestLineData = (
   lineUuid: string,
   lineNumber: number,
   original: string | DeltaContent,
   suggested: string | DeltaContent
-): ChangedLine => {
+): LineData => {
   return {
-    lineUuid,
+    uuid: lineUuid,
     lineNumber,
+    content: suggested,
     originalContent: original,
-    suggestedContent: suggested,
-    diff: createMockDiff(original, suggested)
+    originalAuthor: 'test-author',
+    editedBy: ['test-editor'],
+    hasDraft: true
   };
 };
 
 /**
- * Creates arrays of lines for testing
+ * Create test segments for diffing
  */
-export const createTestLineArrays = (
-  count: number,
-  withChanges: boolean = true
-): { originalLines: any[], suggestedLines: any[] } => {
-  const originalLines = [];
-  const suggestedLines = [];
-  
-  for (let i = 0; i < count; i++) {
-    const uuid = `test-uuid-${i}`;
-    const originalContent = `Original line ${i}`;
-    const suggestedContent = withChanges ? `Changed line ${i}` : originalContent;
-    
-    originalLines.push({
-      uuid,
-      lineNumber: i + 1,
-      content: originalContent
-    });
-    
-    suggestedLines.push({
-      uuid,
-      lineNumber: i + 1,
-      content: suggestedContent
-    });
+export const createTestSegments = (
+  originalText: string,
+  suggestedText: string,
+  changeType: DiffChangeType = DiffChangeType.MODIFIED
+): DiffSegment[] => {
+  if (changeType === DiffChangeType.UNCHANGED) {
+    return [{ text: originalText, type: DiffChangeType.UNCHANGED }];
   }
   
-  return {
-    originalLines,
-    suggestedLines
-  };
+  if (changeType === DiffChangeType.ADDED) {
+    return [{ text: suggestedText, type: DiffChangeType.ADDED }];
+  }
+  
+  if (changeType === DiffChangeType.DELETED) {
+    return [{ text: originalText, type: DiffChangeType.DELETED }];
+  }
+  
+  // For modified, show both deletion and addition
+  return [
+    { text: originalText, type: DiffChangeType.DELETED },
+    { text: suggestedText, type: DiffChangeType.ADDED }
+  ];
 };

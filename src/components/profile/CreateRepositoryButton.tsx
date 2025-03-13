@@ -1,67 +1,138 @@
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { FolderPlus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Plus } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CreateRepositoryButtonProps {
-  onRepositoryCreated: (repository: any) => void;
+  onRepositoryCreated: () => Promise<void>;
 }
 
-export function CreateRepositoryButton({ onRepositoryCreated }: CreateRepositoryButtonProps) {
-  const [loading, setLoading] = useState(false);
+export const CreateRepositoryButton: React.FC<CreateRepositoryButtonProps> = ({ onRepositoryCreated }) => {
+  const { user } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const [repositoryName, setRepositoryName] = useState('');
+  const [isPrivate, setIsPrivate] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const handleCreateRepository = async () => {
+  const createRepository = async () => {
+    if (!repositoryName.trim()) {
+      toast.error('Please enter a repository name');
+      return;
+    }
+
+    if (!user) {
+      toast.error('You must be logged in to create a repository');
+      return;
+    }
+
+    setIsCreating(true);
     try {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("You must be logged in to create a repository");
-        return;
-      }
-
-      // Get the GitHub App installation ID
-      const installationId = localStorage.getItem('github_app_installation_id');
-      if (!installationId) {
-        toast.error("Please install the GitHub App first");
-        return;
-      }
-
+      // Create the repository in the database
       const { data, error } = await supabase
-        .functions.invoke('create-github-repo', {
-          body: {
-            scriptName: 'New Repository',
-            originalCreator: user.email?.split('@')[0] || 'user',
-            coAuthors: [],
-            isPrivate: false,
-            installationId: installationId
-          }
-        });
+        .from('scripts')
+        .insert({
+          title: repositoryName.trim(),
+          admin_id: user.id,
+          is_private: isPrivate
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
 
-      if (data) {
-        onRepositoryCreated(data);
-        toast.success("Repository created successfully");
+      // Create initial empty content for the script
+      if (data?.id) {
+        const { error: contentError } = await supabase
+          .from('script_content')
+          .insert({
+            script_id: data.id,
+            content_delta: { ops: [{ insert: '\n' }] }
+          });
+
+        if (contentError) throw contentError;
       }
+
+      toast.success('Repository created successfully');
+      setRepositoryName('');
+      setIsPrivate(true);
+      setIsOpen(false);
+      await onRepositoryCreated();
     } catch (error) {
       console.error('Error creating repository:', error);
-      toast.error("Failed to create repository");
+      toast.error('Failed to create repository');
     } finally {
-      setLoading(false);
+      setIsCreating(false);
     }
   };
 
   return (
-    <Button
-      variant="outline"
-      onClick={handleCreateRepository}
-      disabled={loading}
-      className="w-full sm:w-auto"
-    >
-      <FolderPlus className="mr-2 h-4 w-4" />
-      Create New Repository
-    </Button>
+    <>
+      <Button onClick={() => setIsOpen(true)} variant="default" size="sm">
+        <Plus className="h-4 w-4 mr-1" />
+        New Repository
+      </Button>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Repository</DialogTitle>
+            <DialogDescription>
+              Create a new repository for your scripts. Private repositories are only visible to you and users you invite.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Repository Name</Label>
+              <Input
+                id="name"
+                placeholder="My Awesome Script"
+                value={repositoryName}
+                onChange={e => setRepositoryName(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="private"
+                checked={isPrivate}
+                onCheckedChange={setIsPrivate}
+              />
+              <Label htmlFor="private">Private Repository</Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsOpen(false)}
+              disabled={isCreating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={createRepository}
+              disabled={isCreating || !repositoryName.trim()}
+            >
+              {isCreating ? 'Creating...' : 'Create Repository'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
-}
+};

@@ -60,5 +60,5 @@ export interface DiffSummary {
   changedLines: ChangedLine[];
 }
 
-// Export the enum and interfaces as values, not just types
-export { DiffChangeType };
+// Re-export with correct export type syntax
+export type { LineDiff, DiffSegment, DiffChangeType as DiffChangeTypeEnum };

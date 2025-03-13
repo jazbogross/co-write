@@ -1,215 +1,248 @@
 
 import { useState, useCallback } from 'react';
-import { LineData } from '@/types/lineTypes';
-import { captureContentFromDOM, extractQuillContent } from '@/utils/saveDraftUtils';
 import { supabase } from '@/integrations/supabase/client';
-import { saveSuggestions } from '@/utils/suggestions';
 import { toast } from 'sonner';
-import { DeltaContent, DeltaStatic } from '@/utils/editor/types';
+import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
+import { saveSuggestions } from '@/utils/suggestions/saveSuggestions';
+import { LineData } from '@/types/lineTypes';
+import { DeltaContent } from '@/utils/editor/types';
 
-// Utility function to save lines to database
-const saveLinesToDatabase = async (
+// Update function to handle line data string
+const saveScriptContent = async (
   scriptId: string,
-  lineData: LineData[],
-  content: string | DeltaContent
+  content: DeltaContent | string,
+  userId: string | null
 ): Promise<boolean> => {
   try {
-    // For the simplified Delta approach, we don't need lineData
-    // Convert Delta to a format suitable for database storage
-    const contentToSave = typeof content === 'string'
-      ? { ops: [{ insert: content }] }
-      : content;
+    // Validate inputs
+    if (!scriptId) {
+      console.error('Missing scriptId in saveScriptContent');
+      return false;
+    }
     
-    // Convert to JSON for Supabase
-    const jsonContent = JSON.stringify(contentToSave);
+    // Normalize content for storage
+    const normalizedContent = typeof content === 'string' 
+      ? content 
+      : normalizeContentForStorage(content);
     
-    // Update script_content
+    // Update script_content table
     const { error } = await supabase
       .from('script_content')
       .upsert({
         script_id: scriptId,
-        content_delta: JSON.parse(jsonContent),
+        content_delta: normalizedContent,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'script_id'
       });
     
     if (error) {
-      console.error('Error saving content:', error);
+      console.error('Error saving script content:', error);
       return false;
     }
     
-    return true;
-  } catch (error) {
-    console.error('Error in saveLinesToDatabase:', error);
-    return false;
-  }
-};
-
-// Utility function to save draft
-const saveDraft = async (
-  scriptId: string,
-  lineData: LineData[],
-  content: any,
-  userId: string,
-  quill: any = null
-): Promise<boolean> => {
-  try {
-    // Get the most up-to-date content from the editor if available
-    const currentContent = quill ? extractQuillContent(quill) : content;
+    // Get current version and increment
+    const { data: currentData } = await supabase
+      .from('script_content')
+      .select('version')
+      .eq('script_id', scriptId)
+      .single();
     
-    // Ensure we have valid content
-    if (!currentContent) {
-      console.error('No content to save');
-      return false;
+    const currentVersion = currentData?.version || 0;
+    const newVersion = currentVersion + 1;
+    
+    // Update version number
+    const { error: versionError } = await supabase
+      .from('script_content')
+      .update({ version: newVersion })
+      .eq('script_id', scriptId);
+    
+    if (versionError) {
+      console.error('Error updating version:', versionError);
     }
     
-    // Convert to JSON for Supabase
-    const jsonContent = JSON.stringify(currentContent);
-    
-    // Save to script_drafts table
-    const { error } = await supabase
-      .from('script_drafts')
-      .upsert({
+    // Create version history entry
+    const { error: historyError } = await supabase
+      .from('script_versions')
+      .insert({
         script_id: scriptId,
-        user_id: userId,
-        draft_content: JSON.parse(jsonContent),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'script_id,user_id'
+        version_number: newVersion,
+        content_delta: normalizedContent,
+        created_by: userId
       });
     
-    if (error) {
-      console.error('Error saving draft:', error);
-      return false;
+    if (historyError) {
+      console.error('Error creating version history:', historyError);
+      // Don't fail the overall save operation if version history fails
     }
     
     return true;
   } catch (error) {
-    console.error('Error in saveDraft:', error);
+    console.error('Error in saveScriptContent:', error);
     return false;
   }
 };
 
-export const useSubmitEdits = (
-  isAdmin: boolean,
-  scriptId: string,
-  originalContent: string,
-  content: string | DeltaContent,
-  lineData: LineData[],
-  userId: string | null,
-  onSuggestChange: (suggestion: string | DeltaContent) => void,
-  loadDrafts: () => Promise<void>,
-  quill: any = null
-) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+interface UseSubmitEditsParams {
+  scriptId: string;
+  isAdmin: boolean;
+  userId: string | null;
+}
 
-  // Helper to capture the most up-to-date content from the DOM
-  const captureCurrentContent = useCallback(() => {
-    // Use DOM-based capture if we have an editor instance
-    if (quill) {
-      console.log('📋 useSubmitEdits: Capturing content directly from DOM');
-      return captureContentFromDOM(quill);
+interface SubmitOptions {
+  showToast?: boolean;
+  asDraft?: boolean;
+}
+
+export const useSubmitEdits = ({ 
+  scriptId, 
+  isAdmin, 
+  userId 
+}: UseSubmitEditsParams) => {
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
+  
+  const submitAsAdmin = useCallback(async (
+    content: DeltaContent | string,
+    options: SubmitOptions = { showToast: true }
+  ): Promise<boolean> => {
+    try {
+      setIsSaving(true);
+      
+      const success = await saveScriptContent(scriptId, content, userId);
+      
+      if (success) {
+        setLastSavedTime(new Date());
+        if (options.showToast) {
+          toast.success('Script content updated successfully');
+        }
+      } else if (options.showToast) {
+        toast.error('Failed to save script content');
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error in submitAsAdmin:', error);
+      if (options.showToast) {
+        toast.error('An error occurred while saving');
+      }
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [scriptId, userId]);
+  
+  const submitAsDraft = useCallback(async (
+    content: DeltaContent,
+    options: SubmitOptions = { showToast: true }
+  ): Promise<boolean> => {
+    if (!userId) return false;
+    
+    try {
+      setIsSaving(true);
+      
+      // Normalize content
+      const normalizedContent = normalizeContentForStorage(content);
+      
+      // Save to script_drafts table
+      const { error } = await supabase
+        .from('script_drafts')
+        .upsert({
+          script_id: scriptId,
+          user_id: userId,
+          draft_content: content,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'script_id,user_id'
+        });
+      
+      if (error) {
+        console.error('Error saving draft:', error);
+        if (options.showToast) {
+          toast.error('Failed to save draft');
+        }
+        return false;
+      }
+      
+      setLastSavedTime(new Date());
+      
+      if (options.showToast) {
+        toast.success('Draft saved successfully');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error in submitAsDraft:', error);
+      if (options.showToast) {
+        toast.error('An error occurred while saving draft');
+      }
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [scriptId, userId]);
+  
+  const submitAsSuggestion = useCallback(async (
+    lineData: LineData[],
+    originalContent: any,
+    options: SubmitOptions = { showToast: true }
+  ): Promise<{ success: boolean; id?: string }> => {
+    if (!userId) return { success: false };
+    
+    try {
+      setIsSaving(true);
+      
+      // Convert lineData to string if needed
+      const result = await saveSuggestions(scriptId, userId, lineData, originalContent);
+      
+      if (result.success) {
+        setLastSavedTime(new Date());
+        
+        // Clear draft
+        await supabase
+          .from('script_drafts')
+          .delete()
+          .eq('script_id', scriptId)
+          .eq('user_id', userId);
+        
+        if (options.showToast) {
+          toast.success('Suggestion submitted successfully');
+        }
+      } else if (options.showToast) {
+        toast.error('Failed to submit suggestion');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error in submitAsSuggestion:', error);
+      if (options.showToast) {
+        toast.error('An error occurred while submitting suggestion');
+      }
+      return { success: false };
+    } finally {
+      setIsSaving(false);
+    }
+  }, [scriptId, userId]);
+  
+  const submitEdits = useCallback(async (
+    content: DeltaContent,
+    options: SubmitOptions = { showToast: true, asDraft: false }
+  ): Promise<boolean> => {
+    if (isAdmin) {
+      return submitAsAdmin(content, options);
+    } else if (options.asDraft) {
+      return submitAsDraft(content, options);
     }
     
-    // Fallback to using the provided content
-    console.log('📋 useSubmitEdits: Using provided content for save');
-    return content;
-  }, [quill, content]);
-
-  const saveToSupabase = useCallback(async (currentContent?: string | DeltaContent) => {
-    if (!scriptId || !userId) {
-      toast.error(!scriptId ? 'No script ID provided' : 'You must be logged in to save drafts');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      console.log(`📋 useSubmitEdits: Saving drafts for ${isAdmin ? 'admin' : 'non-admin'} user`, userId);
-      
-      // Capture the most up-to-date content
-      const contentToSave = currentContent || captureCurrentContent() || content;
-      
-      console.log('📋 useSubmitEdits: Saving content type:', typeof contentToSave);
-      
-      if (isAdmin) {
-        await saveDraft(scriptId, lineData, contentToSave, userId, quill);
-      } else {
-        await saveDraft(scriptId, lineData, contentToSave, userId, quill);
-      }
-      
-      toast.success('Draft saved successfully!');
-      
-      // Only reload drafts if we're in admin mode, for non-admin they're already in sync
-      if (isAdmin) {
-        await loadDrafts();
-      }
-    } catch (error) {
-      console.error('📋 useSubmitEdits: Error saving draft:', error);
-      toast.error('Error saving draft');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [isAdmin, scriptId, userId, loadDrafts, quill, content, lineData, captureCurrentContent]);
-
-  const handleSubmit = useCallback(async (currentContent?: string | DeltaContent) => {
-    if (!scriptId) {
-      toast.error('No script ID provided');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      console.log(`📋 useSubmitEdits: Submitting changes for ${isAdmin ? 'admin' : 'non-admin'} user`);
-      
-      // Capture the most up-to-date content
-      const contentToSave = currentContent || captureCurrentContent() || content;
-      
-      // Ensure we have a valid DeltaContent
-      const ensureDeltaContent = (content: any): DeltaContent => {
-        if (typeof content === 'string') {
-          return { ops: [{ insert: content }] };
-        }
-        
-        // Handle DeltaStatic objects (which may not have required ops)
-        if (content && typeof content === 'object') {
-          if ('ops' in content) {
-            return { ops: content.ops || [] };
-          }
-        }
-        
-        // Fallback to empty Delta
-        return { ops: [{ insert: '\n' }] };
-      };
-      
-      const contentForDb = ensureDeltaContent(contentToSave);
-      
-      if (isAdmin) {
-        // Save to database first
-        await saveLinesToDatabase(scriptId, lineData, contentForDb);
-        
-        // Then notify parent component for GitHub commit if needed
-        onSuggestChange(contentForDb);
-        toast.success('Changes saved successfully!');
-      } else {
-        if (!userId) {
-          throw new Error('User ID is required to submit suggestions');
-        }
-        await saveSuggestions(scriptId, lineData, "", userId);
-        toast.success('Suggestions submitted for approval!');
-      }
-    } catch (error) {
-      console.error('📋 useSubmitEdits: Error submitting changes:', error);
-      toast.error('Error submitting changes');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [isAdmin, scriptId, lineData, userId, onSuggestChange, content, captureCurrentContent]);
-
+    return false;
+  }, [isAdmin, submitAsAdmin, submitAsDraft]);
+  
   return {
-    isSubmitting,
-    handleSubmit,
-    saveToSupabase,
-    captureCurrentContent
+    submitEdits,
+    submitAsAdmin,
+    submitAsDraft,
+    submitAsSuggestion,
+    isSaving,
+    lastSavedTime
   };
 };

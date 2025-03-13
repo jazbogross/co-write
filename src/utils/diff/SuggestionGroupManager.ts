@@ -4,6 +4,18 @@
  */
 import { DeltaContent } from '@/utils/editor/types';
 
+export interface Suggestion {
+  id: string;
+  content: string | DeltaContent;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  delta_diff: any;
+  original_content?: any;
+  user: {
+    username: string;
+  };
+}
+
 export interface GroupedSuggestion {
   id: string;
   content: string | DeltaContent;

@@ -1,61 +1,90 @@
 
-import { Button } from "@/components/ui/button";
-import { Github, Lock, LockOpen, Trash2, Users } from "lucide-react";
-import { Repository } from "@/types/repository";
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Lock, Unlock, Edit, Users } from 'lucide-react';
+import { format } from 'date-fns';
+import { Repository } from './types';
 
-interface RepositoryListItemProps {
+export interface RepositoryListItemProps {
   repository: Repository;
-  onTogglePrivacy: (repo: Repository) => void;
-  onDelete: (id: string) => void;
-  onOpenPermissions: (repo: Repository) => void;
+  onTogglePrivacy: (repository: Repository) => void;
+  onDelete: (repositoryId: string) => void;
+  onOpenPermissions: (repository: Repository) => void;
   loading: boolean;
 }
 
-export function RepositoryListItem({ 
-  repository, 
-  onTogglePrivacy, 
-  onDelete, 
+export const RepositoryListItem: React.FC<RepositoryListItemProps> = ({
+  repository,
+  onTogglePrivacy,
+  onDelete,
   onOpenPermissions,
-  loading 
-}: RepositoryListItemProps) {
+  loading
+}) => {
   return (
-    <div className="flex items-center justify-between p-4 border rounded-lg">
-      <div className="flex items-center gap-2">
-        <Github className="h-5 w-5" />
-        <span>{repository.name}</span>
+    <div className="flex flex-col md:flex-row md:items-center justify-between w-full p-3 border rounded hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
+      <div className="flex flex-col mb-2 md:mb-0">
+        <div className="flex items-center">
+          <Link to={`/script/${repository.id}/edit`} className="font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+            {repository.name}
+          </Link>
+          {repository.is_private ? (
+            <Badge variant="outline" className="ml-2 text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-900 dark:border-amber-800">
+              <Lock className="h-3 w-3 mr-1" />
+              Private
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="ml-2 text-green-600 border-green-200 bg-green-50 dark:bg-green-900 dark:border-green-800">
+              <Unlock className="h-3 w-3 mr-1" />
+              Public
+            </Badge>
+          )}
+        </div>
+        {repository.created_at && (
+          <div className="flex items-center text-xs text-gray-500 mt-1">
+            <Calendar className="h-3 w-3 mr-1" />
+            Created {format(new Date(repository.created_at), 'MMM d, yyyy')}
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
+      <div className="flex space-x-2">
+        <Button 
+          asChild 
           size="sm"
+          variant="ghost"
+        >
+          <Link to={`/script/${repository.id}/edit`}>
+            <Edit className="h-4 w-4 mr-1" />
+            Edit
+          </Link>
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onOpenPermissions(repository)}
+        >
+          <Users className="h-4 w-4 mr-1" />
+          Access
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
           onClick={() => onTogglePrivacy(repository)}
-          disabled={loading}
         >
           {repository.is_private ? (
-            <Lock className="h-4 w-4 text-muted-foreground" />
+            <>
+              <Unlock className="h-4 w-4 mr-1" />
+              Make Public
+            </>
           ) : (
-            <LockOpen className="h-4 w-4 text-muted-foreground" />
+            <>
+              <Lock className="h-4 w-4 mr-1" />
+              Make Private
+            </>
           )}
-        </Button>
-        {repository.is_private && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onOpenPermissions(repository)}
-            disabled={loading}
-          >
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onDelete(repository.id)}
-          disabled={loading}
-        >
-          <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
       </div>
     </div>
   );
-}
+};

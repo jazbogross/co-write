@@ -1,71 +1,75 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { v4 as uuidv4 } from 'uuid';
-import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
-import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+import { LineData } from '@/types/lineTypes';
 
 /**
- * Save user suggestions to the database
+ * Interface for suggestion submission
+ */
+interface SuggestionSubmission {
+  scriptId: string;
+  userId: string;
+  deltaDiff: DeltaContent;
+}
+
+/**
+ * Creates a suggestion for a script
  */
 export const saveSuggestions = async (
   scriptId: string,
+  userId: string | null,
   lineData: LineData[],
-  content: string | DeltaContent | null,
-  userId: string
-): Promise<boolean> => {
+  originalContent: any
+): Promise<{ success: boolean; id?: string; error?: any }> => {
+  if (!userId) {
+    console.error('Cannot save suggestions without a user ID');
+    return { success: false, error: 'No user ID provided' };
+  }
+  
   try {
-    console.log('💾 Saving suggestions:', { scriptId, userId });
+    // Calculate the diff between current content and original content
+    // In the simplified Delta approach, we just store the entire Delta
+    const currentDelta = lineData.length > 0 ? lineData[0].content : null;
     
-    // First, get the current content to compare against
-    const { data: currentContent } = await supabase
-      .from('script_content')
-      .select('content_delta')
-      .eq('script_id', scriptId)
-      .single();
-    
-    if (!currentContent?.content_delta) {
-      console.error('No current content found for script');
-      return false;
+    if (!currentDelta) {
+      console.error('No content to save');
+      return { success: false, error: 'No content to save' };
     }
     
-    // Determine what to use as the suggestion content
-    const suggestionContent = content || (lineData.length > 0 ? lineData[0].content : null);
+    // For now, we simply store the entire Delta as the diff
+    // In a real implementation, you'd calculate an actual diff
+    const deltaDiff = currentDelta;
     
-    if (!suggestionContent) {
-      console.error('No suggestion content provided');
-      return false;
-    }
+    // Create the suggestion
+    const suggestion: SuggestionSubmission = {
+      scriptId,
+      userId,
+      deltaDiff: deltaDiff as DeltaContent
+    };
     
-    // Format the content as a Delta object
-    const deltaDiff = isDeltaObject(suggestionContent) 
-      ? suggestionContent 
-      : { ops: [{ insert: String(suggestionContent) }] };
+    // Convert to JSON for storage in Supabase
+    const jsonDeltaDiff = JSON.parse(JSON.stringify(suggestion.deltaDiff));
     
-    // Convert Delta to a JSON-serializable format
-    const jsonContent = JSON.stringify(deltaDiff);
-    
-    // Create the suggestion record
-    const { error } = await supabase
+    // Save to database
+    const { data, error } = await supabase
       .from('script_suggestions')
       .insert({
-        id: uuidv4(),
-        script_id: scriptId,
-        user_id: userId,
-        delta_diff: JSON.parse(jsonContent),
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+        script_id: suggestion.scriptId,
+        user_id: suggestion.userId,
+        delta_diff: jsonDeltaDiff,
+        status: 'pending'
+      })
+      .select('id')
+      .single();
     
     if (error) {
       console.error('Error saving suggestion:', error);
-      return false;
+      return { success: false, error };
     }
     
-    return true;
+    return { success: true, id: data.id };
   } catch (error) {
     console.error('Error in saveSuggestions:', error);
-    return false;
+    return { success: false, error };
   }
 };

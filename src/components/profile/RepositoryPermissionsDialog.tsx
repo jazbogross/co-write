@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { Repository } from './types';
 import { toast } from 'sonner';
 
 // Define interface for props
@@ -13,12 +12,10 @@ export interface RepositoryPermissionsDialogProps {
   repositoryId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  repository: Repository;
 }
 
 export const RepositoryPermissionsDialog: React.FC<RepositoryPermissionsDialogProps> = ({
   repositoryId,
-  repository,
   open,
   onOpenChange,
 }) => {
@@ -26,6 +23,14 @@ export const RepositoryPermissionsDialog: React.FC<RepositoryPermissionsDialogPr
   const [permissionType, setPermissionType] = useState<'view' | 'edit' | 'admin'>('view');
   const [isLoading, setIsLoading] = useState(false);
   const [existingPermissions, setExistingPermissions] = useState<any[]>([]);
+  const [repositoryName, setRepositoryName] = useState<string>('');
+  
+  // Fetch repository name when dialog opens
+  useEffect(() => {
+    if (open && repositoryId) {
+      fetchRepositoryName();
+    }
+  }, [open, repositoryId]);
   
   // Fetch existing permissions when dialog opens
   useEffect(() => {
@@ -33,6 +38,24 @@ export const RepositoryPermissionsDialog: React.FC<RepositoryPermissionsDialogPr
       fetchPermissions();
     }
   }, [open]);
+  
+  const fetchRepositoryName = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('scripts')
+        .select('title')
+        .eq('id', repositoryId)
+        .single();
+      
+      if (error) throw error;
+      
+      if (data?.title) {
+        setRepositoryName(data.title);
+      }
+    } catch (error) {
+      console.error('Error fetching repository name:', error);
+    }
+  };
   
   const fetchPermissions = async () => {
     try {
@@ -144,7 +167,7 @@ export const RepositoryPermissionsDialog: React.FC<RepositoryPermissionsDialogPr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Manage Permissions: {repository.name}</DialogTitle>
+          <DialogTitle>Manage Permissions: {repositoryName}</DialogTitle>
         </DialogHeader>
         
         <div className="mt-4 space-y-4">

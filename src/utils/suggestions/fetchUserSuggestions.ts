@@ -1,36 +1,36 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { logDraftLoading } from './draftLoggingUtils';
 
 /**
- * Fetch suggestions made by a specific user for a script
+ * Fetch user suggestions for a script
  */
-export const fetchUserSuggestions = async (scriptId: string, userId: string) => {
+export const fetchUserSuggestions = async (
+  scriptId: string,
+  userId: string | null
+): Promise<any[]> => {
+  if (!scriptId || !userId) {
+    logDraftLoading('fetchUserSuggestions aborted: missing scriptId or userId');
+    return [];
+  }
+  
   try {
-    console.log('🔍 Fetching suggestions for user:', userId);
-    
+    // Get user's draft suggestions for this script
     const { data, error } = await supabase
       .from('script_suggestions')
-      .select(`
-        id,
-        delta_diff,
-        status,
-        rejection_reason,
-        created_at,
-        updated_at,
-        profiles (username)
-      `)
+      .select('*')
       .eq('script_id', scriptId)
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .eq('status', 'draft');
     
     if (error) {
-      console.error('Error fetching user suggestions:', error);
+      logDraftLoading(`Error fetching user suggestions: ${error.message}`);
       return [];
     }
     
     return data || [];
   } catch (error) {
-    console.error('Error in fetchUserSuggestions:', error);
+    logDraftLoading(`Unexpected error in fetchUserSuggestions: ${error}`);
     return [];
   }
 };
