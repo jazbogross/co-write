@@ -19,6 +19,7 @@ export const handleAuthStateChange = async (
   }
   
   try {
+    // Handle sign out event first
     if (event === 'SIGNED_OUT') {
       console.log("🎧 AuthListener: User signed out");
       setState({
@@ -29,7 +30,7 @@ export const handleAuthStateChange = async (
       return;
     }
     
-    // Validate session before proceeding
+    // For all other events, verify session exists
     if (!session || !session.user) {
       console.error("🎧 AuthListener: Invalid session in auth state change event");
       setState({
@@ -41,10 +42,13 @@ export const handleAuthStateChange = async (
     }
     
     // Immediately update authentication state if session exists
+    // This ensures the UI updates right away with authenticated state
     updateStateFromSession(session, setState);
     
-    if (event === 'SIGNED_IN') {
+    // Handle specific events
+    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
       console.log("🎧 AuthListener: User signed in:", session.user.id);
+      // Load full profile in the background, UI already updated to authenticated state
       await loadFullUserProfile(session, isMounted, setState);
     } else if (event === 'USER_UPDATED' && isMounted) {
       console.log("🎧 AuthListener: User updated:", session.user.id);
@@ -55,7 +59,7 @@ export const handleAuthStateChange = async (
     }
   } catch (error) {
     console.error("🎧 AuthListener: Error handling auth state change:", error);
-    // Ensure we set loading to false even on error
+    // Always set loading to false even on error
     setState({ loading: false });
   }
 };

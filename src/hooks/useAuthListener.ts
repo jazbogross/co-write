@@ -1,9 +1,9 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
 import { UseAuthListenerResult, AuthState } from './authListener/types';
-import { checkCurrentSession, updateStateFromSession, loadFullUserProfile } from './authListener/sessionManager';
+import { checkCurrentSession } from './authListener/sessionManager';
 import { handleAuthStateChange } from './authListener/authEventHandler';
 
 export const useAuthListener = (): UseAuthListenerResult => {
@@ -13,16 +13,19 @@ export const useAuthListener = (): UseAuthListenerResult => {
     isAuthenticated: false
   });
   
-  // Use a ref to track initialization and avoid duplicate work
+  // Use a ref to track initialization and component mounting
   const isInitializedRef = useRef(false);
+  const isMountedRef = useRef(true);
   
-  const updateState = (newState: Partial<AuthState>) => {
-    setState(prev => ({ ...prev, ...newState }));
-  };
+  const updateState = useCallback((newState: Partial<AuthState>) => {
+    if (isMountedRef.current) {
+      setState(prev => ({ ...prev, ...newState }));
+    }
+  }, []);
 
+  // Handle initial session check and setup auth listener
   useEffect(() => {
     console.log("🎧 AuthListener: Setting up authentication listener");
-    let isMounted = true;
     
     const initialize = async () => {
       try {
@@ -35,41 +38,25 @@ export const useAuthListener = (): UseAuthListenerResult => {
         isInitializedRef.current = true;
         
         // Check for current session
-        const { sessionData, hasSession } = await checkCurrentSession(isMounted);
+        const { sessionData, hasSession } = await checkCurrentSession();
         
-        if (!isMounted) return;
+        if (!isMountedRef.current) return;
         
         if (hasSession && sessionData.session) {
-          // Make sure we safely access session and user
-          if (sessionData.session.user) {
-            console.log("🎧 AuthListener: Session found for user:", sessionData.session.user.id);
-            updateStateFromSession(sessionData.session, updateState);
-            
-            // Load full profile data in the background
-            loadFullUserProfile(sessionData.session, isMounted, updateState);
-          } else {
-            // Session exists but user data is missing
-            console.error("🎧 AuthListener: Session exists but user data is missing");
-            updateState({
-              user: null,
-              isAuthenticated: false,
-              loading: false
-            });
-          }
+          // Handle existing session
+          handleAuthStateChange('SIGNED_IN', sessionData.session, true, updateState);
         } else {
           // No session exists
           console.log("🎧 AuthListener: No session found, setting not authenticated");
-          if (isMounted) {
-            updateState({
-              user: null,
-              isAuthenticated: false,
-              loading: false
-            });
-          }
+          updateState({
+            user: null,
+            isAuthenticated: false,
+            loading: false
+          });
         }
       } catch (error) {
         console.error("🎧 AuthListener: Error checking current user:", error);
-        if (isMounted) {
+        if (isMountedRef.current) {
           updateState({
             user: null,
             isAuthenticated: false,
@@ -84,15 +71,17 @@ export const useAuthListener = (): UseAuthListenerResult => {
 
     // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      await handleAuthStateChange(event, session, isMounted, updateState);
+      if (isMountedRef.current) {
+        await handleAuthStateChange(event, session, true, updateState);
+      }
     });
 
     return () => {
       console.log("🎧 AuthListener: Cleaning up auth listener");
-      isMounted = false;
+      isMountedRef.current = false;
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [updateState]);
 
   useEffect(() => {
     console.log("🎧 AuthListener: Auth state updated:", { 

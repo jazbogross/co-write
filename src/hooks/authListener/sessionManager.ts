@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AuthState, SessionData } from './types';
 import { getBasicUserData, fetchUserProfile, createFullUserData } from './userProfileManager';
 
-export const checkCurrentSession = async (isMounted: boolean): Promise<{
+export const checkCurrentSession = async (): Promise<{
   sessionData: any;
   hasSession: boolean;
 }> => {
@@ -26,8 +26,8 @@ export const updateStateFromSession = (
   try {
     console.log("🎧 AuthListener: Updating state from session");
     
-    // Safely create basic user data, checking for nullish values
-    if (!session.user || !session.user.id) {
+    // Validate session data
+    if (!session?.user?.id) {
       console.error("🎧 AuthListener: Session user data is invalid");
       setState({
         user: null,
@@ -37,9 +37,10 @@ export const updateStateFromSession = (
       return;
     }
     
+    // Create basic user data from session
     const basicUserData = getBasicUserData(session);
     
-    // Important: Set loading to false as soon as we have basic user data
+    // IMPORTANT: Set authenticated and loading to false as soon as we have basic user data
     setState({
       user: basicUserData,
       isAuthenticated: true,
@@ -63,7 +64,7 @@ export const loadFullUserProfile = async (
   setState: (state: Partial<AuthState>) => void
 ): Promise<void> => {
   try {
-    if (!session.user || !session.user.id) {
+    if (!session?.user?.id) {
       console.error("🎧 AuthListener: Cannot load profile, user data is invalid");
       setState({ loading: false });
       return;
@@ -98,7 +99,7 @@ export const loadFullUserProfile = async (
     }
   } catch (error) {
     console.error("🎧 AuthListener: Error loading full user profile:", error);
-    // Set loading to false even on error to avoid UI being stuck
+    // Always set loading to false on error
     setState({ loading: false });
   }
 };
