@@ -1,185 +1,57 @@
-import React, { useState, useEffect } from 'react';
-import { UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
+
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SuggestionGroupItem } from './SuggestionGroupItem';
-import { ChevronDown, ChevronUp, User, CheckCircle } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { generateLineDiff } from '@/utils/diff/contentDiff';
-import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+
+interface GroupedSuggestion {
+  id: string;
+  content: any;
+  status: string;
+  user: {
+    username: string;
+  };
+}
+
+interface UserGroup {
+  userId: string;
+  username: string;
+  count: number;
+  suggestions: GroupedSuggestion[];
+}
 
 interface SuggestionGroupProps {
   group: UserGroup;
-  onApprove: (ids: string[]) => void;
-  onReject: (id: string) => void;
-  onExpandItem: (id: string) => void;
+  onExpandSuggestion: (id: string) => void;
 }
 
-export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({
-  group,
-  onApprove,
-  onReject,
-  onExpandItem
-}) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [filteredGroups, setFilteredGroups] = useState<GroupedSuggestion[][]>([]);
-  
-  useEffect(() => {
-    const processedGroups = group.consecutiveGroups.map(consecutiveGroup => {
-      return consecutiveGroup.filter(suggestion => {
-        if (suggestion.status !== 'pending') return true;
-        
-        const normalizeContent = (content: any): string => {
-          if (typeof content === 'string') {
-            try {
-              const parsed = JSON.parse(content);
-              if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
-                return extractPlainTextFromDelta(parsed);
-              }
-            } catch (e) {
-              return content;
-            }
-            return content;
-          } else if (isDeltaObject(content)) {
-            return extractPlainTextFromDelta(content);
-          }
-          return String(content);
-        };
-
-        const suggestedContent = normalizeContent(suggestion.content);
-        const originalContent = suggestion.line_uuid 
-          ? normalizeContent(suggestion.original_content || '')
-          : '';
-
-        const diff = generateLineDiff(originalContent, suggestedContent);
-        
-        return diff.changeType !== 'unchanged';
-      });
-    }).filter(group => group.length > 0);
-    
-    setFilteredGroups(processedGroups);
-  }, [group.consecutiveGroups]);
-  
-  const pendingCount = group.suggestions.filter(s => s.status === 'pending').length;
-  const approvedCount = group.suggestions.filter(s => s.status === 'approved').length;
-  const rejectedCount = group.suggestions.filter(s => s.status === 'rejected').length;
-  
-  const handleToggleExpand = () => {
-    setIsExpanded(!isExpanded);
-  };
-  
-  const handleApproveAll = () => {
-    const pendingSuggestionIds = group.suggestions
-      .filter(s => {
-        if (s.status !== 'pending') return false;
-        
-        const normalizeContent = (content: any): string => {
-          if (typeof content === 'string') {
-            try {
-              const parsed = JSON.parse(content);
-              if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
-                return extractPlainTextFromDelta(parsed);
-              }
-            } catch (e) {
-              return content;
-            }
-            return content;
-          } else if (isDeltaObject(content)) {
-            return extractPlainTextFromDelta(content);
-          }
-          return String(content);
-        };
-
-        const suggestedContent = normalizeContent(s.content);
-        const originalContent = s.line_uuid 
-          ? normalizeContent(s.original_content || '')
-          : '';
-
-        const diff = generateLineDiff(originalContent, suggestedContent);
-        return diff.changeType !== 'unchanged';
-      })
-      .map(s => s.id);
-      
-    onApprove(pendingSuggestionIds);
-  };
+export const SuggestionGroup: React.FC<SuggestionGroupProps> = ({ group, onExpandSuggestion }) => {
+  // Get pending suggestions count
+  const pendingCount = group.suggestions.filter(
+    suggestion => suggestion.status === 'pending'
+  ).length;
   
   return (
-    <div className="mb-4 border rounded-lg overflow-hidden">
-      <div 
-        className="bg-gray-100 p-3 flex items-center justify-between cursor-pointer"
-        onClick={handleToggleExpand}
-      >
-        <div className="flex items-center space-x-2">
-          <User className="h-4 w-4" />
-          <span className="font-medium">{group.user.username}</span>
-          <Badge variant="outline" className="ml-2 text-black">
-            {group.suggestions.length} suggestion{group.suggestions.length !== 1 ? 's' : ''}
-          </Badge>
-          {pendingCount > 0 && (
-            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
-              {pendingCount} pending
-            </Badge>
-          )}
-          {approvedCount > 0 && (
-            <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-300">
-              {approvedCount} approved
-            </Badge>
-          )}
-          {rejectedCount > 0 && (
-            <Badge variant="secondary" className="bg-red-100 text-red-800 border-red-300">
-              {rejectedCount} rejected
-            </Badge>
-          )}
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-lg flex justify-between">
+          <span>{group.username}'s Suggestions</span>
+          <span className="text-sm text-muted-foreground">
+            {pendingCount} pending
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {group.suggestions.map(suggestion => (
+            <SuggestionGroupItem 
+              key={suggestion.id}
+              suggestion={suggestion}
+              onExpand={() => onExpandSuggestion(suggestion.id)}
+            />
+          ))}
         </div>
-        
-        <div className="flex items-center">
-          {pendingCount > 0 && (
-            <Button 
-              size="sm" 
-              variant="outline"
-              className="mr-2 bg-green-50 hover:bg-green-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleApproveAll();
-              }}
-            >
-              <CheckCircle className="h-4 w-4 mr-1" />
-              Approve All
-            </Button>
-          )}
-          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </div>
-      </div>
-      
-      {isExpanded && (
-        <div className="p-3 space-y-3">
-          {filteredGroups.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">
-              No pending changes to show
-            </div>
-          ) : (
-            filteredGroups.map((consecutiveGroup, groupIndex) => (
-              <div key={groupIndex} className="border-l-2 border-gray-300 pl-3">
-                <div className="text-sm text-gray-500 mb-2">
-                  {consecutiveGroup.length > 1 
-                    ? `Lines ${consecutiveGroup[0].line_number}-${consecutiveGroup[consecutiveGroup.length-1].line_number}` 
-                    : consecutiveGroup[0].line_number 
-                      ? `Line ${consecutiveGroup[0].line_number}` 
-                      : 'Line Unknown'}
-                </div>
-                {consecutiveGroup.map(suggestion => (
-                  <SuggestionGroupItem
-                    key={suggestion.id}
-                    suggestion={suggestion}
-                    onApprove={ids => onApprove([suggestion.id])}
-                    onReject={() => onReject(suggestion.id)}
-                    onExpand={() => onExpandItem(suggestion.id)}
-                  />
-                ))}
-              </div>
-            ))
-          )}
-        </div>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 };

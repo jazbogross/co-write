@@ -1,10 +1,7 @@
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import ReactQuill from 'react-quill';
-import { SuggestionFormatter } from '@/utils/editor/formats';
 import { DiffChange } from '@/utils/diff';
-import { initializeSuggestionFormats } from './SuggestionFormatModule';
-import { DeltaContent } from '@/utils/editor/types';
 import 'react-quill/dist/quill.bubble.css';
 
 interface SuggestionDiffViewProps {
@@ -18,41 +15,33 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
   suggestedContent,
   diffChanges
 }) => {
-  const quillRef = useRef<ReactQuill>(null);
-  const initializedRef = useRef(false);
-  
-  // Create the comparison delta once
-  const comparisonDelta = SuggestionFormatter.createComparisonDelta(
-    originalContent,
-    suggestedContent,
-    diffChanges
-  );
-  
-  // Initialize formats when component mounts
-  useEffect(() => {
-    if (!initializedRef.current) {
-      initializeSuggestionFormats(ReactQuill.Quill);
-      initializedRef.current = true;
-    }
-    
-    // Set the editor content
-    if (quillRef.current) {
-      const editor = quillRef.current.getEditor();
-      // Convert our DeltaContent to Quill's Delta type using a direct cast
-      // In a production environment, we would implement a proper adapter
-      editor.setContents(comparisonDelta as any);
-      editor.disable(); // Make it read-only
-    }
-  }, []);
-  
   return (
-    <div className="suggestion-diff-view border rounded p-2 bg-gray-50">
-      <ReactQuill
-        ref={quillRef}
-        readOnly={true}
-        theme="bubble"
-        modules={{ toolbar: false }}
-      />
+    <div className="border rounded-md p-4 space-y-4">
+      <div>
+        <h3 className="text-sm font-medium mb-2">Original Content</h3>
+        <div className="bg-gray-50 p-3 rounded border whitespace-pre-wrap">
+          {originalContent}
+        </div>
+      </div>
+      
+      <div>
+        <h3 className="text-sm font-medium mb-2">Suggested Content</h3>
+        <div className="bg-gray-50 p-3 rounded border whitespace-pre-wrap">
+          {suggestedContent}
+        </div>
+      </div>
+      
+      <div>
+        <h3 className="text-sm font-medium mb-2">Changes</h3>
+        <div className="bg-red-50 p-3 rounded border mb-2">
+          <div className="text-sm font-medium text-red-700">Removed:</div>
+          <div className="line-through">{diffChanges.find(c => c.type === 'delete' || c.type === 'modify')?.originalText || 'No removals'}</div>
+        </div>
+        <div className="bg-green-50 p-3 rounded border">
+          <div className="text-sm font-medium text-green-700">Added:</div>
+          <div>{diffChanges.find(c => c.type === 'add' || c.type === 'modify')?.text || 'No additions'}</div>
+        </div>
+      </div>
     </div>
   );
 };

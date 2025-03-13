@@ -1,7 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toDelta, toJSON } from '@/utils/deltaUtils';
 import { toast } from 'sonner';
 import {
   Accordion,
@@ -25,8 +24,8 @@ import {
   DialogFooter 
 } from '@/components/ui/dialog';
 import { DeltaStatic } from 'quill';
-import Delta from 'quill-delta';
 import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.bubble.css';
 
 interface Suggestion {
   id: string;
@@ -70,13 +69,13 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
           .single();
         
         if (contentData?.content_delta) {
-          setOriginalContent(toDelta(contentData.content_delta));
+          setOriginalContent(contentData.content_delta as unknown as DeltaStatic);
         } else {
-          setOriginalContent(toDelta({ ops: [{ insert: '\n' }] }));
+          setOriginalContent({ ops: [{ insert: '\n' }] } as unknown as DeltaStatic);
         }
         
         // Load suggestions
-        const { data: suggestionsData } = await supabase
+        const { data: suggestionsData, error } = await supabase
           .from('script_suggestions')
           .select(`
             id, 
@@ -84,18 +83,23 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
             delta_diff, 
             status, 
             created_at,
-            profiles:user_id(username)
+            profiles:user_id (username)
           `)
           .eq('script_id', scriptId)
           .eq('status', 'pending')
           .order('created_at', { ascending: false });
         
+        if (error) {
+          console.error('Error loading suggestions:', error);
+          return;
+        }
+        
         if (suggestionsData) {
-          const formattedSuggestions = suggestionsData.map(item => ({
+          const formattedSuggestions: Suggestion[] = suggestionsData.map((item: any) => ({
             id: item.id,
             userId: item.user_id,
             username: item.profiles?.username || 'Unknown user',
-            deltaDiff: toDelta(item.delta_diff),
+            deltaDiff: item.delta_diff as unknown as DeltaStatic,
             createdAt: item.created_at,
             status: item.status as 'pending' | 'approved' | 'rejected'
           }));
@@ -132,7 +136,7 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
     try {
       // Apply the diff to create the new content
       const newContent = originalContent.compose(suggestion.deltaDiff);
-      const newContentJson = toJSON(newContent);
+      const newContentJson = JSON.parse(JSON.stringify(newContent));
       
       // Update script content
       const { error: contentError } = await supabase

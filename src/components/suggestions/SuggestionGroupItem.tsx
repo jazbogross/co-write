@@ -1,118 +1,74 @@
 
-import React, { useState } from 'react';
-import { GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
+import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Check, X, Maximize2 } from 'lucide-react';
-import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import { ChevronRight } from 'lucide-react';
+import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+
+interface GroupedSuggestion {
+  id: string;
+  content: any;
+  status: string;
+  user: {
+    username: string;
+  };
+}
 
 interface SuggestionGroupItemProps {
   suggestion: GroupedSuggestion;
-  onApprove: (ids: string[]) => void;
-  onReject: (id: string) => void;
   onExpand: () => void;
 }
 
-export const SuggestionGroupItem: React.FC<SuggestionGroupItemProps> = ({
-  suggestion,
-  onApprove,
-  onReject,
-  onExpand
-}) => {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return 'bg-green-50';
-      case 'rejected':
-        return 'bg-red-50';
-      case 'draft':
-        return 'bg-gray-50';
-      default:
-        return 'bg-white';
-    }
-  };
-
-  // Parse and normalize content for display
-  const normalizeContentForDisplay = (content: any): string => {
+export const SuggestionGroupItem: React.FC<SuggestionGroupItemProps> = ({ suggestion, onExpand }) => {
+  // Get preview of content
+  const getContentPreview = (content: any): string => {
+    let textContent: string;
+    
     if (typeof content === 'string') {
       try {
-        // Check if it's stringified JSON/Delta
+        // Try to parse as JSON Delta
         const parsed = JSON.parse(content);
-        if (parsed && typeof parsed === 'object' && 'ops' in parsed) {
-          return extractPlainTextFromDelta(parsed);
+        if (parsed && 'ops' in parsed) {
+          textContent = extractPlainTextFromDelta(parsed);
+        } else {
+          textContent = content;
         }
-      } catch (e) {
-        // Not JSON, use as is
-        return content;
+      } catch {
+        textContent = content;
       }
-      return content;
     } else if (isDeltaObject(content)) {
-      return extractPlainTextFromDelta(content);
+      textContent = extractPlainTextFromDelta(content);
+    } else {
+      textContent = String(content);
     }
-    return String(content);
+    
+    // Truncate and add ellipsis if too long
+    return textContent.length > 100
+      ? textContent.substring(0, 100) + '...'
+      : textContent;
   };
-
-  const displayContent = normalizeContentForDisplay(suggestion.content);
-
+  
   return (
-    <div className={`rounded p-2 mb-2 ${getStatusColor(suggestion.status)}`}>
-      <div className="flex justify-between items-start">
-        <div className="text-sm text-black">
-          {suggestion.line_number && (
-            <span className="text-xs text-gray-500">
-              Line {suggestion.line_number}
-              {suggestion.line_uuid && (
-                <span className="ml-1">
-                  ({suggestion.line_uuid.substring(0, 6)}...)
-                </span>
-              )}
-            </span>
-          )}
+    <div className="flex items-start space-x-3 p-3 rounded border bg-gray-50">
+      <div className="flex-1">
+        <div className="flex items-center mb-1">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+            suggestion.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+            suggestion.status === 'approved' ? 'bg-green-100 text-green-800' :
+            'bg-red-100 text-red-800'
+          }`}>
+            {suggestion.status}
+          </span>
         </div>
-        
-        {suggestion.status === 'pending' && (
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 p-0"
-              onClick={() => onExpand()}
-              title="View details"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-              onClick={() => onApprove([suggestion.id])}
-              title="Approve"
-            >
-              <Check className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={() => onReject(suggestion.id)}
-              title="Reject"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+        <p className="text-sm whitespace-pre-wrap">{getContentPreview(suggestion.content)}</p>
       </div>
-      
-      <pre className="whitespace-pre-wrap font-mono text-sm mt-2 overflow-x-auto max-h-24 bg-white bg-opacity-60 p-1 rounded text-xs text-black">
-        {displayContent.length > 200 
-          ? `${displayContent.substring(0, 200)}...` 
-          : displayContent}
-      </pre>
-      
-      {suggestion.rejection_reason && (
-        <div className="mt-2 text-xs text-red-600">
-          <strong>Rejection reason:</strong> {suggestion.rejection_reason}
-        </div>
-      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onExpand}
+        className="flex-shrink-0"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
     </div>
   );
 };

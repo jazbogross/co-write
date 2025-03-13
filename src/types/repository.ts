@@ -13,6 +13,9 @@ export interface RepositoryPermission {
   user_id: string;
   permission_type: 'admin' | 'write' | 'read' | 'view';
   created_at?: string;
+  profiles?: {
+    username: string;
+  };
 }
 
 export interface Script {

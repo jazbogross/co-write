@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { DeltaEditor } from "@/components/DeltaEditor";
+import { DeltaTextEditor } from "@/components/DeltaTextEditor";
 import { toast } from "sonner";
 import {
   Card,
@@ -124,7 +124,7 @@ const ScriptEdit = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DeltaEditor 
+          <DeltaTextEditor 
             scriptId={id} 
             isAdmin={isAdmin} 
           />
