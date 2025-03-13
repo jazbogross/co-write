@@ -14,7 +14,7 @@ export const useLineData = (
   scriptId: string, 
   originalContent: string, 
   userId: string | null,
-  isAdmin: boolean = false // Added isAdmin parameter with default false
+  isAdmin: boolean = false
 ) => {
   console.log('🔠 useLineData: Hook called with', { scriptId, userId, isAdmin });
   
@@ -29,28 +29,29 @@ export const useLineData = (
   const { 
     lineData, 
     setLineData, 
-    isDataReady, 
+    isLoading,
+    error,
     contentToUuidMapRef,
     lastLineCountRef,
-    loadDrafts 
-  } = useLineDataInit(scriptId, originalContent, userId, isAdmin);
+    loadDrafts,
+    isInitialized
+  } = useLineDataInit({
+    scriptId,
+    initialContent: originalContent,
+    userId,
+    isAdmin
+  });
   
   const { matchAndAssignLines } = useLineMatching(userId);
   const { loadDraftsForCurrentUser } = useDrafts();
-  const { initializeEditor } = useEditorInit(lineData, isDataReady);
+  const { initializeEditor } = useEditorInit(lineData, isInitialized);
 
   const updateLineContents = useCallback((newContents: any[], quill: any) => {
     console.log('🔠 useLineData: updateLineContents called with', { 
       newContentsLength: newContents.length, 
-      hasQuill: !!quill,
-      hasLineTracking: !!(quill && quill.lineTracking)
+      hasQuill: !!quill
     });
     
-    if (!quill || !quill.lineTracking) {
-      console.log('🔠 useLineData: updateLineContents: Line tracking not available.');
-      return;
-    }
-
     setLineData(prevData => {
       if (newContents.length === 0) {
         console.log('🔠 useLineData: Empty content received, preserving existing data');
@@ -68,49 +69,15 @@ export const useLineData = (
         );
       });
 
-      uuidAssignmentStats.current = {
-        preserved: 0,
-        regenerated: 0,
-        matchStrategy: {}
-      };
-      
-      const lineCountDiff = Math.abs(newContents.length - lastLineCountRef.current);
-      if (lineCountDiff > 3) {
-        console.log(`🔠 useLineData: Line count changed significantly: ${lastLineCountRef.current} -> ${newContents.length}`);
-      }
-      lastLineCountRef.current = newContents.length;
-      
-      // Get the DOM UUID map safely
-      let domUuidMap = new Map<number, string>();
-      try {
-        if (typeof quill.lineTracking.getDomUuidMap === 'function') {
-          domUuidMap = quill.lineTracking.getDomUuidMap();
-        } else {
-          console.warn('🔠 useLineData: getDomUuidMap is not a function, using empty map');
-        }
-      } catch (error) {
-        console.error('🔠 useLineData: Error calling getDomUuidMap:', error);
-      }
-      
-      console.log(`🔠 useLineData: DOM UUID map size: ${domUuidMap.size}`);
-      
-      const { newData, stats } = matchAndAssignLines(
-        newContents, 
-        prevData, 
-        contentToUuidMapRef.current, 
-        domUuidMap, 
-        quill
-      );
-      
-      uuidAssignmentStats.current = stats;
-      
-      if (uuidAssignmentStats.current.regenerated > 0) {
-        console.log(
-          `🔠 useLineData: UUID stats: preserved=${uuidAssignmentStats.current.preserved}, ` +
-          `regenerated=${uuidAssignmentStats.current.regenerated}, ` +
-          `strategies=${JSON.stringify(uuidAssignmentStats.current.matchStrategy)}`
-        );
-      }
+      // In the Delta approach, we only need one line that contains the full Delta
+      const newData: LineData[] = [{
+        uuid: prevData.length > 0 ? prevData[0].uuid : uuidv4(),
+        lineNumber: 1,
+        content: newContents[0] || { ops: [{ insert: '\n' }] },
+        originalAuthor: userId,
+        editedBy: prevData.length > 0 ? prevData[0].editedBy || [] : [],
+        hasDraft: true
+      }];
       
       console.log(`🔠 useLineData: Returning ${newData.length} updated lines`);
       
@@ -127,13 +94,9 @@ export const useLineData = (
         });
       });
       
-      previousContentRef.current = newContents.map(content => 
-        typeof content === 'object' ? JSON.stringify(content) : String(content)
-      );
-      
       return newData;
     });
-  }, [matchAndAssignLines]);
+  }, [setLineData, userId]);
 
   const updateLineContent = useCallback((lineIndex: number, newContent: string) => {
     console.log(`🔠 useLineData: updateLineContent for line ${lineIndex}`);
@@ -141,52 +104,42 @@ export const useLineData = (
     setLineData(prevData => {
       const newData = [...prevData];
       
-      while (newData.length <= lineIndex) {
+      // For Delta approach, we just update the single line content
+      if (newData.length === 0) {
         const newUuid = uuidv4();
-        console.log(`🔠 useLineData: Creating new line at index ${newData.length} with UUID ${newUuid}`);
+        console.log(`🔠 useLineData: Creating new line with UUID ${newUuid}`);
         
         newData.push({
           uuid: newUuid,
-          lineNumber: newData.length + 1,
-          content: '',
+          lineNumber: 1,
+          content: newContent,
           originalAuthor: userId,
           editedBy: [],
-          hasDraft: true // Mark new lines as drafts
+          hasDraft: true
         });
-        contentToUuidMapRef.current.set('', newUuid);
-      }
-      
-      if (newData[lineIndex]) {
-        const existingLine = newData[lineIndex];
-        console.log(`🔠 useLineData: Updating line ${lineIndex} with UUID ${existingLine.uuid}`);
+      } else {
+        const existingLine = newData[0];
+        console.log(`🔠 useLineData: Updating line with UUID ${existingLine.uuid}`);
         
-        newData[lineIndex] = {
+        newData[0] = {
           ...existingLine,
           content: newContent,
-          hasDraft: true, // Mark as draft when content is updated
-          editedBy: userId && !existingLine.editedBy.includes(userId)
+          hasDraft: true,
+          editedBy: userId && existingLine.editedBy && !existingLine.editedBy.includes(userId)
             ? [...existingLine.editedBy, userId]
-            : existingLine.editedBy
+            : existingLine.editedBy || []
         };
-        
-        contentToUuidMapRef.current.set(newContent, existingLine.uuid);
       }
       
       return newData;
     });
-  }, [userId, contentToUuidMapRef]);
+  }, [userId]);
 
-  // Updated to use the new consolidated loadDrafts function
+  // Updated to use the new function from useLineDataInit
   const loadUserDrafts = useCallback(() => {
     console.log('🔠 useLineData: loadUserDrafts called');
-    return loadDraftsForCurrentUser(
-      scriptId, 
-      userId, 
-      setLineData, 
-      contentToUuidMapRef,
-      loadDrafts // Pass the implementation from useLineDataInit
-    );
-  }, [scriptId, userId, loadDraftsForCurrentUser, contentToUuidMapRef, loadDrafts, setLineData]);
+    return loadDrafts();
+  }, [loadDrafts]);
 
   return { 
     lineData, 
@@ -194,7 +147,7 @@ export const useLineData = (
     updateLineContent, 
     updateLineContents,
     loadDraftsForCurrentUser: loadUserDrafts,
-    isDataReady,
+    isDataReady: isInitialized && !isLoading,
     initializeEditor
   };
 };

@@ -1,5 +1,5 @@
 
-import { DeltaStatic } from 'quill';
+import type { DeltaStatic } from 'quill';
 
 // Main script content Delta type
 export interface ScriptContent {
@@ -16,8 +16,8 @@ export interface ScriptSuggestion {
   deltaDiff: DeltaStatic;
   status: 'pending' | 'approved' | 'rejected' | 'draft';
   rejectionReason?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Script draft type
@@ -26,7 +26,7 @@ export interface ScriptDraft {
   scriptId: string;
   userId: string;
   draftContent: DeltaStatic;
-  updatedAt?: Date;
+  updatedAt?: string;
 }
 
 // Script version history
@@ -36,10 +36,10 @@ export interface ScriptVersion {
   versionNumber: number;
   contentDelta: DeltaStatic;
   createdBy?: string;
-  createdAt: Date;
+  createdAt: string;
 }
 
-// LineData type for backward compatibility
+// For backwards compatibility - will be used less in the new approach
 export interface LineData {
   uuid: string;
   lineNumber: number;
@@ -48,37 +48,18 @@ export interface LineData {
   editedBy?: string[] | null;
   hasDraft?: boolean;
   originalContent?: any;
+  originalLineNumber?: number;
 }
 
-// Add QuillCompatibleDelta for helpers
-export interface QuillCompatibleDelta {
-  ops: { insert: string | object; attributes?: Record<string, any> }[];
-  retain?: (length: number, attributes?: Record<string, any>) => QuillCompatibleDelta;
-  delete?: (length: number) => QuillCompatibleDelta;
-  insert?: (text: string, attributes?: Record<string, any>) => QuillCompatibleDelta;
-  filter?: (predicate: (op: any) => boolean) => any[];
-  forEach?: (predicate: (op: any) => void) => void;
-  map?: <T>(predicate: (op: any) => T) => T[];
-  partition?: (predicate: (op: any) => boolean) => [any[], any[]];
-  reduce?: <T>(predicate: (acc: T, op: any) => T, initial: T) => T;
-  chop?: () => QuillCompatibleDelta;
-  slice?: (start?: number, end?: number) => QuillCompatibleDelta;
-  compose?: (other: QuillCompatibleDelta) => QuillCompatibleDelta;
-  transform?: (other: QuillCompatibleDelta, priority?: boolean) => QuillCompatibleDelta;
-  transformPosition?: (index: number, priority?: boolean) => number;
+// Delta content type for simplification
+export interface DeltaContent {
+  ops: Array<{
+    insert?: string | object;
+    delete?: number;
+    retain?: number;
+    attributes?: Record<string, any>;
+  }>;
 }
 
-// Add Quill LineTracking type definitions for backwards compatibility
-declare module 'quill' {
-  interface Quill {
-    getModule(name: string): any;
-    lineTracking?: {
-      initialize?: () => void;
-      refreshLineUuids?: (lineData: LineData[]) => void;
-      forceRefreshUuids?: () => void;
-      saveCursorPosition?: () => void;
-      restoreCursorPosition?: () => void;
-      setLineUuid?: (oneBasedIndex: number, uuid: string, editor?: any) => void;
-    };
-  }
-}
+// Re-export DeltaStatic for use in other files
+export type { DeltaStatic };

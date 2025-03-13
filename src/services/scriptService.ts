@@ -1,44 +1,17 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { ScriptContent, ScriptDraft, ScriptSuggestion, ScriptVersion } from '@/types/lineTypes';
 import { DeltaStatic } from 'quill';
 import Delta from 'quill-delta';
-
-// Helper to safely convert between JSON and Delta types
-const convertToDeltaStatic = (jsonData: any): DeltaStatic => {
-  if (!jsonData) {
-    return new Delta([{ insert: '\n' }]);
-  }
-  
-  if (typeof jsonData === 'string') {
-    try {
-      return new Delta(JSON.parse(jsonData).ops);
-    } catch (e) {
-      console.error('Error parsing Delta JSON:', e);
-      return new Delta([{ insert: jsonData + '\n' }]);
-    }
-  }
-  
-  if (typeof jsonData === 'object' && jsonData !== null) {
-    if ('ops' in jsonData) {
-      return new Delta(jsonData.ops);
-    }
-  }
-  
-  return new Delta([{ insert: '\n' }]);
-};
-
-// Helper to safely serialize Delta for storage
-const serializeDelta = (delta: DeltaStatic): any => {
-  if (!delta) {
-    return { ops: [{ insert: '\n' }] };
-  }
-  
-  return delta;
-};
+import { 
+  ScriptContent,
+  ScriptSuggestion,
+  ScriptDraft,
+  ScriptVersion
+} from '@/types/lineTypes';
+import { toDelta, toJSON } from '@/utils/deltaUtils';
 
 /**
- * Fetches the full script content as a Delta object
+ * Fetch script content as a Delta object
  */
 export const fetchScriptContent = async (scriptId: string): Promise<ScriptContent | null> => {
   try {
@@ -47,20 +20,17 @@ export const fetchScriptContent = async (scriptId: string): Promise<ScriptConten
       .select('content_delta, version')
       .eq('script_id', scriptId)
       .single();
-      
+
     if (error) {
       console.error('Error fetching script content:', error);
       return null;
     }
-    
-    if (!data) {
-      console.log('No content found for script:', scriptId);
-      return null;
-    }
-    
+
+    if (!data) return null;
+
     return {
       scriptId,
-      contentDelta: convertToDeltaStatic(data.content_delta),
+      contentDelta: toDelta(data.content_delta),
       version: data.version
     };
   } catch (error) {
@@ -70,69 +40,63 @@ export const fetchScriptContent = async (scriptId: string): Promise<ScriptConten
 };
 
 /**
- * Saves the full script content
+ * Save script content as Delta
  */
 export const saveScriptContent = async (
   scriptId: string, 
-  contentDelta: DeltaStatic,
-  createVersion: boolean = true
+  content: DeltaStatic, 
+  isAdmin: boolean = false
 ): Promise<boolean> => {
   try {
-    // Begin transaction
-    const { data: existingData, error: fetchError } = await supabase
+    // Convert the Delta to a format suitable for database storage
+    const contentJson = toJSON(content);
+    
+    // Get current user for version history
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Determine current version
+    const { data: currentContent } = await supabase
       .from('script_content')
       .select('version')
       .eq('script_id', scriptId)
       .single();
-      
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-      console.error('Error fetching existing script version:', fetchError);
-      return false;
-    }
     
-    const currentVersion = existingData?.version || 0;
-    const newVersion = currentVersion + 1;
+    const newVersion = isAdmin ? (currentContent?.version || 0) + 1 : (currentContent?.version || 0);
     
-    // Serialize Delta for storage
-    const serializedDelta = serializeDelta(contentDelta);
-    
-    // Create or update script content
-    const { error: updateError } = await supabase
+    // Update script content
+    const { error } = await supabase
       .from('script_content')
       .upsert({
         script_id: scriptId,
-        content_delta: serializedDelta,
+        content_delta: contentJson,
         version: newVersion,
         updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'script_id'
       });
-      
-    if (updateError) {
-      console.error('Error saving script content:', updateError);
+
+    if (error) {
+      console.error('Error saving script content:', error);
       return false;
     }
-    
-    // Create a new version entry if requested
-    if (createVersion) {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData?.user?.id;
-      
-      const { error: versionError } = await supabase
-        .from('script_versions')
-        .insert({
-          script_id: scriptId,
-          version_number: newVersion,
-          content_delta: serializedDelta,
-          created_by: userId,
-          created_at: new Date().toISOString()
-        });
-        
-      if (versionError) {
-        console.error('Error creating version entry:', versionError);
-        // Continue anyway, since main content was saved successfully
+
+    // Store a version history if an admin is making the change
+    if (isAdmin) {
+      try {
+        await supabase
+          .from('script_versions')
+          .insert({
+            script_id: scriptId,
+            version_number: newVersion,
+            content_delta: contentJson,
+            created_by: user?.id
+          });
+      } catch (versionError) {
+        console.error('Error saving version history:', versionError);
+        // Don't fail the overall operation if version history fails
       }
     }
-    
-    console.log(`Script content saved successfully with version ${newVersion}`);
+
     return true;
   } catch (error) {
     console.error('Error in saveScriptContent:', error);
@@ -141,39 +105,54 @@ export const saveScriptContent = async (
 };
 
 /**
- * Saves a draft for the current user
+ * Get the current version number for a script
  */
-export const saveDraft = async (
-  scriptId: string,
-  draftContent: DeltaStatic
-): Promise<boolean> => {
+export const getCurrentVersion = async (scriptId: string): Promise<number> => {
   try {
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData?.user?.id;
-    
-    if (!userId) {
-      console.error('Cannot save draft: User not authenticated');
-      return false;
+    const { data, error } = await supabase
+      .from('script_content')
+      .select('version')
+      .eq('script_id', scriptId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching script version:', error);
+      return 1;
     }
-    
-    // Serialize Delta for storage
-    const serializedDelta = serializeDelta(draftContent);
+
+    return data?.version || 1;
+  } catch (error) {
+    console.error('Error in getCurrentVersion:', error);
+    return 1;
+  }
+};
+
+/**
+ * Save a user's draft for a script
+ */
+export const saveDraft = async (scriptId: string, content: DeltaStatic): Promise<boolean> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const contentJson = toJSON(content);
     
     const { error } = await supabase
       .from('script_drafts')
       .upsert({
         script_id: scriptId,
-        user_id: userId,
-        draft_content: serializedDelta,
+        user_id: user.id,
+        draft_content: contentJson,
         updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'script_id,user_id'
       });
-      
+
     if (error) {
       console.error('Error saving draft:', error);
       return false;
     }
-    
-    console.log('Draft saved successfully');
+
     return true;
   } catch (error) {
     console.error('Error in saveDraft:', error);
@@ -182,45 +161,36 @@ export const saveDraft = async (
 };
 
 /**
- * Loads a draft for the current user
+ * Load a user's draft for a script
  */
 export const loadDraft = async (scriptId: string): Promise<ScriptDraft | null> => {
   try {
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData?.user?.id;
-    
-    if (!userId) {
-      console.error('Cannot load draft: User not authenticated');
-      return null;
-    }
-    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
     const { data, error } = await supabase
       .from('script_drafts')
-      .select('id, draft_content, updated_at')
+      .select('*')
       .eq('script_id', scriptId)
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .single();
-      
+
     if (error) {
-      if (error.code === 'PGRST116') { // No rows returned
-        console.log('No draft found for this user and script');
-        return null;
-      }
+      // If no draft exists, that's not an error for us
+      if (error.code === 'PGRST116') return null;
       
       console.error('Error loading draft:', error);
       return null;
     }
-    
-    if (!data) {
-      return null;
-    }
-    
+
+    if (!data) return null;
+
     return {
       id: data.id,
-      scriptId,
-      userId,
-      draftContent: convertToDeltaStatic(data.draft_content),
-      updatedAt: new Date(data.updated_at)
+      scriptId: data.script_id,
+      userId: data.user_id,
+      draftContent: toDelta(data.draft_content),
+      updatedAt: data.updated_at
     };
   } catch (error) {
     console.error('Error in loadDraft:', error);
@@ -229,45 +199,38 @@ export const loadDraft = async (scriptId: string): Promise<ScriptDraft | null> =
 };
 
 /**
- * Creates a suggestion based on the difference between original and suggested content
+ * Create a suggestion by comparing with the original Delta
  */
 export const createSuggestion = async (
-  scriptId: string,
-  originalDelta: DeltaStatic,
+  scriptId: string, 
+  originalDelta: DeltaStatic, 
   suggestedDelta: DeltaStatic
 ): Promise<string | null> => {
   try {
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData?.user?.id;
-    
-    if (!userId) {
-      console.error('Cannot create suggestion: User not authenticated');
-      return null;
-    }
-    
-    // Calculate the difference delta 
-    // For our current implementation we'll just store the full suggested delta
-    // In a full implementation you would use originalDelta.diff(suggestedDelta)
-    const deltaDiff = suggestedDelta;
-    const serializedDiff = serializeDelta(deltaDiff);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Create a diff between original and suggested deltas
+    const deltaOps = originalDelta.diff(suggestedDelta);
+    const deltaJson = toJSON(deltaOps);
     
     const { data, error } = await supabase
       .from('script_suggestions')
       .insert({
         script_id: scriptId,
-        user_id: userId,
-        delta_diff: serializedDiff,
+        user_id: user.id,
+        delta_diff: deltaJson,
         status: 'pending'
       })
-      .select('id');
-      
+      .select('id')
+      .single();
+
     if (error) {
       console.error('Error creating suggestion:', error);
       return null;
     }
-    
-    console.log('Suggestion created successfully:', data[0].id);
-    return data[0].id;
+
+    return data.id;
   } catch (error) {
     console.error('Error in createSuggestion:', error);
     return null;
@@ -275,111 +238,121 @@ export const createSuggestion = async (
 };
 
 /**
- * Fetches suggestions for a script
+ * Get all suggestions for a script
  */
-export const fetchSuggestions = async (scriptId: string): Promise<ScriptSuggestion[]> => {
+export const getScriptSuggestions = async (scriptId: string): Promise<ScriptSuggestion[]> => {
   try {
     const { data, error } = await supabase
       .from('script_suggestions')
-      .select('*')
+      .select(`
+        *,
+        profiles:user_id(username)
+      `)
       .eq('script_id', scriptId)
       .order('created_at', { ascending: false });
-      
+
     if (error) {
-      console.error('Error fetching suggestions:', error);
+      console.error('Error fetching script suggestions:', error);
       return [];
     }
-    
-    if (!data || data.length === 0) {
-      return [];
-    }
-    
-    return data.map(item => ({
-      id: item.id,
-      scriptId: item.script_id,
-      userId: item.user_id,
-      deltaDiff: convertToDeltaStatic(item.delta_diff),
-      status: item.status,
-      rejectionReason: item.rejection_reason,
-      createdAt: new Date(item.created_at),
-      updatedAt: new Date(item.updated_at)
+
+    return data.map(suggestion => ({
+      id: suggestion.id,
+      scriptId: suggestion.script_id,
+      userId: suggestion.user_id,
+      deltaDiff: toDelta(suggestion.delta_diff),
+      status: suggestion.status as 'pending' | 'approved' | 'rejected' | 'draft',
+      rejectionReason: suggestion.rejection_reason,
+      createdAt: suggestion.created_at,
+      updatedAt: suggestion.updated_at
     }));
   } catch (error) {
-    console.error('Error in fetchSuggestions:', error);
+    console.error('Error in getScriptSuggestions:', error);
     return [];
   }
 };
 
 /**
- * Approve a suggestion and apply it to the script content
+ * Approve a suggestion by applying the diff to the script content
  */
 export const approveSuggestion = async (suggestionId: string): Promise<boolean> => {
   try {
-    // Fetch the suggestion
+    // Get the suggestion
     const { data: suggestion, error: suggestionError } = await supabase
       .from('script_suggestions')
-      .select('delta_diff, script_id, status')
+      .select('*')
       .eq('id', suggestionId)
       .single();
-      
-    if (suggestionError || !suggestion) {
+
+    if (suggestionError) {
       console.error('Error fetching suggestion:', suggestionError);
       return false;
     }
-    
-    if (suggestion.status !== 'pending') {
-      console.error('Cannot approve suggestion: Status is not pending');
-      return false;
-    }
-    
-    // Fetch current script content
-    const { data: scriptContent, error: contentError } = await supabase
+
+    // Get the current script content
+    const { data: scriptContent, error: scriptError } = await supabase
       .from('script_content')
       .select('content_delta, version')
       .eq('script_id', suggestion.script_id)
       .single();
-      
-    if (contentError || !scriptContent) {
-      console.error('Error fetching script content:', contentError);
+
+    if (scriptError) {
+      console.error('Error fetching script content:', scriptError);
       return false;
     }
-    
-    // In a real implementation, we would use Delta.compose() to apply the diff
-    // For now, we'll just update with the suggestion's delta_diff
-    const currentDelta = convertToDeltaStatic(scriptContent.content_delta);
-    const suggestionDelta = convertToDeltaStatic(suggestion.delta_diff);
-    
-    // Apply the suggestion to the current content
-    // In a full implementation: const updatedDelta = currentDelta.compose(suggestionDelta);
-    const updatedDelta = suggestionDelta; // Simplified for now
-    
-    // Save the updated content
-    const saveResult = await saveScriptContent(
-      suggestion.script_id,
-      updatedDelta,
-      true // create version
-    );
-    
-    if (!saveResult) {
-      console.error('Failed to save updated content');
+
+    // Convert to Delta objects
+    const currentDelta = toDelta(scriptContent.content_delta);
+    const diffDelta = toDelta(suggestion.delta_diff);
+
+    // Compose the deltas to get the new content
+    const newDelta = currentDelta.compose(diffDelta);
+    const newDeltaJson = toJSON(newDelta);
+
+    // Update the script content with the new delta
+    const { error: updateContentError } = await supabase
+      .from('script_content')
+      .update({
+        content_delta: newDeltaJson,
+        version: scriptContent.version + 1,
+        updated_at: new Date().toISOString()
+      })
+      .eq('script_id', suggestion.script_id);
+
+    if (updateContentError) {
+      console.error('Error updating script content:', updateContentError);
       return false;
     }
-    
-    // Update suggestion status
-    const { error: updateError } = await supabase
+
+    // Update the suggestion status
+    const { error: updateSuggestionError } = await supabase
       .from('script_suggestions')
-      .update({ 
-        status: 'approved', 
-        updated_at: new Date().toISOString() 
+      .update({
+        status: 'approved',
+        updated_at: new Date().toISOString()
       })
       .eq('id', suggestionId);
-      
-    if (updateError) {
-      console.error('Error updating suggestion status:', updateError);
-      // Proceed anyway since content was updated successfully
+
+    if (updateSuggestionError) {
+      console.error('Error updating suggestion status:', updateSuggestionError);
+      return false;
     }
-    
-    console.log('Suggestion approved and applied successfully');
+
+    // Save a version history record
+    const { error: versionError } = await supabase
+      .from('script_versions')
+      .insert({
+        script_id: suggestion.script_id,
+        version_number: scriptContent.version + 1,
+        content_delta: newDeltaJson,
+        created_by: suggestion.user_id  // Credit the suggestion author
+      });
+
+    if (versionError) {
+      console.error('Error creating version history:', versionError);
+      // Don't fail the overall operation if version history fails
+    }
+
     return true;
   } catch (error) {
     console.error('Error in approveSuggestion:', error);
@@ -390,107 +363,25 @@ export const approveSuggestion = async (suggestionId: string): Promise<boolean> 
 /**
  * Reject a suggestion
  */
-export const rejectSuggestion = async (
-  suggestionId: string, 
-  reason?: string
-): Promise<boolean> => {
+export const rejectSuggestion = async (suggestionId: string, reason: string): Promise<boolean> => {
   try {
     const { error } = await supabase
       .from('script_suggestions')
-      .update({ 
+      .update({
         status: 'rejected',
-        rejection_reason: reason || 'No reason provided',
+        rejection_reason: reason,
         updated_at: new Date().toISOString()
       })
       .eq('id', suggestionId);
-      
+
     if (error) {
       console.error('Error rejecting suggestion:', error);
       return false;
     }
-    
-    console.log('Suggestion rejected successfully');
+
     return true;
   } catch (error) {
     console.error('Error in rejectSuggestion:', error);
-    return false;
-  }
-};
-
-/**
- * Fetch version history for a script
- */
-export const fetchVersionHistory = async (scriptId: string): Promise<ScriptVersion[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('script_versions')
-      .select('*')
-      .eq('script_id', scriptId)
-      .order('version_number', { ascending: false });
-      
-    if (error) {
-      console.error('Error fetching version history:', error);
-      return [];
-    }
-    
-    if (!data || data.length === 0) {
-      return [];
-    }
-    
-    return data.map(item => ({
-      id: item.id,
-      scriptId: item.script_id,
-      versionNumber: item.version_number,
-      contentDelta: convertToDeltaStatic(item.content_delta),
-      createdBy: item.created_by,
-      createdAt: new Date(item.created_at)
-    }));
-  } catch (error) {
-    console.error('Error in fetchVersionHistory:', error);
-    return [];
-  }
-};
-
-/**
- * Restore a specific version of the script
- */
-export const restoreVersion = async (
-  scriptId: string,
-  versionId: string
-): Promise<boolean> => {
-  try {
-    // Fetch the version to restore
-    const { data: version, error: versionError } = await supabase
-      .from('script_versions')
-      .select('content_delta')
-      .eq('id', versionId)
-      .eq('script_id', scriptId)
-      .single();
-      
-    if (versionError || !version) {
-      console.error('Error fetching version:', versionError);
-      return false;
-    }
-    
-    // Convert to Delta for consistency
-    const versionDelta = convertToDeltaStatic(version.content_delta);
-    
-    // Save as the new current version
-    const saveResult = await saveScriptContent(
-      scriptId,
-      versionDelta,
-      true // create a new version entry
-    );
-    
-    if (!saveResult) {
-      console.error('Failed to restore version');
-      return false;
-    }
-    
-    console.log('Version restored successfully');
-    return true;
-  } catch (error) {
-    console.error('Error in restoreVersion:', error);
     return false;
   }
 };

@@ -1,92 +1,48 @@
 
-import React from 'react';
-import ReactQuill from 'react-quill';
-import { useScriptEditor } from '@/hooks/useScriptEditor';
-import { DeltaStatic } from 'quill';
-import { Button } from '@/components/ui/button';
-import 'react-quill/dist/quill.snow.css';
+import React, { useState } from 'react';
+import { DeltaEditor } from './DeltaEditor';
+import { SuggestionManager } from './SuggestionManager';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface DeltaTextEditorProps {
-  isAdmin: boolean;
   scriptId: string;
-  onSuggestChange?: (delta: DeltaStatic) => void;
+  isAdmin: boolean;
 }
 
-export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
-  isAdmin,
-  scriptId,
-  onSuggestChange
-}) => {
-  const {
-    content,
-    isLoading,
-    isSaving,
-    hasDraft,
-    quillRef,
-    saveContent,
-    handleChange,
-    submitChanges,
-    modules,
-    formats
-  } = useScriptEditor({
-    scriptId,
-    isAdmin,
-    onSuggestChange
-  });
-
-  if (isLoading) {
-    return <div className="p-4 text-center">Loading editor...</div>;
-  }
-
+export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({ scriptId, isAdmin }) => {
+  const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Handler for when suggestions are applied
+  const handleSuggestionApplied = () => {
+    // Increment key to force refresh of editor content
+    setRefreshKey(prev => prev + 1);
+  };
+  
   return (
-    <div>
-      {/* Editor Actions */}
-      <div className="flex justify-between mb-4">
-        <div>
-          {hasDraft && !isAdmin && (
-            <span className="text-sm text-amber-600 font-medium">
-              You have unsaved changes
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={saveContent}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving...' : isAdmin ? 'Save Changes' : 'Save Draft'}
-          </Button>
-          
-          {!isAdmin && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={submitChanges}
-              disabled={isSaving}
-            >
-              Submit Changes
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Quill Editor */}
-      <div className="bg-white border rounded-md">
-        <ReactQuill
-          ref={quillRef}
-          value={content || undefined}
-          onChange={(value, delta, source, editor) => {
-            // Extract the Delta content from the editor directly
-            const deltaContent = editor.getContents();
-            handleChange(deltaContent);
-          }}
-          modules={modules}
-          formats={formats}
-          theme="snow"
-        />
-      </div>
+    <div className="w-full">
+      {isAdmin ? (
+        <Tabs defaultValue="editor">
+          <TabsList className="mb-4">
+            <TabsTrigger value="editor">Editor</TabsTrigger>
+            <TabsTrigger value="suggestions">Suggestions</TabsTrigger>
+          </TabsList>
+          <TabsContent value="editor">
+            <DeltaEditor 
+              key={`editor-${refreshKey}`} 
+              scriptId={scriptId} 
+              isAdmin={isAdmin} 
+            />
+          </TabsContent>
+          <TabsContent value="suggestions">
+            <SuggestionManager 
+              scriptId={scriptId} 
+              onSuggestionApplied={handleSuggestionApplied} 
+            />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <DeltaEditor scriptId={scriptId} isAdmin={isAdmin} />
+      )}
     </div>
   );
 };

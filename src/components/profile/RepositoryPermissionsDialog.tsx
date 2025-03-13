@@ -1,203 +1,216 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Shield, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 
-interface Permission {
-  id: string;
-  user_id: string;
-  permission_type: string;
-  user_email?: string;
-}
+import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { Repository, Permission, User } from "./types";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface RepositoryPermissionsDialogProps {
-  repositoryId: string;
-  repositoryName: string;
+  repository: Repository;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export function RepositoryPermissionsDialog({ repositoryId, repositoryName }: RepositoryPermissionsDialogProps) {
+export const RepositoryPermissionsDialog = ({
+  repository,
+  open,
+  onOpenChange,
+}: RepositoryPermissionsDialogProps) => {
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newPermissionType, setNewPermissionType] = useState("read");
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<string>("");
+  const [permissionType, setPermissionType] = useState<"view" | "edit">("view");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (open) {
+      loadPermissions();
+      loadUsers();
+    }
+  }, [open, repository.id]);
 
   const loadPermissions = async () => {
+    setIsLoading(true);
     try {
-      const { data: permissionsData, error: permissionsError } = await supabase
-        .from('repository_permissions')
-        .select(`
-          id,
-          user_id,
-          permission_type,
-          profiles:profiles(email)
-        `)
-        .eq('repository_id', repositoryId);
+      const { data, error } = await supabase
+        .from("repository_permissions")
+        .select("*, profiles:user_id(*)")
+        .eq("repository_id", repository.id);
 
-      if (permissionsError) throw permissionsError;
+      if (error) throw error;
 
-      const formattedPermissions = permissionsData.map(p => ({
-        ...p,
-        user_email: p.profiles?.email
+      // Transform to Permission type with user info
+      const formattedPermissions = data.map((p) => ({
+        id: p.id,
+        user_id: p.user_id,
+        repository_id: p.repository_id,
+        permission_type: p.permission_type as "view" | "edit" | "admin",
+        user: p.profiles ? {
+          id: p.profiles.id || '',
+          username: p.profiles.username || 'Unknown User'
+        } : undefined
       }));
 
       setPermissions(formattedPermissions);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load permissions",
-        variant: "destructive",
-      });
+      console.error("Error loading permissions:", error);
+      toast.error("Failed to load repository permissions");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, username");
+
+      if (error) throw error;
+
+      setUsers(data.map(u => ({
+        id: u.id,
+        username: u.username
+      })));
+    } catch (error) {
+      console.error("Error loading users:", error);
     }
   };
 
   const handleAddPermission = async () => {
+    if (!selectedUser) return;
+
     try {
-      setLoading(true);
-      
-      // First, get the user_id from the email
-      const { data: userData, error: userError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', newUserEmail)
-        .single();
-
-      if (userError) throw userError;
-
-      // Then add the permission
-      const { data, error } = await supabase
-        .from('repository_permissions')
-        .insert({
-          repository_id: repositoryId,
-          user_id: userData.id,
-          permission_type: newPermissionType
-        })
-        .select(`
-          id,
-          user_id,
-          permission_type,
-          profiles:profiles(email)
-        `)
-        .single();
+      const { error } = await supabase.from("repository_permissions").insert({
+        repository_id: repository.id,
+        user_id: selectedUser,
+        permission_type: permissionType,
+      });
 
       if (error) throw error;
 
-      setPermissions([...permissions, {
-        ...data,
-        user_email: data.profiles?.email
-      }]);
-      
-      setNewUserEmail("");
-      toast({
-        title: "Success",
-        description: "Permission added successfully",
-      });
+      toast.success("User permission added successfully");
+      loadPermissions();
+      setSelectedUser("");
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add permission",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+      console.error("Error adding permission:", error);
+      toast.error("Failed to add user permission");
     }
   };
 
   const handleRemovePermission = async (permissionId: string) => {
     try {
-      setLoading(true);
       const { error } = await supabase
-        .from('repository_permissions')
+        .from("repository_permissions")
         .delete()
-        .eq('id', permissionId);
+        .eq("id", permissionId);
 
       if (error) throw error;
 
-      setPermissions(permissions.filter(p => p.id !== permissionId));
-      toast({
-        title: "Success",
-        description: "Permission removed successfully",
-      });
+      toast.success("Permission removed successfully");
+      loadPermissions();
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to remove permission",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+      console.error("Error removing permission:", error);
+      toast.error("Failed to remove permission");
     }
   };
 
   return (
-    <Dialog onOpenChange={(open) => open && loadPermissions()}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Shield className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Manage Permissions - {repositoryName}</DialogTitle>
+          <DialogTitle>
+            Manage Access to {repository.name}
+          </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="User email"
-              value={newUserEmail}
-              onChange={(e) => setNewUserEmail(e.target.value)}
-            />
-            <Select
-              value={newPermissionType}
-              onValueChange={setNewPermissionType}
-            >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="read">Read</SelectItem>
-                <SelectItem value="write">Write</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              onClick={handleAddPermission}
-              disabled={loading || !newUserEmail}
-            >
-              <UserPlus className="h-4 w-4" />
-            </Button>
+          <div className="flex flex-col space-y-4">
+            <div className="grid grid-cols-4 gap-4">
+              <select
+                className="col-span-2 px-3 py-2 border rounded"
+                value={selectedUser}
+                onChange={(e) => setSelectedUser(e.target.value)}
+              >
+                <option value="">Select a user</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.username || user.id}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="px-3 py-2 border rounded"
+                value={permissionType}
+                onChange={(e) => setPermissionType(e.target.value as "view" | "edit")}
+              >
+                <option value="view">View</option>
+                <option value="edit">Edit</option>
+              </select>
+              <Button onClick={handleAddPermission}>Add</Button>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            {permissions.map((permission) => (
-              <div
-                key={permission.id}
-                className="flex items-center justify-between p-2 border rounded-lg"
-              >
-                <div className="flex items-center gap-2">
-                  <span>{permission.user_email}</span>
-                  <span className="text-sm text-muted-foreground">
-                    ({permission.permission_type})
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemovePermission(permission.id)}
-                  disabled={loading}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            ))}
+          <div className="border rounded">
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    User
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Permission
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-4">
+                      Loading permissions...
+                    </td>
+                  </tr>
+                ) : permissions.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-4">
+                      No permissions found
+                    </td>
+                  </tr>
+                ) : (
+                  permissions.map((permission) => (
+                    <tr key={permission.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {permission.user?.username || "Unknown User"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap capitalize">
+                        {permission.permission_type}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleRemovePermission(permission.id)}
+                        >
+                          Remove
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
-}
+};

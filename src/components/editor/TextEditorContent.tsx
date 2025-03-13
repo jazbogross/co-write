@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import ReactQuill from 'react-quill';
 import { LineNumbers } from './LineNumbers';
 import { isDeltaObject } from '@/utils/editor';
@@ -22,11 +22,11 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   onChange,
 }) => {
   // Track editor mount state
-  const isEditorMountedRef = useRef(false);
-  const contentChangeRef = useRef(0);
+  const isEditorMountedRef = React.useRef(false);
+  const contentChangeRef = React.useRef(0);
   
   // Log DOM structure only when line count changes
-  useEffect(() => {
+  React.useEffect(() => {
     if (!isEditorMountedRef.current) return;
     
     const logDomStructure = () => {
@@ -53,20 +53,11 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   // Handle editor initialization
   const handleEditorInit = () => {
     isEditorMountedRef.current = true;
-    
-    const editor = quillRef.current?.getEditor();
-    if (editor) {
-      const lineTrackingModule = editor.getModule('lineTracking');
-      if (lineTrackingModule && typeof lineTrackingModule.initialize === 'function') {
-        lineTrackingModule.initialize();
-      }
-    }
   };
   
   // Only trigger onChange when content actually changes
   const handleContentChange = (newContent: any, delta: any, source: string) => {
     contentChangeRef.current++;
-    const changeId = contentChangeRef.current;
     
     // Skip programmatic changes to prevent feedback loops
     if (source === 'user') {
@@ -75,7 +66,7 @@ export const TextEditorContent: React.FC<TextEditorContentProps> = ({
   };
   
   // Handle component mount effect
-  useEffect(() => {
+  React.useEffect(() => {
     if (quillRef.current && !isEditorMountedRef.current) {
       handleEditorInit();
     }

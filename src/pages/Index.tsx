@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Github } from 'lucide-react';
+import { Repository } from "@/components/profile/types";
+
 interface Script {
   id: string;
   title: string;
@@ -15,14 +17,17 @@ interface Script {
     username: string;
   } | null;
 }
+
 export default function Index() {
   const [publicScripts, setPublicScripts] = useState<Script[]>([]);
   const [userSuggestions, setUserSuggestions] = useState<any[]>([]);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     loadData();
   }, []);
+
   const loadData = async () => {
     try {
       // Load public scripts
@@ -75,13 +80,16 @@ export default function Index() {
       setLoading(false);
     }
   };
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate('/auth');
   };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
+
   return <div className="container px-4 py-6 md:py-8">
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
         <h1 className="text-2xl md:text-3xl font-bold">Collaborative Script Writing</h1>

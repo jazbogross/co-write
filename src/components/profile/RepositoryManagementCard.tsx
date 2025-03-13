@@ -1,131 +1,136 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Repository } from "@/types/repository";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { CreateRepositoryButton } from "./CreateRepositoryButton";
 import { RepositoryListItem } from "./RepositoryListItem";
+import { RepositoryPermissionsDialog } from "./RepositoryPermissionsDialog";
+import { toast } from "sonner";
 
-interface Repository {
-  id: string;
-  name: string;
-  owner: string;
-  is_private: boolean;
-}
-
-export function RepositoryManagementCard() {
+export const RepositoryManagementCard = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadRepositories();
+    fetchRepos();
   }, []);
 
-  const loadRepositories = async () => {
+  const fetchRepos = async () => {
+    setIsLoading(true);
     try {
+      // Fetch user scripts instead of github_repositories
       const { data, error } = await supabase
-        .from('github_repositories')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from("scripts")
+        .select("id, title, created_at, admin_id, github_repo, github_owner, is_private")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setRepositories(data || []);
+
+      // Transform to Repository type
+      const repos = data.map((repo): Repository => ({
+        id: repo.id,
+        name: repo.title,
+        owner: repo.github_owner || "local",
+        is_private: !!repo.is_private,
+        created_at: repo.created_at
+      }));
+
+      setRepositories(repos);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load repositories",
-        variant: "destructive",
-      });
+      console.error("Error fetching repositories:", error);
+      toast.error("Failed to load repositories");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleTogglePrivacy = async (repo: Repository) => {
     try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('github_repositories')
+      setIsLoading(true);
+      const { error } = await supabase
+        .from("scripts")
         .update({ is_private: !repo.is_private })
-        .eq('id', repo.id)
-        .select()
-        .single();
+        .eq("id", repo.id);
 
       if (error) throw error;
 
-      if (data) {
-        setRepositories(repositories.map(r => 
-          r.id === repo.id ? data : r
-        ));
-        toast({
-          title: "Success",
-          description: `Repository is now ${data.is_private ? 'private' : 'public'}`,
-        });
-      }
+      // Update local state
+      setRepositories(prev => 
+        prev.map(r => r.id === repo.id ? { ...r, is_private: !r.is_private } : r)
+      );
+      
+      toast.success(`Repository is now ${!repo.is_private ? 'private' : 'public'}`);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update repository privacy",
-        variant: "destructive",
-      });
+      console.error("Error toggling privacy:", error);
+      toast.error("Failed to update repository privacy");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleDeleteRepository = async (id: string) => {
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this repository?")) return;
+    
     try {
-      setLoading(true);
+      setIsLoading(true);
       const { error } = await supabase
-        .from('github_repositories')
+        .from("scripts")
         .delete()
-        .eq('id', id);
+        .eq("id", id);
 
       if (error) throw error;
 
-      setRepositories(repositories.filter(repo => repo.id !== id));
-      toast({
-        title: "Success",
-        description: "Repository deleted successfully",
-      });
+      // Update local state
+      setRepositories(prev => prev.filter(r => r.id !== id));
+      toast.success("Repository deleted successfully");
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete repository",
-        variant: "destructive",
-      });
+      console.error("Error deleting repository:", error);
+      toast.error("Failed to delete repository");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
+  };
+
+  const handleOpenPermissions = (repo: Repository) => {
+    setSelectedRepo(repo);
+    setPermissionsOpen(true);
   };
 
   return (
-    <Card className="mb-8">
+    <Card className="col-span-3">
       <CardHeader>
-        <CardTitle>Repository Management</CardTitle>
-        <CardDescription>
-          Manage your GitHub repositories
-        </CardDescription>
+        <CardTitle>Your Repositories</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <CreateRepositoryButton
-              onRepositoryCreated={(repo) => setRepositories([repo, ...repositories])}
-            />
-          </div>
-          
-          <div className="space-y-2">
+        {isLoading && repositories.length === 0 ? (
+          <p>Loading repositories...</p>
+        ) : repositories.length === 0 ? (
+          <p>No repositories found. Create a script to get started.</p>
+        ) : (
+          <div className="space-y-4">
             {repositories.map((repo) => (
               <RepositoryListItem
                 key={repo.id}
                 repository={repo}
                 onTogglePrivacy={handleTogglePrivacy}
-                onDelete={handleDeleteRepository}
-                loading={loading}
+                onDelete={handleDelete}
+                onOpenPermissions={handleOpenPermissions}
+                loading={isLoading}
               />
             ))}
           </div>
-        </div>
+        )}
+
+        {selectedRepo && (
+          <RepositoryPermissionsDialog
+            repository={selectedRepo}
+            open={permissionsOpen}
+            onOpenChange={setPermissionsOpen}
+          />
+        )}
       </CardContent>
     </Card>
   );
-}
+};

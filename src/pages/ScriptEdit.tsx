@@ -2,9 +2,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { DeltaTextEditor } from "@/components/DeltaTextEditor";
+import { DeltaEditor } from "@/components/DeltaEditor";
 import { toast } from "sonner";
-import { createSuggestion, saveScriptContent } from "@/services/scriptService";
 import {
   Card,
   CardContent,
@@ -12,8 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DeltaStatic } from "quill";
-import Delta from "quill-delta";
 
 const ScriptEdit = () => {
   const { id } = useParams();
@@ -84,60 +81,28 @@ const ScriptEdit = () => {
     loadScript();
   }, [id, navigate]);
 
-  const handleSuggestChange = async (delta: DeltaStatic) => {
-    if (!script || !id) return;
-
+  const handleCommitToGithub = async (content: string) => {
+    if (!script || !id || !githubToken) return;
+    
     try {
-      if (isAdmin) {
-        // If admin, save directly
-        const success = await saveScriptContent(id, delta, true);
-        
-        if (success) {
-          toast.success("Changes saved successfully");
-          
-          // If we have GitHub integration, commit changes to GitHub
-          if (githubToken && script.github_owner && script.github_repo) {
-            try {
-              // Call the Supabase function to commit changes to GitHub
-              const { data, error } = await supabase.functions.invoke("commit-script-changes", {
-                body: {
-                  scriptId: id,
-                  content: JSON.stringify(delta),
-                  githubAccessToken: githubToken
-                }
-              });
+      // Call the Supabase function to commit changes to GitHub
+      const { data, error } = await supabase.functions.invoke("commit-script-changes", {
+        body: {
+          scriptId: id,
+          content: content,
+          githubAccessToken: githubToken
+        }
+      });
 
-              if (error) {
-                console.error("Error committing to GitHub:", error);
-                toast.error("Changes saved but failed to commit to GitHub");
-              } else {
-                toast.success("Changes saved and committed to GitHub");
-              }
-            } catch (githubError) {
-              console.error("Error with GitHub integration:", githubError);
-              toast.error("Changes saved but failed to sync with GitHub");
-            }
-          }
-        } else {
-          toast.error("Failed to save changes");
-        }
+      if (error) {
+        console.error("Error committing to GitHub:", error);
+        toast.error("Failed to commit to GitHub");
       } else {
-        // For non-admin users, we need to create a suggestion by comparing with the original
-        // Use an empty Delta with just a newline as a default original state if needed
-        const emptyDelta: DeltaStatic = new Delta([{ insert: '\n' }]);
-        
-        // Create a suggestion
-        const suggestionId = await createSuggestion(id, emptyDelta, delta);
-        
-        if (suggestionId) {
-          toast.success("Your changes have been submitted for review");
-        } else {
-          toast.error("Failed to submit changes");
-        }
+        toast.success("Changes committed to GitHub");
       }
-    } catch (error) {
-      console.error("Error saving changes:", error);
-      toast.error("Failed to save changes");
+    } catch (githubError) {
+      console.error("Error with GitHub integration:", githubError);
+      toast.error("Failed to sync with GitHub");
     }
   };
 
@@ -159,10 +124,9 @@ const ScriptEdit = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DeltaTextEditor
-            isAdmin={isAdmin}
-            scriptId={id}
-            onSuggestChange={handleSuggestChange}
+          <DeltaEditor 
+            scriptId={id} 
+            isAdmin={isAdmin} 
           />
         </CardContent>
       </Card>
