@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -27,12 +26,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for current user on mount
+    let isMounted = true;
+    
     const checkUser = async () => {
       try {
+        console.log("Checking for current user...");
         const { data } = await supabase.auth.getUser();
         
-        if (data.user) {
+        if (data.user && isMounted) {
+          console.log("User found:", data.user.id);
           // Get user profile data
           const { data: profileData } = await supabase
             .from('profiles')
@@ -40,16 +42,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             .eq('id', data.user.id)
             .single();
           
-          setUser({
-            id: data.user.id,
-            email: data.user.email,
-            username: profileData?.username
-          });
+          if (isMounted) {
+            setUser({
+              id: data.user.id,
+              email: data.user.email,
+              username: profileData?.username
+            });
+          }
         }
       } catch (error) {
         console.error('Error checking authentication:', error);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -60,32 +66,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("Auth state change event:", event);
       
       if (event === 'SIGNED_IN' && session?.user) {
-        // Get user profile data
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', session.user.id)
-          .single();
-        
-        setUser({
-          id: session.user.id,
-          email: session.user.email,
-          username: profileData?.username
-        });
-        
-        // After successful sign-in, redirect to profile page
-        navigate('/profile');
+        if (isMounted) {
+          console.log("User signed in:", session.user.id);
+          // Get user profile data
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', session.user.id)
+            .single();
+          
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            username: profileData?.username
+          });
+        }
       } else if (event === 'SIGNED_OUT') {
-        setUser(null);
+        if (isMounted) {
+          console.log("User signed out");
+          setUser(null);
+        }
       }
     });
 
     return () => {
+      isMounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
-  // Sign in with email and password
+  useEffect(() => {
+    if (user && !loading) {
+      navigate('/profile');
+    }
+  }, [user, loading, navigate]);
+
   const signIn = async (email: string, password: string): Promise<boolean> => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -104,7 +119,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Sign up with email and password
   const signUp = async (email: string, password: string, username: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase.auth.signUp({ email, password });
@@ -134,7 +148,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Sign out
   const signOut = async (): Promise<void> => {
     try {
       await supabase.auth.signOut();
@@ -146,7 +159,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Reset password
   const resetPassword = async (email: string): Promise<boolean> => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email);

@@ -19,15 +19,20 @@ interface Script {
 }
 
 export const Index = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [scripts, setScripts] = useState<Script[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
   
   useEffect(() => {
-    fetchScripts();
-  }, [user]);
+    // Only fetch scripts if authentication state is resolved and we haven't already fetched
+    if (!authLoading && !hasFetched) {
+      fetchScripts();
+    }
+  }, [authLoading, hasFetched]);
   
   const fetchScripts = async () => {
+    console.log("Index: Fetching scripts...");
     setIsLoading(true);
     
     try {
@@ -115,6 +120,8 @@ export const Index = () => {
         
         setScripts(formattedScripts);
       }
+      
+      setHasFetched(true);
     } catch (error) {
       console.error('Error fetching scripts:', error);
     } finally {
