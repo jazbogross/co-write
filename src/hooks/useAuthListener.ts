@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
@@ -36,7 +37,8 @@ export const useAuthListener = (): UseAuthListenerResult => {
 
           // Determine the provider from metadata or session info
           const { data: sessionData } = await supabase.auth.getSession();
-          const provider = sessionData.session?.provider_id || 'email';
+          // Get provider from app_metadata if available
+          const provider = data.user.app_metadata?.provider || 'email';
           
           if (isMounted) {
             console.log("🎧 AuthListener: Setting initial user state", {
@@ -93,8 +95,8 @@ export const useAuthListener = (): UseAuthListenerResult => {
         // Get user profile data
         const { profile } = await getUserProfile(session.user.id);
         
-        // Determine the provider
-        const provider = session.provider_id || 'email';
+        // Get provider from app_metadata if available
+        const provider = session.user.app_metadata?.provider || 'email';
         
         if (isMounted) {
           console.log("🎧 AuthListener: Setting user state after sign in", {
@@ -124,7 +126,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
         // Handle user update if needed
         if (session?.user && isMounted) {
           const { profile } = await getUserProfile(session.user.id);
-          const provider = session.provider_id || 'email';
+          const provider = session.user.app_metadata?.provider || 'email';
           
           setUser({
             id: session.user.id,
