@@ -2,43 +2,36 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { UserProfileCard } from "@/components/profile/UserProfileCard";
+import { ScriptsCard } from "@/components/profile/ScriptsCard";
+import { GitHubConnectionCard } from "@/components/profile/GitHubConnectionCard";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { user, loading: authLoading, signOut } = useAuth();
   const [profile, setProfile] = useState<{ email: string; username: string }>({
     email: "",
     username: "",
   });
   const [loading, setLoading] = useState(true);
-  const [updateLoading, setUpdateLoading] = useState(false);
 
   useEffect(() => {
     const getProfile = async () => {
       try {
         setLoading(true);
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-        if (userError) throw userError;
+        
         if (!user) {
-          navigate("/auth");
-          return;
+          return; // Will be redirected by the auth check below
         }
 
+        // Get user profile data
         const { data, error } = await supabase
-          .from("profiles")
-          .select("username")
-          .eq("id", user.id)
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
           .single();
 
         if (error && error.code !== "PGRST116") {
@@ -66,39 +59,19 @@ export default function Profile() {
       }
     };
 
-    getProfile();
-  }, [navigate]);
-
-  const handleUpdateProfile = async () => {
-    try {
-      setUpdateLoading(true);
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-      if (userError) throw userError;
+    // Only try to load profile if authentication state is determined
+    if (!authLoading) {
       if (!user) {
         navigate("/auth");
-        return;
+      } else {
+        getProfile();
       }
-
-      const { error } = await supabase
-        .from("profiles")
-        .upsert({ id: user.id, username: profile.username });
-
-      if (error) throw error;
-
-      toast.success("Profile updated successfully");
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      toast.error("Failed to update profile");
-    } finally {
-      setUpdateLoading(false);
     }
-  };
+  }, [user, authLoading, navigate]);
 
   const handleSignOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await signOut();
       navigate("/auth");
     } catch (error) {
       console.error("Error signing out:", error);
@@ -106,54 +79,26 @@ export default function Profile() {
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return <div className="container py-8 text-center">Loading profile...</div>;
   }
 
   return (
-    <div className="container py-8">
-      <Card className="max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>User Profile</CardTitle>
-          <CardDescription>Manage your account details</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <Input
-              id="email"
-              type="email"
-              value={profile.email}
-              disabled
-              className="bg-gray-50"
-            />
-            <p className="text-sm text-gray-500">Your email cannot be changed</p>
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="username" className="text-sm font-medium">
-              Username
-            </label>
-            <Input
-              id="username"
-              value={profile.username}
-              onChange={(e) =>
-                setProfile({ ...profile, username: e.target.value })
-              }
-              placeholder="Enter your username"
-            />
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={handleSignOut}>
-            Sign Out
-          </Button>
-          <Button onClick={handleUpdateProfile} disabled={updateLoading}>
-            {updateLoading ? "Updating..." : "Update Profile"}
-          </Button>
-        </CardFooter>
-      </Card>
+    <div className="container max-w-6xl py-8 space-y-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div>
+          <UserProfileCard profileData={profile} />
+          <GitHubConnectionCard />
+        </div>
+        <div>
+          <ScriptsCard />
+        </div>
+      </div>
+      <div className="flex justify-center mt-8">
+        <Button variant="outline" onClick={handleSignOut}>
+          Sign Out
+        </Button>
+      </div>
     </div>
   );
 }

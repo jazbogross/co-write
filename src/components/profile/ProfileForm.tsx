@@ -1,23 +1,10 @@
-import { useForm } from "react-hook-form";
-import { supabase } from "@/integrations/supabase/client";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { useToast } from "@/hooks/use-toast";
-
-type ProfileFormValues = {
-  email: string;
-  password: string;
-  confirmPassword: string;
-  username: string;
-};
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ProfileFormProps {
   initialData: {
@@ -26,117 +13,83 @@ interface ProfileFormProps {
   };
 }
 
-export const ProfileForm = ({ initialData }: ProfileFormProps) => {
-  const { toast } = useToast();
-  const form = useForm<ProfileFormValues>({
-    defaultValues: {
-      email: initialData.email,
-      password: "",
-      confirmPassword: "",
-      username: initialData.username,
-    },
-  });
+export function ProfileForm({ initialData }: ProfileFormProps) {
+  const { user } = useAuth();
+  const [formData, setFormData] = useState(initialData);
+  const [loading, setLoading] = useState(false);
 
-  const onSubmit = async (data: ProfileFormValues) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user) {
+      toast.error("You must be logged in to update your profile");
+      return;
+    }
+    
     try {
-      if (data.password && data.password !== data.confirmPassword) {
-        toast({
-          title: "Error",
-          description: "Passwords do not match",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error: profileError } = await supabase
+      setLoading(true);
+      
+      const { error } = await supabase
         .from("profiles")
-        .update({ 
-          username: data.username 
-        })
-        .eq("id", user.id);
+        .upsert({ 
+          id: user.id, 
+          username: formData.username,
+          updated_at: new Date().toISOString()
+        });
 
-      if (profileError) throw profileError;
-
-      const { error: authError } = await supabase.auth.updateUser({
-        email: data.email,
-        password: data.password || undefined,
-      });
-
-      if (authError) throw authError;
-
-      toast({
-        title: "Success",
-        description: "Profile updated successfully",
-      });
+      if (error) throw error;
+      
+      toast.success("Profile updated successfully");
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update profile",
-        variant: "destructive",
-      });
+      console.error("Error updating profile:", error);
+      toast.error("Failed to update profile");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="username"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Username</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label htmlFor="email" className="text-sm font-medium">
+          Email
+        </label>
+        <Input
+          id="email"
           name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input {...field} type="email" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          type="email"
+          value={formData.email}
+          disabled
+          className="bg-gray-50"
         />
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>New Password</FormLabel>
-              <FormControl>
-                <Input {...field} type="password" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+        <p className="text-sm text-muted-foreground">
+          Your email cannot be changed
+        </p>
+      </div>
+      
+      <div className="space-y-2">
+        <label htmlFor="username" className="text-sm font-medium">
+          Username
+        </label>
+        <Input
+          id="username"
+          name="username"
+          value={formData.username}
+          onChange={handleChange}
+          placeholder="Enter your username"
         />
-        <FormField
-          control={form.control}
-          name="confirmPassword"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Confirm New Password</FormLabel>
-              <FormControl>
-                <Input {...field} type="password" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit">Update Profile</Button>
-      </form>
-    </Form>
+      </div>
+      
+      <Button type="submit" disabled={loading} className="w-full">
+        {loading ? "Updating..." : "Save Changes"}
+      </Button>
+    </form>
   );
-};
+}

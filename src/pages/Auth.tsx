@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Github } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/hooks/useAuth';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
@@ -16,74 +17,29 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signIn, signUp, user } = useAuth();
 
-  // Add effect to handle OAuth callback and token storage
-  useEffect(() => {
-    const handleOAuthCallback = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.provider_token) {
-          console.log("Got provider token, attempting to store...");
-          
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ github_access_token: session.provider_token })
-            .eq('id', session.user.id);
-
-          if (updateError) {
-            console.error('Failed to store GitHub token:', updateError);
-            toast({
-              title: "Warning",
-              description: "Failed to store GitHub access token",
-              variant: "destructive",
-            });
-          } else {
-            console.log('Successfully stored GitHub access token');
-            navigate('/profile');
-          }
-        }
-      } catch (error) {
-        console.error('Error in OAuth callback:', error);
-      }
-    };
-
-    handleOAuthCallback();
-  }, []); // Run once on component mount
+  // If user is already logged in, redirect to profile
+  if (user) {
+    navigate('/profile');
+    return null;
+  }
 
   const handleAuth = async (action: 'login' | 'signup') => {
     try {
       setLoading(true);
-      let result;
+      let success = false;
       
       if (action === 'signup') {
-        result = await supabase.auth.signUp({
-          email,
-          password,
-        });
+        // Use username as email username part by default
+        const username = email.split('@')[0];
+        success = await signUp(email, password, username);
       } else {
-        result = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        success = await signIn(email, password);
       }
 
-      if (result.error) {
-        toast({
-          title: "Error",
-          description: result.error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (action === 'signup') {
-        toast({
-          title: "Success",
-          description: "Please check your email to verify your account",
-        });
-      } else {
-        navigate('/');
+      if (success && action === 'login') {
+        navigate('/profile');
       }
     } catch (error) {
       console.error('Auth error:', error);

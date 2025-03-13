@@ -57,6 +57,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state change event:", event);
+      
       if (event === 'SIGNED_IN' && session?.user) {
         // Get user profile data
         const { data: profileData } = await supabase
@@ -70,6 +72,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: session.user.email,
           username: profileData?.username
         });
+        
+        // After successful sign-in, redirect to profile page
+        navigate('/profile');
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
       }
@@ -78,7 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [navigate]);
 
   // Sign in with email and password
   const signIn = async (email: string, password: string): Promise<boolean> => {
