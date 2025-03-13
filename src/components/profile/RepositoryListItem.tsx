@@ -1,18 +1,13 @@
-import { Button } from "@/components/ui/button";
-import { Github, Lock, LockOpen, Trash2 } from "lucide-react";
-import { RepositoryPermissionsDialog } from "./RepositoryPermissionsDialog";
 
-interface Repository {
-  id: string;
-  name: string;
-  owner: string;
-  is_private: boolean;
-}
+import { Button } from "@/components/ui/button";
+import { Github, Lock, LockOpen, Trash2, Users } from "lucide-react";
+import { Repository } from "@/types/repository";
 
 interface RepositoryListItemProps {
   repository: Repository;
   onTogglePrivacy: (repo: Repository) => void;
   onDelete: (id: string) => void;
+  onOpenPermissions: (repo: Repository) => void;
   loading: boolean;
 }
 
@@ -20,6 +15,7 @@ export function RepositoryListItem({
   repository, 
   onTogglePrivacy, 
   onDelete, 
+  onOpenPermissions,
   loading 
 }: RepositoryListItemProps) {
   return (
@@ -42,10 +38,14 @@ export function RepositoryListItem({
           )}
         </Button>
         {repository.is_private && (
-          <RepositoryPermissionsDialog
-            repositoryId={repository.id}
-            repositoryName={repository.name}
-          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenPermissions(repository)}
+            disabled={loading}
+          >
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </Button>
         )}
         <Button
           variant="ghost"

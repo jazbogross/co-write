@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
-import { findBestMatchingLine } from './lineMatching';
+import { v4 as uuidv4 } from 'uuid';
 
 interface UseLineDataInitProps {
   scriptId: string;
   initialContent: string | null;
-  userId?: string;
+  userId?: string | null;
   isAdmin?: boolean;
 }
 
@@ -20,8 +20,10 @@ export const useLineDataInit = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  
+  const contentToUuidMapRef = useRef<Map<string, string>>(new Map());
+  const lastLineCountRef = useRef<number>(0);
 
-  // Initialize line data from content
   useEffect(() => {
     const initializeLineData = async () => {
       if (isInitialized) return;
@@ -29,43 +31,65 @@ export const useLineDataInit = ({
       setIsLoading(true);
       
       try {
-        // First try to load existing line data from the database
-        const { data: existingLines, error: fetchError } = await supabase
-          .from('script_lines')
+        const { data: existingScript, error: fetchError } = await supabase
+          .from('script_content')
           .select('*')
           .eq('script_id', scriptId)
-          .order('line_number', { ascending: true });
+          .maybeSingle();
           
         if (fetchError) throw fetchError;
         
-        // Transform database rows to LineData format
-        const existingLineData: LineData[] = existingLines?.map(line => ({
-          uuid: line.uuid,
-          lineNumber: line.line_number,
-          content: line.content,
-          originalAuthor: line.original_author,
-          editedBy: line.edited_by || []
-        })) || [];
-        
-        // If we have initial content but no existing lines, create new line data
-        if (initialContent && (!existingLineData || existingLineData.length === 0)) {
+        if (existingScript && existingScript.content_delta) {
+          console.log('Using existing script content from database');
+          
+          const dummyLineData: LineData[] = [{
+            uuid: uuidv4(),
+            lineNumber: 1,
+            content: existingScript.content_delta,
+            originalAuthor: null,
+            editedBy: []
+          }];
+          
+          setLineData(dummyLineData);
+        } 
+        else if (initialContent) {
           console.log('Creating new line data from initial content');
           
-          // Split content by lines and create line data
-          const contentLines = initialContent.split('\n');
-          const newLineData: LineData[] = contentLines.map((line, index) => ({
-            uuid: crypto.randomUUID(),
-            lineNumber: index + 1,
-            content: line,
+          const deltaContent = {
+            ops: [{ insert: initialContent }]
+          };
+          
+          const newLineData: LineData[] = [{
+            uuid: uuidv4(),
+            lineNumber: 1,
+            content: deltaContent,
             originalAuthor: userId || null,
             editedBy: []
-          }));
+          }];
           
           setLineData(newLineData);
+          
+          await supabase.from('script_content').insert({
+            script_id: scriptId,
+            content_delta: deltaContent,
+            version: 1
+          });
         } else {
-          // Use existing line data
-          console.log(`Using ${existingLineData.length} existing lines from database`);
-          setLineData(existingLineData);
+          console.log('Creating empty line data');
+          
+          const emptyDelta = {
+            ops: [{ insert: '\n' }]
+          };
+          
+          const emptyLineData: LineData[] = [{
+            uuid: uuidv4(),
+            lineNumber: 1,
+            content: emptyDelta,
+            originalAuthor: userId || null,
+            editedBy: []
+          }];
+          
+          setLineData(emptyLineData);
         }
         
         setIsInitialized(true);
@@ -82,117 +106,60 @@ export const useLineDataInit = ({
     }
   }, [scriptId, initialContent, userId, isInitialized]);
   
-  // Function to update line data from editor content
   const updateLineDataFromContent = (content: string, domUuidMap?: Map<number, string>) => {
-    if (!content) return;
+    if (!content) return [];
     
-    const contentLines = content.split('\n');
-    const updatedLines: LineData[] = [];
+    const updatedLines: LineData[] = [...lineData];
     
-    // Process each line of content
-    contentLines.forEach((lineContent, index) => {
-      // Check if we have an existing line at this index
-      if (index < lineData.length) {
-        updateExistingLine(
-          index,
-          lineContent,
-          lineData,
-          updatedLines,
-          userId,
-          domUuidMap
-        );
-      } else {
-        // This is a new line
-        const uuid = crypto.randomUUID();
-        updatedLines.push({
-          uuid,
-          lineNumber: index + 1,
-          content: lineContent,
-          originalAuthor: userId || null,
-          editedBy: []
-        });
-      }
-    });
+    if (updatedLines.length === 0) {
+      updatedLines.push({
+        uuid: uuidv4(),
+        lineNumber: 1,
+        content: content,
+        originalAuthor: userId || null,
+        editedBy: []
+      });
+    } else {
+      updatedLines[0] = {
+        ...updatedLines[0],
+        content: content
+      };
+    }
     
-    // Update line data state
     setLineData(updatedLines);
     return updatedLines;
   };
-
-  const findExistingLineMatch = (lineContent: string, existingLines: LineData[], lineIndex: number, domUuidMap?: Map<number, string>) => {
-    if (!existingLines || existingLines.length === 0) {
-      return null;
-    }
-
-    const matchResult = findBestMatchingLine(
-      lineContent,
-      existingLines,
-      lineIndex,
-      { domUuidMap }
-    );
-    
-    return matchResult;
-  };
-
-  const updateExistingLine = (
-    lineIndex: number,
-    newContent: any,
-    existingLines: LineData[],
-    updatedLines: LineData[],
-    userId: string | undefined,
-    domUuidMap?: Map<number, string>
-  ) => {
-    const l = existingLines[lineIndex];
-    const matchingLine = findExistingLineMatch(newContent, existingLines, lineIndex, domUuidMap);
-    
-    // Fixed null assertions - use proper null checks
-    if (l && l.lineNumber) {
-      updatedLines.push({
-        ...l,
-        content: newContent
-      });
-    } else if (matchingLine && matchingLine.uuid) {
-      updatedLines.push({
-        ...matchingLine,
-        lineNumber: lineIndex + 1,
-        content: newContent,
-        editedBy: [...(matchingLine.editedBy || []), userId].filter(Boolean)
-      });
-    } else {
-      // Create a new line with a new UUID
-      const uuid = crypto.randomUUID();
-      updatedLines.push({
-        uuid,
-        lineNumber: lineIndex + 1,
-        content: newContent,
-        originalAuthor: userId
-      });
-    }
-  };
   
-  // Function to save line data to the database
   const saveLineData = async () => {
     if (!scriptId || !lineData.length) return false;
     
     try {
-      // Prepare data for upsert
-      const linesToSave = lineData.map(line => ({
-        script_id: scriptId,
-        uuid: line.uuid,
-        line_number: line.lineNumber,
-        content: line.content,
-        original_author: line.originalAuthor || null,
-        edited_by: line.editedBy || []
-      }));
+      const deltaContent = lineData[0].content;
       
-      // Upsert all lines
-      const { error } = await supabase
-        .from('script_lines')
-        .upsert(linesToSave, {
-          onConflict: 'script_id,uuid'
-        });
-        
-      if (error) throw error;
+      const { data: existingContent } = await supabase
+        .from('script_content')
+        .select('version')
+        .eq('script_id', scriptId)
+        .maybeSingle();
+      
+      if (existingContent) {
+        await supabase
+          .from('script_content')
+          .update({
+            content_delta: deltaContent,
+            version: existingContent.version + 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('script_id', scriptId);
+      } else {
+        await supabase
+          .from('script_content')
+          .insert({
+            script_id: scriptId,
+            content_delta: deltaContent,
+            version: 1
+          });
+      }
       
       return true;
     } catch (err) {
@@ -201,46 +168,54 @@ export const useLineDataInit = ({
     }
   };
   
-  // Function to load drafts for the current user
-  const loadDraftsForCurrentUser = async () => {
+  const loadDrafts = async () => {
     if (!scriptId || !userId) return false;
     
     try {
-      const { data: drafts, error } = await supabase
-        .from('script_line_drafts')
-        .select('*')
+      const { data: draft, error } = await supabase
+        .from('script_drafts')
+        .select('draft_content')
         .eq('script_id', scriptId)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .maybeSingle();
         
       if (error) throw error;
       
-      if (!drafts || drafts.length === 0) {
-        console.log('No drafts found for current user');
+      if (!draft || !draft.draft_content) {
+        console.log('No draft found for current user');
         return false;
       }
       
-      // Apply drafts to line data
       const updatedLineData = [...lineData];
       
-      drafts.forEach(draft => {
-        const lineIndex = updatedLineData.findIndex(line => line.uuid === draft.line_uuid);
-        
-        if (lineIndex >= 0) {
-          updatedLineData[lineIndex] = {
-            ...updatedLineData[lineIndex],
-            content: draft.draft_content,
-            hasDraft: true,
-            originalContent: updatedLineData[lineIndex].content
-          };
-        }
-      });
+      if (updatedLineData.length > 0) {
+        updatedLineData[0] = {
+          ...updatedLineData[0],
+          content: draft.draft_content,
+          hasDraft: true,
+          originalContent: updatedLineData[0].content
+        };
+      } else {
+        updatedLineData.push({
+          uuid: uuidv4(),
+          lineNumber: 1,
+          content: draft.draft_content,
+          hasDraft: true,
+          originalAuthor: userId || null,
+          editedBy: []
+        });
+      }
       
       setLineData(updatedLineData);
       return true;
     } catch (err) {
-      console.error('Error loading drafts:', err);
+      console.error('Error loading draft:', err);
       return false;
     }
+  };
+  
+  const loadDraftsForCurrentUser = async () => {
+    return loadDrafts();
   };
   
   return {
@@ -251,6 +226,9 @@ export const useLineDataInit = ({
     updateLineDataFromContent,
     saveLineData,
     loadDraftsForCurrentUser,
-    isInitialized
+    isInitialized,
+    contentToUuidMapRef,
+    lastLineCountRef,
+    loadDrafts
   };
 };

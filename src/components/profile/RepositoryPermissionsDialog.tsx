@@ -40,7 +40,7 @@ export const RepositoryPermissionsDialog = ({
     try {
       const { data, error } = await supabase
         .from("repository_permissions")
-        .select("*, profiles:user_id(id, username)")
+        .select("*, profiles:user_id(*)")
         .eq("repository_id", repository.id);
 
       if (error) throw error;
@@ -50,11 +50,11 @@ export const RepositoryPermissionsDialog = ({
         id: p.id,
         user_id: p.user_id,
         repository_id: p.repository_id,
-        permission_type: p.permission_type,
-        user: {
-          id: p.profiles?.id || '',
-          username: p.profiles?.username || 'Unknown User'
-        }
+        permission_type: p.permission_type as "view" | "edit" | "admin",
+        user: p.profiles ? {
+          id: p.profiles.id || '',
+          username: p.profiles.username || 'Unknown User'
+        } : undefined
       }));
 
       setPermissions(formattedPermissions);

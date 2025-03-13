@@ -51,36 +51,14 @@ export interface LineData {
   originalLineNumber?: number;
 }
 
-// Add QuillCompatibleDelta for helpers
-export interface QuillCompatibleDelta {
-  ops: { insert: string | object; attributes?: Record<string, any> }[];
-  retain?: (length: number, attributes?: Record<string, any>) => QuillCompatibleDelta;
-  delete?: (length: number) => QuillCompatibleDelta;
-  insert?: (text: string, attributes?: Record<string, any>) => QuillCompatibleDelta;
-  filter?: (predicate: (op: any) => boolean) => any[];
-  forEach?: (predicate: (op: any) => void) => void;
-  map?: <T>(predicate: (op: any) => T) => T[];
-  partition?: (predicate: (op: any) => boolean) => [any[], any[]];
-  reduce?: <T>(predicate: (acc: T, op: any) => T, initial: T) => T;
-  chop?: () => QuillCompatibleDelta;
-  slice?: (start?: number, end?: number) => QuillCompatibleDelta;
-  compose?: (other: QuillCompatibleDelta) => QuillCompatibleDelta;
-  transform?: (other: QuillCompatibleDelta, priority?: boolean) => QuillCompatibleDelta;
-  transformPosition?: (index: number, priority?: boolean) => number;
+// Delta content for editor
+export interface DeltaContent {
+  ops: Array<{
+    insert?: string | object;
+    delete?: number;
+    retain?: number;
+    attributes?: Record<string, any>;
+  }>;
 }
 
-// Add Quill LineTracking type definitions for backwards compatibility
-declare module 'quill' {
-  interface Quill {
-    getModule(name: string): any;
-    lineTracking?: {
-      initialize?: () => void;
-      refreshLineUuids?: (lineData: LineData[]) => void;
-      forceRefreshUuids?: () => void;
-      saveCursorPosition?: () => void;
-      restoreCursorPosition?: () => void;
-      setLineUuid?: (oneBasedIndex: number, uuid: string, editor?: any) => void;
-      setProgrammaticUpdate?: (value: boolean) => void;
-    };
-  }
-}
+export { DeltaStatic };
