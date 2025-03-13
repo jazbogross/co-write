@@ -54,17 +54,27 @@ export default function Profile() {
           });
         }
 
-        // Fetch user scripts
+        // Fetch user scripts - updated to correctly get the admin_id field and match the Script type
         const { data: scriptsData, error: scriptsError } = await supabase
           .from('scripts')
-          .select('id, title, created_at, is_private, profiles(username)')
+          .select('id, title, created_at, is_private, admin_id')
           .eq('admin_id', user.id);
 
         if (scriptsError) {
           throw scriptsError;
         }
 
-        setScripts(scriptsData || []);
+        // Transform the data to match the Script type
+        const formattedScripts: Script[] = (scriptsData || []).map(script => ({
+          id: script.id,
+          title: script.title,
+          admin_id: script.admin_id,
+          created_at: script.created_at,
+          is_private: script.is_private,
+          profiles: { username: "" } // Add a default profiles property
+        }));
+
+        setScripts(formattedScripts);
       } catch (error) {
         console.error("Error loading profile:", error);
         toast.error("Failed to load profile");

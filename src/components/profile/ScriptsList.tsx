@@ -6,13 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CreateScriptDialog } from "./CreateScriptDialog";
 import { RenameScriptDialog } from "./RenameScriptDialog";
 import { ScriptItem } from "./ScriptItem";
-
-type Script = {
-  id: string;
-  title: string;
-  created_at: string;
-  is_private: boolean;
-};
+import { Script } from "@/types/repository";
 
 export const ScriptsList = ({ scripts: initialScripts }: { scripts: Script[] }) => {
   const navigate = useNavigate();

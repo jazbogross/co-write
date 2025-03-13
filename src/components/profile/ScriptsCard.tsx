@@ -1,12 +1,7 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScriptsList } from "@/components/profile/ScriptsList";
-
-interface Script {
-  id: string;
-  title: string;
-  created_at: string;
-  is_private: boolean;
-}
+import { Script } from "@/types/repository";
 
 interface ScriptsCardProps {
   scripts: Script[];
