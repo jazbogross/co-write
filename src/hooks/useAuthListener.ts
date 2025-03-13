@@ -32,9 +32,16 @@ export const useAuthListener = (): UseAuthListenerResult => {
         
         // Immediately update authentication state if session exists
         const sessionExists = !!sessionData.session;
-        if (sessionExists) {
-          console.log("🎧 AuthListener: Session exists, setting isAuthenticated to true");
+        if (sessionExists && sessionData.session?.user) {
+          console.log("🎧 AuthListener: Session exists, setting isAuthenticated to true and basic user data");
           setIsAuthenticated(true);
+          
+          // Set basic user information immediately
+          setUser({
+            id: sessionData.session.user.id,
+            email: sessionData.session.user.email,
+            provider: sessionData.session.user.app_metadata?.provider || 'email'
+          });
         }
         
         const { data } = await supabase.auth.getUser();
@@ -121,9 +128,16 @@ export const useAuthListener = (): UseAuthListenerResult => {
       }
       
       // Immediately update authentication state if session exists
-      if (session) {
+      if (session && session.user) {
         console.log("🎧 AuthListener: Session exists in auth event, setting isAuthenticated to true");
         setIsAuthenticated(true);
+        
+        // Set basic user information immediately
+        setUser({
+          id: session.user.id,
+          email: session.user.email,
+          provider: session.user.app_metadata?.provider || 'email'
+        });
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
       }
