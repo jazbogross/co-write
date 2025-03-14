@@ -26,7 +26,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
   // Handle initial session check and setup auth listener
   useEffect(() => {
     console.log("🎧 AuthListener: Setting up authentication listener");
-    let authListenerSubscription: { unsubscribe: () => void } | null = null;
+    let authListenerSubscription: { data: { unsubscribe: () => void } } | null = null;
     
     const initialize = async () => {
       try {
@@ -100,7 +100,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
       });
       
       // Store the subscription object correctly
-      authListenerSubscription = data;
+      authListenerSubscription = { data };
     } catch (subscriptionError) {
       console.error("🎧 AuthListener: Error setting up auth listener:", subscriptionError);
       // Ensure loading is set to false even on subscription error
@@ -110,8 +110,8 @@ export const useAuthListener = (): UseAuthListenerResult => {
     return () => {
       console.log("🎧 AuthListener: Cleaning up auth listener");
       isMountedRef.current = false;
-      if (authListenerSubscription) {
-        authListenerSubscription.unsubscribe();
+      if (authListenerSubscription && authListenerSubscription.data) {
+        authListenerSubscription.data.unsubscribe();
       }
     };
   }, [updateState]);
