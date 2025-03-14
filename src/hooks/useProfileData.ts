@@ -116,20 +116,26 @@ export function useProfileData() {
    * Fetches profile data from Supabase
    */
   const fetchProfileData = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('username, github_access_token')
-      .eq('id', userId)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username, github_access_token')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
-      console.error("📋 PROFILE: Error fetching profile:", error);
-      console.log("📋 PROFILE: Error details:", JSON.stringify(error));
-      setFetchError(`Profile fetch error: ${error.message}`);
-      throw error;
+      if (error && error.code !== 'PGRST116') {
+        console.error("📋 PROFILE: Error fetching profile:", error);
+        console.log("📋 PROFILE: Error details:", JSON.stringify(error));
+        setFetchError(`Profile fetch error: ${error.message}`);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error("📋 PROFILE: Error in fetchProfileData:", error);
+      // Don't rethrow - allow the process to continue
+      return null;
     }
-
-    return data;
   };
 
   /**
@@ -159,7 +165,12 @@ export function useProfileData() {
     }
     
     // Create a profile if one doesn't exist
-    await createNewProfile(userId);
+    try {
+      await createNewProfile(userId);
+    } catch (error) {
+      console.error("📋 PROFILE: Error creating profile:", error);
+      // Don't let this stop the flow
+    }
   };
 
   /**
@@ -191,30 +202,36 @@ export function useProfileData() {
    * Fetches user scripts from Supabase
    */
   const fetchUserScripts = async (userId: string) => {
-    console.log("📋 PROFILE: Fetching scripts for user:", userId);
-    const { data: scriptsData, error: scriptsError } = await supabase
-      .from('scripts')
-      .select('id, title, created_at, is_private, admin_id')
-      .eq('admin_id', userId);
+    try {
+      console.log("📋 PROFILE: Fetching scripts for user:", userId);
+      const { data: scriptsData, error: scriptsError } = await supabase
+        .from('scripts')
+        .select('id, title, created_at, is_private, admin_id')
+        .eq('admin_id', userId);
 
-    if (scriptsError) {
-      console.error("📋 PROFILE: Error fetching scripts:", scriptsError);
-      console.log("📋 PROFILE: Error details:", JSON.stringify(scriptsError));
-      setFetchError(`Scripts fetch error: ${scriptsError.message}`);
-      throw scriptsError;
+      if (scriptsError) {
+        console.error("📋 PROFILE: Error fetching scripts:", scriptsError);
+        console.log("📋 PROFILE: Error details:", JSON.stringify(scriptsError));
+        setFetchError(`Scripts fetch error: ${scriptsError.message}`);
+        throw scriptsError;
+      }
+
+      console.log("📋 PROFILE: Scripts data:", scriptsData);
+
+      // Transform the data to match the Script type
+      return (scriptsData || []).map(script => ({
+        id: script.id,
+        title: script.title,
+        admin_id: script.admin_id,
+        created_at: script.created_at,
+        is_private: script.is_private,
+        profiles: { username: "" } // Add a default profiles property
+      }));
+    } catch (error) {
+      console.error("📋 PROFILE: Error in fetchUserScripts:", error);
+      // Return empty array to avoid breaking the UI
+      return [];
     }
-
-    console.log("📋 PROFILE: Scripts data:", scriptsData);
-
-    // Transform the data to match the Script type
-    return (scriptsData || []).map(script => ({
-      id: script.id,
-      title: script.title,
-      admin_id: script.admin_id,
-      created_at: script.created_at,
-      is_private: script.is_private,
-      profiles: { username: "" } // Add a default profiles property
-    }));
   };
 
   /**

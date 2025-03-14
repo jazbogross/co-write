@@ -44,7 +44,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
         
         if (hasSession && sessionData.session) {
           // Handle existing session
-          handleAuthStateChange('SIGNED_IN', sessionData.session, true, updateState);
+          await handleAuthStateChange('INITIAL_SESSION', sessionData.session, true, updateState);
         } else {
           // No session exists
           console.log("🎧 AuthListener: No session found, setting not authenticated");
