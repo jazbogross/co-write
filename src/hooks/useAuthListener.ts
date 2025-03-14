@@ -26,6 +26,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
   // Handle initial session check and setup auth listener
   useEffect(() => {
     console.log("🎧 AuthListener: Setting up authentication listener");
+    let authListener: { data: { subscription: { unsubscribe: () => void } } } | null = null;
     
     const initialize = async () => {
       try {
@@ -40,11 +41,24 @@ export const useAuthListener = (): UseAuthListenerResult => {
         // Check for current session
         const { sessionData, hasSession } = await checkCurrentSession();
         
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current) {
+          console.log("🎧 AuthListener: Component unmounted during initialization");
+          return;
+        }
         
         if (hasSession && sessionData.session) {
-          // Handle existing session
-          await handleAuthStateChange('INITIAL_SESSION', sessionData.session, true, updateState);
+          try {
+            // Handle existing session
+            await handleAuthStateChange('INITIAL_SESSION', sessionData.session, true, updateState);
+          } catch (sessionError) {
+            console.error("🎧 AuthListener: Error handling initial session:", sessionError);
+            // Ensure loading is set to false even on error
+            updateState({
+              user: null,
+              isAuthenticated: false,
+              loading: false
+            });
+          }
         } else {
           // No session exists
           console.log("🎧 AuthListener: No session found, setting not authenticated");
@@ -70,16 +84,34 @@ export const useAuthListener = (): UseAuthListenerResult => {
     initialize();
 
     // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (isMountedRef.current) {
-        await handleAuthStateChange(event, session, true, updateState);
-      }
-    });
+    try {
+      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (isMountedRef.current) {
+          try {
+            await handleAuthStateChange(event, session, true, updateState);
+          } catch (listenerError) {
+            console.error("🎧 AuthListener: Error in auth state change handler:", listenerError);
+            // Ensure loading is set to false even on error
+            if (isMountedRef.current) {
+              updateState({ loading: false });
+            }
+          }
+        }
+      });
+      
+      authListener = data;
+    } catch (subscriptionError) {
+      console.error("🎧 AuthListener: Error setting up auth listener:", subscriptionError);
+      // Ensure loading is set to false even on subscription error
+      updateState({ loading: false });
+    }
 
     return () => {
       console.log("🎧 AuthListener: Cleaning up auth listener");
       isMountedRef.current = false;
-      authListener.subscription.unsubscribe();
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe();
+      }
     };
   }, [updateState]);
 

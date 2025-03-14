@@ -8,6 +8,7 @@ import { CalendarIcon, GitForkIcon, LockIcon, EyeIcon, Users } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 interface Script {
   id: string;
@@ -71,104 +72,184 @@ export const Index = () => {
         
         console.log("🏠 INDEX: Fetched scripts:", data);
         
-        // Fetch admin usernames in a separate query
-        const adminIds = [...new Set(data.map(script => script.admin_id))];
-        console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
-        
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .in('id', adminIds);
-          
-        if (profilesError) {
-          console.error("🏠 INDEX: Error fetching profiles:", profilesError);
-          setFetchError(`Profiles fetch error: ${profilesError.message}`);
-          throw profilesError;
+        if (!data || data.length === 0) {
+          setScripts([]);
+          setHasFetched(true);
+          setIsLoading(false);
+          return;
         }
         
-        console.log("🏠 INDEX: Fetched profiles:", profilesData);
-        
-        // Create a map of admin_id to username
-        const adminUsernameMap = new Map();
-        profilesData?.forEach(profile => {
-          adminUsernameMap.set(profile.id, profile.username);
-        });
-        
-        const formattedScripts = data.map(script => ({
-          id: script.id,
-          title: script.title,
-          created_at: script.created_at,
-          admin_id: script.admin_id,
-          is_private: script.is_private ?? false,
-          admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
-        }));
-        
-        console.log("🏠 INDEX: Formatted scripts:", formattedScripts);
-        setScripts(formattedScripts);
+        // Fetch admin usernames in a separate query
+        try {
+          const adminIds = [...new Set(data.map(script => script.admin_id))];
+          console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
+          
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .in('id', adminIds);
+            
+          if (profilesError) {
+            console.error("🏠 INDEX: Error fetching profiles:", profilesError);
+            setFetchError(`Profiles fetch error: ${profilesError.message}`);
+            
+            // Continue with default usernames if profiles fetch fails
+            const formattedScripts = data.map(script => ({
+              id: script.id,
+              title: script.title,
+              created_at: script.created_at,
+              admin_id: script.admin_id,
+              is_private: script.is_private ?? false,
+              admin_username: 'Unknown'
+            }));
+            
+            setScripts(formattedScripts);
+          } else {
+            console.log("🏠 INDEX: Fetched profiles:", profilesData);
+            
+            // Create a map of admin_id to username
+            const adminUsernameMap = new Map();
+            profilesData?.forEach(profile => {
+              adminUsernameMap.set(profile.id, profile.username);
+            });
+            
+            const formattedScripts = data.map(script => ({
+              id: script.id,
+              title: script.title,
+              created_at: script.created_at,
+              admin_id: script.admin_id,
+              is_private: script.is_private ?? false,
+              admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
+            }));
+            
+            console.log("🏠 INDEX: Formatted scripts:", formattedScripts);
+            setScripts(formattedScripts);
+          }
+        } catch (profileError) {
+          console.error("🏠 INDEX: Error processing profiles:", profileError);
+          // Continue with default usernames
+          const formattedScripts = data.map(script => ({
+            id: script.id,
+            title: script.title,
+            created_at: script.created_at,
+            admin_id: script.admin_id,
+            is_private: script.is_private ?? false,
+            admin_username: 'Unknown'
+          }));
+          
+          setScripts(formattedScripts);
+        }
       } else {
         console.log("🏠 INDEX: No user logged in, fetching only public scripts");
         // If no user is logged in, fetch only public scripts
-        const { data, error } = await supabase
-          .from('scripts')
-          .select(`
-            id,
-            title,
-            created_at,
-            admin_id,
-            is_private,
-            github_repo,
-            github_owner
-          `)
-          .eq('is_private', false);
+        try {
+          const { data, error } = await supabase
+            .from('scripts')
+            .select(`
+              id,
+              title,
+              created_at,
+              admin_id,
+              is_private,
+              github_repo,
+              github_owner
+            `)
+            .eq('is_private', false);
+            
+          if (error) {
+            console.error("🏠 INDEX: Error fetching public scripts:", error);
+            setFetchError(`Public scripts fetch error: ${error.message}`);
+            throw error;
+          }
           
-        if (error) {
-          console.error("🏠 INDEX: Error fetching public scripts:", error);
-          setFetchError(`Public scripts fetch error: ${error.message}`);
-          throw error;
-        }
-        
-        console.log("🏠 INDEX: Fetched public scripts:", data);
-        
-        // Fetch admin usernames in a separate query
-        const adminIds = [...new Set(data.map(script => script.admin_id))];
-        console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
-        
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .in('id', adminIds);
+          console.log("🏠 INDEX: Fetched public scripts:", data);
           
-        if (profilesError) {
-          console.error("🏠 INDEX: Error fetching profiles for public scripts:", profilesError);
-          setFetchError(`Profiles fetch error: ${profilesError.message}`);
-          throw profilesError;
+          if (!data || data.length === 0) {
+            setScripts([]);
+            setHasFetched(true);
+            setIsLoading(false);
+            return;
+          }
+          
+          // Fetch admin usernames in a separate query
+          try {
+            const adminIds = [...new Set(data.map(script => script.admin_id))];
+            console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
+            
+            if (adminIds.length === 0) {
+              setScripts([]);
+              setHasFetched(true);
+              setIsLoading(false);
+              return;
+            }
+            
+            const { data: profilesData, error: profilesError } = await supabase
+              .from('profiles')
+              .select('id, username')
+              .in('id', adminIds);
+              
+            if (profilesError) {
+              console.error("🏠 INDEX: Error fetching profiles for public scripts:", profilesError);
+              setFetchError(`Profiles fetch error: ${profilesError.message}`);
+              
+              // Continue with default usernames if profiles fetch fails
+              const formattedScripts = data.map(script => ({
+                id: script.id,
+                title: script.title,
+                created_at: script.created_at,
+                admin_id: script.admin_id,
+                is_private: false,
+                admin_username: 'Unknown'
+              }));
+              
+              setScripts(formattedScripts);
+            } else {
+              console.log("🏠 INDEX: Fetched profiles for public scripts:", profilesData);
+              
+              // Create a map of admin_id to username
+              const adminUsernameMap = new Map();
+              profilesData?.forEach(profile => {
+                adminUsernameMap.set(profile.id, profile.username);
+              });
+              
+              const formattedScripts = data.map(script => ({
+                id: script.id,
+                title: script.title,
+                created_at: script.created_at,
+                admin_id: script.admin_id,
+                is_private: false,
+                admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
+              }));
+              
+              console.log("🏠 INDEX: Formatted public scripts:", formattedScripts);
+              setScripts(formattedScripts);
+            }
+          } catch (profileError) {
+            console.error("🏠 INDEX: Error processing profiles for public scripts:", profileError);
+            // Continue with default usernames
+            const formattedScripts = data.map(script => ({
+              id: script.id,
+              title: script.title,
+              created_at: script.created_at,
+              admin_id: script.admin_id,
+              is_private: false,
+              admin_username: 'Unknown'
+            }));
+            
+            setScripts(formattedScripts);
+          }
+        } catch (publicScriptsError) {
+          console.error("🏠 INDEX: Error fetching public scripts:", publicScriptsError);
+          setScripts([]);
         }
-        
-        console.log("🏠 INDEX: Fetched profiles for public scripts:", profilesData);
-        
-        // Create a map of admin_id to username
-        const adminUsernameMap = new Map();
-        profilesData?.forEach(profile => {
-          adminUsernameMap.set(profile.id, profile.username);
-        });
-        
-        const formattedScripts = data.map(script => ({
-          id: script.id,
-          title: script.title,
-          created_at: script.created_at,
-          admin_id: script.admin_id,
-          is_private: false,
-          admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
-        }));
-        
-        console.log("🏠 INDEX: Formatted public scripts:", formattedScripts);
-        setScripts(formattedScripts);
       }
       
       setHasFetched(true);
       console.log("🏠 INDEX: Scripts fetched successfully, hasFetched set to true");
     } catch (error) {
       console.error('🏠 INDEX: Error fetching scripts:', error);
+      setScripts([]); // Set empty array to avoid undefined errors
+      toast.error("Failed to load scripts. Please try again later.");
     } finally {
       setIsLoading(false);
       console.log("🏠 INDEX: Loading state set to false");

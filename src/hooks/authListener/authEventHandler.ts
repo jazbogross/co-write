@@ -45,17 +45,23 @@ export const handleAuthStateChange = async (
     // This ensures the UI updates right away with authenticated state
     updateStateFromSession(session, setState);
     
-    // Handle specific events
-    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-      console.log("🎧 AuthListener: User signed in:", session.user.id);
-      // Load full profile in the background, UI already updated to authenticated state
-      await loadFullUserProfile(session, isMounted, setState);
-    } else if (event === 'USER_UPDATED' && isMounted) {
-      console.log("🎧 AuthListener: User updated:", session.user.id);
-      await loadFullUserProfile(session, isMounted, setState);
-    } else if (event === 'TOKEN_REFRESHED') {
-      console.log("🎧 AuthListener: Token refreshed for user:", session.user.id);
-      // No need to update user state here as the session is just refreshed
+    // Handle specific events - catch any errors that might occur during profile loading
+    try {
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        console.log("🎧 AuthListener: User signed in:", session.user.id);
+        // Load full profile in the background, UI already updated to authenticated state
+        await loadFullUserProfile(session, isMounted, setState);
+      } else if (event === 'USER_UPDATED' && isMounted) {
+        console.log("🎧 AuthListener: User updated:", session.user.id);
+        await loadFullUserProfile(session, isMounted, setState);
+      } else if (event === 'TOKEN_REFRESHED') {
+        console.log("🎧 AuthListener: Token refreshed for user:", session.user.id);
+        // No need to update user state here as the session is just refreshed
+      }
+    } catch (profileError) {
+      console.error("🎧 AuthListener: Error loading user profile:", profileError);
+      // Profile loading error shouldn't affect authentication state
+      // User is still authenticated, just missing some profile details
     }
   } catch (error) {
     console.error("🎧 AuthListener: Error handling auth state change:", error);
