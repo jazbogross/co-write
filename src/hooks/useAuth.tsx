@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthListener } from '@/hooks/useAuthListener';
 import { signInWithPassword, signUpWithPassword, signOut as authSignOut, resetPassword as authResetPassword } from '@/services/authService';
 import type { AuthUser } from '@/services/authService';
+import { checkSessionStorage } from '@/utils/sessionDebug';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -21,6 +22,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   console.log("🔑 AuthProvider: Initializing");
   const { user, loading, isAuthenticated } = useAuthListener();
+
+  // Check for persisted session on component mount
+  useEffect(() => {
+    const sessionStatus = checkSessionStorage();
+    console.log("🔑 AuthProvider: Session persistence check:", sessionStatus.hasSupabaseToken);
+  }, []);
 
   console.log("🔑 AuthProvider: Current state:", { 
     isAuthenticated, 

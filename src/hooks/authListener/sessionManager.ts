@@ -23,7 +23,8 @@ export const checkCurrentSession = async (): Promise<{
       hasSession, 
       userId: hasSession ? sessionData.session?.user?.id : 'none',
       sessionExpiry: hasSession ? sessionData.session?.expires_at : 'none',
-      sessionObject: sessionData.session ? 'exists' : 'null'
+      sessionObject: sessionData.session ? 'exists' : 'null',
+      persistedSession: !!localStorage.getItem('supabase.auth.token')
     });
     
     // Debug session expiry if it exists
@@ -111,7 +112,8 @@ export const loadFullUserProfile = async (
     console.log("🎧 AuthListener: Profile fetch result:", {
       profileExists: !!profile,
       error: error ? 'exists' : 'none',
-      shouldUpdate
+      shouldUpdate,
+      persistedSession: !!localStorage.getItem('supabase.auth.token')
     });
     
     if (!shouldUpdate) {
