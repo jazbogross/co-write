@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +15,7 @@ interface ProfileData {
  */
 export function useProfileData() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const userIdRef = useRef<string | null>(null);
   
   const [profile, setProfile] = useState<ProfileData>({
     email: "",
@@ -23,6 +25,19 @@ export function useProfileData() {
   const [loading, setLoading] = useState(true);
   const [hasFetched, setHasFetched] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Reset fetched state if user changes
+  useEffect(() => {
+    // If user ID changed, reset the hasFetched state to trigger a new fetch
+    if (user?.id !== userIdRef.current) {
+      console.log("📋 PROFILE: User ID changed, resetting fetch state", {
+        previousUserId: userIdRef.current,
+        currentUserId: user?.id
+      });
+      userIdRef.current = user?.id || null;
+      setHasFetched(false);
+    }
+  }, [user?.id]);
 
   // Fetch user data when authenticated
   useEffect(() => {
@@ -36,15 +51,25 @@ export function useProfileData() {
     let isMounted = true;
     
     const fetchData = async () => {
-      // Only fetch if we're authenticated, have a user ID, and haven't fetched yet
-      // OR if we're authenticated with a user ID but our last fetch was for a different user ID
-      if (authLoading || !isAuthenticated || !user?.id) {
-        // If auth is still loading or user isn't authenticated, keep loading state
+      // Skip fetch if auth is still loading
+      if (authLoading) {
+        console.log("📋 PROFILE: Auth still loading, skipping fetch");
+        return;
+      }
+      
+      // Clear data if not authenticated
+      if (!isAuthenticated || !user?.id) {
+        console.log("📋 PROFILE: Not authenticated, clearing profile data");
+        if (isMounted) {
+          setLoading(false);
+          setHasFetched(false);
+        }
         return;
       }
       
       // If we've already fetched data for this user, don't fetch again
-      if (hasFetched) {
+      if (hasFetched && userIdRef.current === user.id) {
+        console.log("📋 PROFILE: Data already fetched for this user, skipping");
         setLoading(false);
         return;
       }

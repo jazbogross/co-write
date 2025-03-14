@@ -13,7 +13,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
     isAuthenticated: false
   });
   
-  // Use a ref to track initialization and component mounting
+  // Use refs to track initialization and component mounting
   const isInitializedRef = useRef(false);
   const isMountedRef = useRef(true);
   
