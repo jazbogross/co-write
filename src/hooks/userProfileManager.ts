@@ -66,7 +66,7 @@ export const createFullUserData = (
   
   return {
     id: userId,
-    email: email || null,
+    email: profile?.email || email || null,
     username: profile?.username || null,
     provider: provider || 'email'
   };

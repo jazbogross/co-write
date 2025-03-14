@@ -111,9 +111,23 @@ export const resetPassword = async (email: string) => {
 const updateUserProfile = async (userId: string, username: string) => {
   console.log("🔐 AuthService: updateUserProfile: Updating profile for", userId, "with username", username);
   try {
+    // Get the user's email
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.error("🔐 AuthService: updateUserProfile: Error getting user:", userError);
+      throw userError;
+    }
+    
+    const email = userData.user?.email;
+    console.log("🔐 AuthService: updateUserProfile: User email:", email);
+    
     const { error } = await supabase
       .from('profiles')
-      .upsert({ id: userId, username: username });
+      .upsert({ 
+        id: userId, 
+        username: username,
+        email: email 
+      });
 
     if (error) {
       console.error("🔐 AuthService: updateUserProfile: Error:", error);
@@ -145,7 +159,8 @@ export const getUserProfile = async (userId: string) => {
     if (data) {
       console.log("🔐 AuthService: getUserProfile: Profile data:", {
         id: data.id,
-        username: data.username || 'not set'
+        username: data.username || 'not set',
+        email: data.email || 'not set'
       });
     }
     return { profile: data, error: null };

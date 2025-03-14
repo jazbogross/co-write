@@ -52,13 +52,14 @@ const OAuthRedirectHandler = () => {
                 .insert({ 
                   id: user.id,
                   username: user.email?.split('@')[0] || 'user',
+                  email: user.email,
                   github_access_token: providerToken,
                   updated_at: new Date().toISOString()
                 });
               updateError = error;
             } else {
               console.log("Auth: Existing profile found, updating token");
-              // Update existing profile
+              // Update existing profile, but don't change email
               const { error } = await supabase
                 .from('profiles')
                 .update({ 

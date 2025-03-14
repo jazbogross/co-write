@@ -119,7 +119,7 @@ export function useProfileData() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('username, github_access_token')
+        .select('username, email, github_access_token')
         .eq('id', userId)
         .maybeSingle();
 
@@ -145,7 +145,7 @@ export function useProfileData() {
     console.log("📋 PROFILE: Profile data found:", data);
     if (isMounted) {
       setProfile({
-        email: user?.email || "",
+        email: data.email || user?.email || "",
         username: data.username || "",
       });
     }
@@ -184,6 +184,7 @@ export function useProfileData() {
         .upsert({ 
           id: userId, 
           username: user?.email?.split("@")[0] || "",
+          email: user?.email || "",
           updated_at: new Date().toISOString() 
         });
         
