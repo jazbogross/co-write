@@ -2,7 +2,6 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { checkSessionStorage } from '@/utils/sessionDebug';
 
 const OAuthRedirectHandler = () => {
   useEffect(() => {
@@ -18,10 +17,6 @@ const OAuthRedirectHandler = () => {
       
       if (accessToken && providerToken) {
         console.log("Auth: Detected GitHub OAuth redirect with tokens");
-        // Check session storage status
-        const sessionStatus = checkSessionStorage();
-        console.log("Auth: Session storage status before processing:", sessionStatus.hasSupabaseToken);
-        
         try {
           // Get the user to find their ID
           const { data: { user } } = await supabase.auth.getUser();
@@ -82,10 +77,6 @@ const OAuthRedirectHandler = () => {
             } else {
               console.log("Auth: GitHub token stored successfully");
               toast.success("GitHub connected successfully!");
-              
-              // Check session persistence after successful processing
-              const updatedSessionStatus = checkSessionStorage();
-              console.log("Auth: Session storage status after processing:", updatedSessionStatus.hasSupabaseToken);
             }
           } else {
             console.error("Auth: No authenticated user found after GitHub OAuth");

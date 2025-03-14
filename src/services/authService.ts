@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface AuthUser {
@@ -24,8 +25,7 @@ export const signInWithPassword = async (email: string, password: string) => {
     console.log("🔐 AuthService: signInWithPassword: Session:", {
       hasSession: !!data.session,
       expiresAt: data.session?.expires_at,
-      tokenType: data.session?.token_type,
-      sessionPersisted: !!localStorage.getItem('supabase.auth.token')
+      tokenType: data.session?.token_type
     });
     
     return { success: true, session: data.session };
