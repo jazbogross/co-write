@@ -1,3 +1,4 @@
+
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Index from "@/pages/Index";
 import Auth from "@/pages/Auth";
@@ -7,8 +8,32 @@ import NotFound from "@/pages/NotFound";
 import GitHubCallback from "@/pages/GitHubCallback";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "./hooks/useAuth";
+import { useState, useEffect } from "react";
 
 export default function App() {
+  const [appInitTime] = useState(new Date().toISOString());
+  
+  useEffect(() => {
+    console.log("🔑 App: Initializing application", { 
+      time: appInitTime,
+      url: window.location.href,
+      path: window.location.pathname
+    });
+    
+    // Log Supabase and browser info for debugging
+    console.log("🔑 App: Runtime information", {
+      localStorage: localStorage.length,
+      hasSupabasePersistSession: localStorage.getItem('supabase.auth.token') !== null,
+      userAgent: navigator.userAgent,
+      language: navigator.language,
+      referrer: document.referrer || 'none'
+    });
+    
+    return () => {
+      console.log("🔑 App: App unmounting", { time: new Date().toISOString() });
+    };
+  }, [appInitTime]);
+  
   return (
     <Router>
       <AuthProvider>

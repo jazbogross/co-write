@@ -1,5 +1,5 @@
 
-import { createContext, useContext, ReactNode, useCallback } from 'react';
+import { createContext, useContext, ReactNode, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthListener } from '@/hooks/useAuthListener';
 import { signInWithPassword, signUpWithPassword, signOut as authSignOut, resetPassword as authResetPassword } from '@/services/authService';
@@ -25,8 +25,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   console.log("🔑 AuthProvider: Current state:", { 
     isAuthenticated, 
     loading, 
-    userId: user?.id
+    userId: user?.id,
+    userEmail: user?.email,
+    location: window.location.pathname,
+    timestamp: new Date().toISOString()
   });
+  
+  useEffect(() => {
+    console.log("🔑 AuthProvider: State changed:", {
+      isAuthenticated,
+      loading,
+      userId: user?.id,
+      userEmail: user?.email,
+      location: window.location.pathname
+    });
+  }, [isAuthenticated, loading, user]);
 
   const navigate = useNavigate();
 

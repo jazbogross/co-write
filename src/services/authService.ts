@@ -11,7 +11,7 @@ export interface AuthUser {
 export const signInWithPassword = async (email: string, password: string) => {
   console.log("🔐 AuthService: signInWithPassword: Starting for:", email);
   try {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -21,8 +21,14 @@ export const signInWithPassword = async (email: string, password: string) => {
       return { success: false, error };
     }
 
-    console.log("🔐 AuthService: signInWithPassword: Success");
-    return { success: true };
+    console.log("🔐 AuthService: signInWithPassword: Success, user:", data.user?.id);
+    console.log("🔐 AuthService: signInWithPassword: Session:", {
+      hasSession: !!data.session,
+      expiresAt: data.session?.expires_at,
+      tokenType: data.session?.token_type
+    });
+    
+    return { success: true, session: data.session };
   } catch (error) {
     console.error("🔐 AuthService: signInWithPassword: Exception:", error);
     return { success: false, error };
@@ -47,12 +53,17 @@ export const signUpWithPassword = async (email: string, password: string, userna
       return { success: false, error };
     }
 
+    console.log("🔐 AuthService: signUpWithPassword: Success, user:", data.user?.id);
+    console.log("🔐 AuthService: signUpWithPassword: Session:", {
+      hasSession: !!data.session,
+      expiresAt: data.session?.expires_at
+    });
+
     if (data.user) {
       await updateUserProfile(data.user.id, username);
     }
 
-    console.log("🔐 AuthService: signUpWithPassword: Success");
-    return { success: true };
+    return { success: true, session: data.session };
   } catch (error) {
     console.error("🔐 AuthService: signUpWithPassword: Exception:", error);
     return { success: false, error };
@@ -131,6 +142,12 @@ export const getUserProfile = async (userId: string) => {
     }
 
     console.log("🔐 AuthService: getUserProfile: Success, profile:", data ? "Found" : "Not found");
+    if (data) {
+      console.log("🔐 AuthService: getUserProfile: Profile data:", {
+        id: data.id,
+        username: data.username || 'not set'
+      });
+    }
     return { profile: data, error: null };
   } catch (error) {
     console.error("🔐 AuthService: getUserProfile: Exception:", error);

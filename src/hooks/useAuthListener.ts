@@ -19,6 +19,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
   
   const updateState = useCallback((newState: Partial<AuthState>) => {
     if (isMountedRef.current) {
+      console.log("🎧 AuthListener: Updating state:", newState);
       setState(prev => ({ ...prev, ...newState }));
     }
   }, []);
@@ -27,7 +28,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
   useEffect(() => {
     console.log("🎧 AuthListener: Setting up authentication listener");
     // Using a more generic type to accommodate Supabase's subscription structure
-    let authListenerSubscription: { data: any } | null = null;
+    let authListenerSubscription: any = null;
     
     const initialize = async () => {
       try {
@@ -37,10 +38,17 @@ export const useAuthListener = (): UseAuthListenerResult => {
           return;
         }
         
+        console.log("🎧 AuthListener: Starting initialization");
         isInitializedRef.current = true;
         
         // Check for current session
+        console.log("🎧 AuthListener: Checking current session");
         const { sessionData, hasSession } = await checkCurrentSession();
+        console.log("🎧 AuthListener: Session check result:", { 
+          hasSession, 
+          sessionExists: !!sessionData.session,
+          userId: hasSession ? sessionData.session?.user?.id : null
+        });
         
         if (!isMountedRef.current) {
           console.log("🎧 AuthListener: Component unmounted during initialization");
@@ -50,6 +58,7 @@ export const useAuthListener = (): UseAuthListenerResult => {
         if (hasSession && sessionData.session) {
           try {
             // Handle existing session
+            console.log("🎧 AuthListener: Handling initial session for user:", sessionData.session.user?.id);
             await handleAuthStateChange('INITIAL_SESSION', sessionData.session, true, updateState);
           } catch (sessionError) {
             console.error("🎧 AuthListener: Error handling initial session:", sessionError);
@@ -86,7 +95,13 @@ export const useAuthListener = (): UseAuthListenerResult => {
 
     // Set up auth state change listener
     try {
+      console.log("🎧 AuthListener: Setting up auth state change subscription");
       const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log(`🎧 AuthListener: Auth state change event received: ${event}`, {
+          sessionExists: !!session,
+          userId: session?.user?.id
+        });
+        
         if (isMountedRef.current) {
           try {
             await handleAuthStateChange(event, session, true, updateState);
@@ -97,11 +112,15 @@ export const useAuthListener = (): UseAuthListenerResult => {
               updateState({ loading: false });
             }
           }
+        } else {
+          console.log("🎧 AuthListener: Component unmounted, ignoring auth state change");
         }
       });
       
-      // Store the subscription object correctly
-      authListenerSubscription = { data };
+      console.log("🎧 AuthListener: Auth subscription created:", data);
+      
+      // Store the subscription object
+      authListenerSubscription = data;
     } catch (subscriptionError) {
       console.error("🎧 AuthListener: Error setting up auth listener:", subscriptionError);
       // Ensure loading is set to false even on subscription error
@@ -111,10 +130,21 @@ export const useAuthListener = (): UseAuthListenerResult => {
     return () => {
       console.log("🎧 AuthListener: Cleaning up auth listener");
       isMountedRef.current = false;
-      if (authListenerSubscription && authListenerSubscription.data) {
-        // Directly call the unsubscribe method on the data object
-        if (typeof authListenerSubscription.data.unsubscribe === 'function') {
-          authListenerSubscription.data.unsubscribe();
+      
+      if (authListenerSubscription) {
+        console.log("🎧 AuthListener: Unsubscribing from auth events");
+        try {
+          // Try different ways to access the unsubscribe method
+          if (typeof authListenerSubscription.unsubscribe === 'function') {
+            authListenerSubscription.unsubscribe();
+          } else if (authListenerSubscription.subscription && 
+                    typeof authListenerSubscription.subscription.unsubscribe === 'function') {
+            authListenerSubscription.subscription.unsubscribe();
+          } else {
+            console.warn("🎧 AuthListener: Could not find unsubscribe method", authListenerSubscription);
+          }
+        } catch (e) {
+          console.error("🎧 AuthListener: Error unsubscribing:", e);
         }
       }
     };
@@ -124,7 +154,8 @@ export const useAuthListener = (): UseAuthListenerResult => {
     console.log("🎧 AuthListener: Auth state updated:", { 
       isAuthenticated: state.isAuthenticated, 
       loading: state.loading, 
-      userId: state.user?.id
+      userId: state.user?.id,
+      userEmail: state.user?.email
     });
   }, [state.user, state.loading, state.isAuthenticated]);
 

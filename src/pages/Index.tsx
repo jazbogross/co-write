@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,11 @@ interface Script {
 }
 
 export const Index = () => {
-  console.log("🏠 INDEX: Component rendering");
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  
+  console.log(`🏠 INDEX: Component rendering (render #${renderCountRef.current})`);
+  
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [scripts, setScripts] = useState<Script[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,13 +32,26 @@ export const Index = () => {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   console.log("🏠 INDEX: Current states -", {
+    renderCount: renderCountRef.current,
     authLoading,
     isAuthenticated,
     userExists: !!user,
     userId: user?.id,
     isLoading,
-    hasFetched
+    hasFetched,
+    location: window.location.pathname,
+    timestamp: new Date().toISOString()
   });
+  
+  // Monitor auth state changes
+  useEffect(() => {
+    console.log("🏠 INDEX: Auth state changed:", { 
+      authLoading, 
+      isAuthenticated, 
+      userId: user?.id,
+      timestamp: new Date().toISOString()
+    });
+  }, [authLoading, isAuthenticated, user]);
   
   useEffect(() => {
     // Only fetch scripts if authentication state is resolved and we haven't already fetched
@@ -262,6 +279,7 @@ export const Index = () => {
     userAuthenticated: !!user 
   });
   
+  // Add the rest of the component code (JSX return)
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">

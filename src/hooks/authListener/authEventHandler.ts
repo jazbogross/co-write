@@ -10,7 +10,8 @@ export const handleAuthStateChange = async (
 ): Promise<void> => {
   console.log(`🎧 AuthListener: Auth state change event: ${event}`, {
     sessionExists: !!session,
-    userId: session?.user?.id
+    userId: session?.user?.id,
+    eventTimestamp: new Date().toISOString()
   });
   
   if (!isMounted) {
@@ -32,7 +33,11 @@ export const handleAuthStateChange = async (
     
     // For all other events, verify session exists
     if (!session || !session.user) {
-      console.error("🎧 AuthListener: Invalid session in auth state change event");
+      console.error("🎧 AuthListener: Invalid session in auth state change event", {
+        eventType: event,
+        sessionExists: !!session,
+        hasUserProperty: session ? !!session.user : false
+      });
       setState({
         isAuthenticated: false,
         user: null,
@@ -55,7 +60,9 @@ export const handleAuthStateChange = async (
         console.log("🎧 AuthListener: User updated:", session.user.id);
         await loadFullUserProfile(session, isMounted, setState);
       } else if (event === 'TOKEN_REFRESHED') {
-        console.log("🎧 AuthListener: Token refreshed for user:", session.user.id);
+        console.log("🎧 AuthListener: Token refreshed for user:", session.user.id, {
+          newExpiryTime: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'unknown'
+        });
         // No need to update user state here as the session is just refreshed
       }
     } catch (profileError) {

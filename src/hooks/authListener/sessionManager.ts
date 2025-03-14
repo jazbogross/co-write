@@ -9,13 +9,33 @@ export const checkCurrentSession = async (): Promise<{
 }> => {
   console.log("🎧 AuthListener: Checking for current user session");
   try {
-    const { data: sessionData } = await supabase.auth.getSession();
+    console.log("🎧 AuthListener: Calling supabase.auth.getSession()");
+    const { data: sessionData, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error("🎧 AuthListener: Error getting session:", error);
+      return { sessionData: {}, hasSession: false };
+    }
+    
     const hasSession = !!sessionData.session && !!sessionData.session.user;
     
     console.log("🎧 AuthListener: Session check result:", { 
       hasSession, 
-      userId: hasSession ? sessionData.session?.user?.id : 'none' 
+      userId: hasSession ? sessionData.session?.user?.id : 'none',
+      sessionExpiry: hasSession ? sessionData.session?.expires_at : 'none',
+      sessionObject: sessionData.session ? 'exists' : 'null'
     });
+    
+    // Debug session expiry if it exists
+    if (hasSession && sessionData.session.expires_at) {
+      const expiryDate = new Date(sessionData.session.expires_at * 1000);
+      const now = new Date();
+      console.log("🎧 AuthListener: Session expiry check:", {
+        expiresAt: expiryDate.toISOString(),
+        currentTime: now.toISOString(),
+        isExpired: expiryDate < now
+      });
+    }
     
     return { sessionData, hasSession };
   } catch (error) {
@@ -41,6 +61,13 @@ export const updateStateFromSession = (
       });
       return;
     }
+    
+    // Log session details
+    console.log("🎧 AuthListener: Session details:", {
+      userId: session.user.id,
+      email: session.user.email,
+      provider: session.user.app_metadata?.provider || 'email'
+    });
     
     // Create basic user data from session
     const basicUserData = getBasicUserData(session);
@@ -76,11 +103,19 @@ export const loadFullUserProfile = async (
     }
     
     const userId = session.user.id;
+    console.log("🎧 AuthListener: Loading full profile for user:", userId);
     
     // Get detailed user profile
     const { profile, error, shouldUpdate } = await fetchUserProfile(userId, isMounted);
     
+    console.log("🎧 AuthListener: Profile fetch result:", {
+      profileExists: !!profile,
+      error: error ? 'exists' : 'none',
+      shouldUpdate
+    });
+    
     if (!shouldUpdate) {
+      console.log("🎧 AuthListener: Not updating state as component unmounted");
       return;
     }
     
@@ -96,7 +131,12 @@ export const loadFullUserProfile = async (
     const provider = session.user.app_metadata?.provider || 'email';
     
     if (isMounted) {
-      console.log("🎧 AuthListener: Setting full user data with profile");
+      console.log("🎧 AuthListener: Setting full user data with profile:", {
+        userId,
+        email: session.user.email,
+        username: profile?.username || 'not set',
+        provider
+      });
       setState({
         user: createFullUserData(userId, session.user.email, profile, provider),
         loading: false
