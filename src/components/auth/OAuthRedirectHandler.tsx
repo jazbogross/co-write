@@ -29,8 +29,11 @@ const OAuthRedirectHandler = () => {
             // Detailed logging for debugging
             console.log("Auth: GitHub token to store:", providerToken.substring(0, 10) + "...");
             
+            // Verify session is persisted
+            const session = await supabase.auth.getSession();
+            console.log("Auth: Session persisted:", !!session.data.session);
+            
             // Store the github_access_token in the profiles table
-            // Use upsert instead of update to handle the case where a profile might not exist yet
             const { data: profileData, error: profileCheckError } = await supabase
               .from('profiles')
               .select()

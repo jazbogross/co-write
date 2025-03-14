@@ -13,7 +13,6 @@ export type Database = {
         Row: {
           email: string | null
           github_access_token: string | null
-          github_app_installation_id: string | null
           id: string
           updated_at: string | null
           username: string | null
@@ -21,7 +20,6 @@ export type Database = {
         Insert: {
           email?: string | null
           github_access_token?: string | null
-          github_app_installation_id?: string | null
           id: string
           updated_at?: string | null
           username?: string | null
@@ -29,7 +27,6 @@ export type Database = {
         Update: {
           email?: string | null
           github_access_token?: string | null
-          github_app_installation_id?: string | null
           id?: string
           updated_at?: string | null
           username?: string | null

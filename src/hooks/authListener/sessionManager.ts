@@ -23,7 +23,8 @@ export const checkCurrentSession = async (): Promise<{
       hasSession, 
       userId: hasSession ? sessionData.session?.user?.id : 'none',
       sessionExpiry: hasSession ? sessionData.session?.expires_at : 'none',
-      sessionObject: sessionData.session ? 'exists' : 'null'
+      sessionObject: sessionData.session ? 'exists' : 'null',
+      storageData: typeof localStorage !== 'undefined' ? !!localStorage.getItem('supabase.auth.token') : 'no localStorage',
     });
     
     // Debug session expiry if it exists

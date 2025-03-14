@@ -11,7 +11,8 @@ export const handleAuthStateChange = async (
   console.log(`🎧 AuthListener: Auth state change event: ${event}`, {
     sessionExists: !!session,
     userId: session?.user?.id,
-    eventTimestamp: new Date().toISOString()
+    eventTimestamp: new Date().toISOString(),
+    hasLocalStorage: typeof localStorage !== 'undefined' ? !!localStorage.getItem('supabase.auth.token') : 'no localStorage'
   });
   
   if (!isMounted) {
