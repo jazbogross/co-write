@@ -41,7 +41,7 @@ export const handleAuthStateChange = async (
       return;
     }
     
-    // Immediately update authentication state if session exists
+    // IMPORTANT: Set authenticated and loading to false as soon as we have basic user data
     // This ensures the UI updates right away with authenticated state
     updateStateFromSession(session, setState);
     

@@ -230,14 +230,6 @@ export function useProfileData() {
     }
   };
 
-  // Reset fetched state if user changes
-  useEffect(() => {
-    if (user?.id) {
-      // If the user ID changes, reset the hasFetched state
-      setHasFetched(false);
-    }
-  }, [user?.id]);
-
   return {
     profile,
     scripts,

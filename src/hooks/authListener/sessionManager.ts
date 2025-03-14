@@ -8,15 +8,20 @@ export const checkCurrentSession = async (): Promise<{
   hasSession: boolean;
 }> => {
   console.log("🎧 AuthListener: Checking for current user session");
-  const { data: sessionData } = await supabase.auth.getSession();
-  const hasSession = !!sessionData.session;
-  
-  console.log("🎧 AuthListener: Session check result:", { 
-    hasSession, 
-    userId: hasSession ? sessionData.session?.user?.id : 'none' 
-  });
-  
-  return { sessionData, hasSession };
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const hasSession = !!sessionData.session && !!sessionData.session.user;
+    
+    console.log("🎧 AuthListener: Session check result:", { 
+      hasSession, 
+      userId: hasSession ? sessionData.session?.user?.id : 'none' 
+    });
+    
+    return { sessionData, hasSession };
+  } catch (error) {
+    console.error("🎧 AuthListener: Error checking session:", error);
+    return { sessionData: {}, hasSession: false };
+  }
 };
 
 export const updateStateFromSession = (
