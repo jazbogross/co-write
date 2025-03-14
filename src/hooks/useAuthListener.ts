@@ -26,7 +26,8 @@ export const useAuthListener = (): UseAuthListenerResult => {
   // Handle initial session check and setup auth listener
   useEffect(() => {
     console.log("🎧 AuthListener: Setting up authentication listener");
-    let authListenerSubscription: { data: { unsubscribe: () => void } } | null = null;
+    // Using a more generic type to accommodate Supabase's subscription structure
+    let authListenerSubscription: { data: any } | null = null;
     
     const initialize = async () => {
       try {
@@ -111,7 +112,10 @@ export const useAuthListener = (): UseAuthListenerResult => {
       console.log("🎧 AuthListener: Cleaning up auth listener");
       isMountedRef.current = false;
       if (authListenerSubscription && authListenerSubscription.data) {
-        authListenerSubscription.data.unsubscribe();
+        // Directly call the unsubscribe method on the data object
+        if (typeof authListenerSubscription.data.unsubscribe === 'function') {
+          authListenerSubscription.data.unsubscribe();
+        }
       }
     };
   }, [updateState]);
