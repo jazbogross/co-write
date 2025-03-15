@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,6 @@ import { CalendarIcon, GitForkIcon, LockIcon, EyeIcon, Users } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
-import { toast } from 'sonner';
 
 interface Script {
   id: string;
@@ -20,38 +19,20 @@ interface Script {
 }
 
 export const Index = () => {
-  const renderCountRef = useRef(0);
-  renderCountRef.current += 1;
-  
-  console.log(`🏠 INDEX: Component rendering (render #${renderCountRef.current})`);
-  
-  const { user, loading: authLoading, isAuthenticated } = useAuth();
+  console.log("🏠 INDEX: Component rendering");
+  const { user, loading: authLoading } = useAuth();
   const [scripts, setScripts] = useState<Script[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasFetched, setHasFetched] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   console.log("🏠 INDEX: Current states -", {
-    renderCount: renderCountRef.current,
     authLoading,
-    isAuthenticated,
     userExists: !!user,
     userId: user?.id,
     isLoading,
-    hasFetched,
-    location: window.location.pathname,
-    timestamp: new Date().toISOString()
+    hasFetched
   });
-  
-  // Monitor auth state changes
-  useEffect(() => {
-    console.log("🏠 INDEX: Auth state changed:", { 
-      authLoading, 
-      isAuthenticated, 
-      userId: user?.id,
-      timestamp: new Date().toISOString()
-    });
-  }, [authLoading, isAuthenticated, user]);
   
   useEffect(() => {
     // Only fetch scripts if authentication state is resolved and we haven't already fetched
@@ -66,7 +47,7 @@ export const Index = () => {
     setIsLoading(true);
     
     try {
-      if (isAuthenticated && user) {
+      if (user) {
         console.log("🏠 INDEX: User is logged in, fetching all scripts for user:", user.id);
         // If user is logged in, fetch all public scripts and user's private scripts
         const { data, error } = await supabase
@@ -89,184 +70,104 @@ export const Index = () => {
         
         console.log("🏠 INDEX: Fetched scripts:", data);
         
-        if (!data || data.length === 0) {
-          setScripts([]);
-          setHasFetched(true);
-          setIsLoading(false);
-          return;
+        // Fetch admin usernames in a separate query
+        const adminIds = [...new Set(data.map(script => script.admin_id))];
+        console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
+        
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', adminIds);
+          
+        if (profilesError) {
+          console.error("🏠 INDEX: Error fetching profiles:", profilesError);
+          setFetchError(`Profiles fetch error: ${profilesError.message}`);
+          throw profilesError;
         }
         
-        // Fetch admin usernames in a separate query
-        try {
-          const adminIds = [...new Set(data.map(script => script.admin_id))];
-          console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
-          
-          const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, username')
-            .in('id', adminIds);
-            
-          if (profilesError) {
-            console.error("🏠 INDEX: Error fetching profiles:", profilesError);
-            setFetchError(`Profiles fetch error: ${profilesError.message}`);
-            
-            // Continue with default usernames if profiles fetch fails
-            const formattedScripts = data.map(script => ({
-              id: script.id,
-              title: script.title,
-              created_at: script.created_at,
-              admin_id: script.admin_id,
-              is_private: script.is_private ?? false,
-              admin_username: 'Unknown'
-            }));
-            
-            setScripts(formattedScripts);
-          } else {
-            console.log("🏠 INDEX: Fetched profiles:", profilesData);
-            
-            // Create a map of admin_id to username
-            const adminUsernameMap = new Map();
-            profilesData?.forEach(profile => {
-              adminUsernameMap.set(profile.id, profile.username);
-            });
-            
-            const formattedScripts = data.map(script => ({
-              id: script.id,
-              title: script.title,
-              created_at: script.created_at,
-              admin_id: script.admin_id,
-              is_private: script.is_private ?? false,
-              admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
-            }));
-            
-            console.log("🏠 INDEX: Formatted scripts:", formattedScripts);
-            setScripts(formattedScripts);
-          }
-        } catch (profileError) {
-          console.error("🏠 INDEX: Error processing profiles:", profileError);
-          // Continue with default usernames
-          const formattedScripts = data.map(script => ({
-            id: script.id,
-            title: script.title,
-            created_at: script.created_at,
-            admin_id: script.admin_id,
-            is_private: script.is_private ?? false,
-            admin_username: 'Unknown'
-          }));
-          
-          setScripts(formattedScripts);
-        }
+        console.log("🏠 INDEX: Fetched profiles:", profilesData);
+        
+        // Create a map of admin_id to username
+        const adminUsernameMap = new Map();
+        profilesData?.forEach(profile => {
+          adminUsernameMap.set(profile.id, profile.username);
+        });
+        
+        const formattedScripts = data.map(script => ({
+          id: script.id,
+          title: script.title,
+          created_at: script.created_at,
+          admin_id: script.admin_id,
+          is_private: script.is_private ?? false,
+          admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
+        }));
+        
+        console.log("🏠 INDEX: Formatted scripts:", formattedScripts);
+        setScripts(formattedScripts);
       } else {
         console.log("🏠 INDEX: No user logged in, fetching only public scripts");
         // If no user is logged in, fetch only public scripts
-        try {
-          const { data, error } = await supabase
-            .from('scripts')
-            .select(`
-              id,
-              title,
-              created_at,
-              admin_id,
-              is_private,
-              github_repo,
-              github_owner
-            `)
-            .eq('is_private', false);
-            
-          if (error) {
-            console.error("🏠 INDEX: Error fetching public scripts:", error);
-            setFetchError(`Public scripts fetch error: ${error.message}`);
-            throw error;
-          }
+        const { data, error } = await supabase
+          .from('scripts')
+          .select(`
+            id,
+            title,
+            created_at,
+            admin_id,
+            is_private,
+            github_repo,
+            github_owner
+          `)
+          .eq('is_private', false);
           
-          console.log("🏠 INDEX: Fetched public scripts:", data);
-          
-          if (!data || data.length === 0) {
-            setScripts([]);
-            setHasFetched(true);
-            setIsLoading(false);
-            return;
-          }
-          
-          // Fetch admin usernames in a separate query
-          try {
-            const adminIds = [...new Set(data.map(script => script.admin_id))];
-            console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
-            
-            if (adminIds.length === 0) {
-              setScripts([]);
-              setHasFetched(true);
-              setIsLoading(false);
-              return;
-            }
-            
-            const { data: profilesData, error: profilesError } = await supabase
-              .from('profiles')
-              .select('id, username')
-              .in('id', adminIds);
-              
-            if (profilesError) {
-              console.error("🏠 INDEX: Error fetching profiles for public scripts:", profilesError);
-              setFetchError(`Profiles fetch error: ${profilesError.message}`);
-              
-              // Continue with default usernames if profiles fetch fails
-              const formattedScripts = data.map(script => ({
-                id: script.id,
-                title: script.title,
-                created_at: script.created_at,
-                admin_id: script.admin_id,
-                is_private: false,
-                admin_username: 'Unknown'
-              }));
-              
-              setScripts(formattedScripts);
-            } else {
-              console.log("🏠 INDEX: Fetched profiles for public scripts:", profilesData);
-              
-              // Create a map of admin_id to username
-              const adminUsernameMap = new Map();
-              profilesData?.forEach(profile => {
-                adminUsernameMap.set(profile.id, profile.username);
-              });
-              
-              const formattedScripts = data.map(script => ({
-                id: script.id,
-                title: script.title,
-                created_at: script.created_at,
-                admin_id: script.admin_id,
-                is_private: false,
-                admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
-              }));
-              
-              console.log("🏠 INDEX: Formatted public scripts:", formattedScripts);
-              setScripts(formattedScripts);
-            }
-          } catch (profileError) {
-            console.error("🏠 INDEX: Error processing profiles for public scripts:", profileError);
-            // Continue with default usernames
-            const formattedScripts = data.map(script => ({
-              id: script.id,
-              title: script.title,
-              created_at: script.created_at,
-              admin_id: script.admin_id,
-              is_private: false,
-              admin_username: 'Unknown'
-            }));
-            
-            setScripts(formattedScripts);
-          }
-        } catch (publicScriptsError) {
-          console.error("🏠 INDEX: Error fetching public scripts:", publicScriptsError);
-          setScripts([]);
+        if (error) {
+          console.error("🏠 INDEX: Error fetching public scripts:", error);
+          setFetchError(`Public scripts fetch error: ${error.message}`);
+          throw error;
         }
+        
+        console.log("🏠 INDEX: Fetched public scripts:", data);
+        
+        // Fetch admin usernames in a separate query
+        const adminIds = [...new Set(data.map(script => script.admin_id))];
+        console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
+        
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', adminIds);
+          
+        if (profilesError) {
+          console.error("🏠 INDEX: Error fetching profiles for public scripts:", profilesError);
+          setFetchError(`Profiles fetch error: ${profilesError.message}`);
+          throw profilesError;
+        }
+        
+        console.log("🏠 INDEX: Fetched profiles for public scripts:", profilesData);
+        
+        // Create a map of admin_id to username
+        const adminUsernameMap = new Map();
+        profilesData?.forEach(profile => {
+          adminUsernameMap.set(profile.id, profile.username);
+        });
+        
+        const formattedScripts = data.map(script => ({
+          id: script.id,
+          title: script.title,
+          created_at: script.created_at,
+          admin_id: script.admin_id,
+          is_private: false,
+          admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
+        }));
+        
+        console.log("🏠 INDEX: Formatted public scripts:", formattedScripts);
+        setScripts(formattedScripts);
       }
       
       setHasFetched(true);
       console.log("🏠 INDEX: Scripts fetched successfully, hasFetched set to true");
     } catch (error) {
       console.error('🏠 INDEX: Error fetching scripts:', error);
-      setScripts([]); // Set empty array to avoid undefined errors
-      toast.error("Failed to load scripts. Please try again later.");
     } finally {
       setIsLoading(false);
       console.log("🏠 INDEX: Loading state set to false");
@@ -279,12 +180,11 @@ export const Index = () => {
     userAuthenticated: !!user 
   });
   
-  // Add the rest of the component code (JSX return)
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-bold">Script Library</h2>
-        {isAuthenticated && user && (
+        {user && (
           <Button asChild>
             <Link to="/profile">Manage Your Scripts</Link>
           </Button>

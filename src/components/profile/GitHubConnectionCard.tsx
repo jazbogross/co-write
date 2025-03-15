@@ -71,31 +71,31 @@ export function GitHubConnectionCard() {
   const handleGithubConnect = async () => {
     try {
       setIsLoading(true);
-      console.log("🔗 GITHUB: Initiating GitHub OAuth connection");
-      
-      // Generate state for redirection and CSRF protection
-      const redirectPath = "/profile";
-      const state = encodeURIComponent(redirectPath);
-      
-      // Initiate GitHub OAuth
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      console.log("🔗 GITHUB: Initiating GitHub connection...");
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: `${window.location.origin}/github/callback?state=${state}`,
-          scopes: 'repo'
-        }
+          scopes: 'repo',
+          redirectTo: `${window.location.origin}/auth`,
+        },
       });
-      
+
       if (error) {
         console.error("🔗 GITHUB: OAuth error:", error);
-        toast.error("Failed to connect to GitHub");
-        throw error;
+        uiToast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
       }
-      
-      console.log("🔗 GITHUB: OAuth initiated, redirecting to GitHub");
     } catch (error) {
       console.error("🔗 GITHUB: Connection error:", error);
-      toast.error("Failed to connect to GitHub");
+      uiToast({
+        title: "Error",
+        description: "Failed to connect GitHub account",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
     }
   };

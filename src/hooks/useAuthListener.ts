@@ -1,167 +1,147 @@
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthUser } from '@/services/authService';
-import { UseAuthListenerResult, AuthState } from './authListener/types';
-import { checkCurrentSession } from './authListener/sessionManager';
-import { handleAuthStateChange } from './authListener/authEventHandler';
+import { getUserProfile } from '@/services/authService';
+
+interface UseAuthListenerResult {
+  user: AuthUser | null;
+  loading: boolean;
+  authChecked: boolean;
+}
 
 export const useAuthListener = (): UseAuthListenerResult => {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    loading: true,
-    isAuthenticated: false
-  });
-  
-  // Use refs to track initialization and component mounting
-  const isInitializedRef = useRef(false);
-  const isMountedRef = useRef(true);
-  
-  const updateState = useCallback((newState: Partial<AuthState>) => {
-    if (isMountedRef.current) {
-      console.log("🎧 AuthListener: Updating state:", newState);
-      setState(prev => ({ ...prev, ...newState }));
-    }
-  }, []);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
 
-  // Handle initial session check and setup auth listener
   useEffect(() => {
     console.log("🎧 AuthListener: Setting up authentication listener");
-    // Using a more generic type to accommodate Supabase's subscription structure
-    let authListenerSubscription: any = null;
+    let isMounted = true;
     
-    const initialize = async () => {
+    const checkCurrentUser = async () => {
+      console.log("🎧 AuthListener: Checking for current user session");
       try {
-        // Skip initialization if already done
-        if (isInitializedRef.current) {
-          console.log("🎧 AuthListener: Already initialized, skipping");
+        const { data } = await supabase.auth.getUser();
+        
+        if (!isMounted) {
+          console.log("🎧 AuthListener: Component unmounted, skipping state update");
           return;
         }
         
-        console.log("🎧 AuthListener: Starting initialization");
-        isInitializedRef.current = true;
-        
-        // Check for current session
-        console.log("🎧 AuthListener: Checking current session");
-        const { sessionData, hasSession } = await checkCurrentSession();
-        console.log("🎧 AuthListener: Session check result:", { 
-          hasSession, 
-          sessionExists: !!sessionData.session,
-          userId: hasSession ? sessionData.session?.user?.id : null
-        });
-        
-        if (!isMountedRef.current) {
-          console.log("🎧 AuthListener: Component unmounted during initialization");
-          return;
-        }
-        
-        if (hasSession && sessionData.session) {
-          try {
-            // Handle existing session
-            console.log("🎧 AuthListener: Handling initial session for user:", sessionData.session.user?.id);
-            await handleAuthStateChange('INITIAL_SESSION', sessionData.session, true, updateState);
-          } catch (sessionError) {
-            console.error("🎧 AuthListener: Error handling initial session:", sessionError);
-            // Ensure loading is set to false even on error
-            updateState({
-              user: null,
-              isAuthenticated: false,
-              loading: false
+        if (data.user) {
+          console.log("🎧 AuthListener: Initial check - Found user:", data.user.id);
+          
+          // Get user profile data
+          const { profile } = await getUserProfile(data.user.id);
+          
+          if (isMounted) {
+            console.log("🎧 AuthListener: Setting initial user state", {
+              id: data.user.id,
+              hasProfile: !!profile
+            });
+            
+            setUser({
+              id: data.user.id,
+              email: data.user.email,
+              username: profile?.username
             });
           }
         } else {
-          // No session exists
-          console.log("🎧 AuthListener: No session found, setting not authenticated");
-          updateState({
-            user: null,
-            isAuthenticated: false,
-            loading: false
-          });
+          console.log("🎧 AuthListener: Initial check - No user found");
+          if (isMounted) {
+            setUser(null);
+          }
         }
       } catch (error) {
         console.error("🎧 AuthListener: Error checking current user:", error);
-        if (isMountedRef.current) {
-          updateState({
-            user: null,
-            isAuthenticated: false,
-            loading: false
-          });
+        if (isMounted) {
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          console.log("🎧 AuthListener: Initial check complete, setting loading=false");
+          setLoading(false);
+          setAuthChecked(true);
         }
       }
     };
 
-    // Initialize immediately
-    initialize();
+    // Check current user immediately
+    checkCurrentUser();
 
     // Set up auth state change listener
-    try {
-      console.log("🎧 AuthListener: Setting up auth state change subscription");
-      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log(`🎧 AuthListener: Auth state change event received: ${event}`, {
-          sessionExists: !!session,
-          userId: session?.user?.id
-        });
-        
-        if (isMountedRef.current) {
-          try {
-            await handleAuthStateChange(event, session, true, updateState);
-          } catch (listenerError) {
-            console.error("🎧 AuthListener: Error in auth state change handler:", listenerError);
-            // Ensure loading is set to false even on error
-            if (isMountedRef.current) {
-              updateState({ loading: false });
-            }
-          }
-        } else {
-          console.log("🎧 AuthListener: Component unmounted, ignoring auth state change");
-        }
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`🎧 AuthListener: Auth state change event: ${event}`, {
+        sessionExists: !!session,
+        userId: session?.user?.id
       });
       
-      console.log("🎧 AuthListener: Auth subscription created:", data);
+      if (!isMounted) {
+        console.log("🎧 AuthListener: Component unmounted, skipping auth state change handling");
+        return;
+      }
       
-      // Store the subscription object
-      authListenerSubscription = data;
-    } catch (subscriptionError) {
-      console.error("🎧 AuthListener: Error setting up auth listener:", subscriptionError);
-      // Ensure loading is set to false even on subscription error
-      updateState({ loading: false });
-    }
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log("🎧 AuthListener: User signed in:", session.user.id);
+        
+        // Get user profile data
+        const { profile } = await getUserProfile(session.user.id);
+        
+        if (isMounted) {
+          console.log("🎧 AuthListener: Setting user state after sign in", {
+            id: session.user.id,
+            hasProfile: !!profile
+          });
+          
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            username: profile?.username
+          });
+          setLoading(false);
+          setAuthChecked(true);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        console.log("🎧 AuthListener: User signed out");
+        if (isMounted) {
+          setUser(null);
+          setLoading(false);
+          setAuthChecked(true);
+        }
+      } else if (event === 'USER_UPDATED') {
+        console.log("🎧 AuthListener: User updated:", session?.user?.id);
+        // Handle user update if needed
+        if (session?.user && isMounted) {
+          const { profile } = await getUserProfile(session.user.id);
+          
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            username: profile?.username
+          });
+        }
+      } else if (event === 'TOKEN_REFRESHED') {
+        console.log("🎧 AuthListener: Token refreshed for user:", session?.user?.id);
+        // No need to update user state here as the session is just refreshed
+      }
+    });
 
     return () => {
       console.log("🎧 AuthListener: Cleaning up auth listener");
-      isMountedRef.current = false;
-      
-      if (authListenerSubscription) {
-        console.log("🎧 AuthListener: Unsubscribing from auth events");
-        try {
-          // Try different ways to access the unsubscribe method
-          if (typeof authListenerSubscription.unsubscribe === 'function') {
-            authListenerSubscription.unsubscribe();
-          } else if (authListenerSubscription.subscription && 
-                    typeof authListenerSubscription.subscription.unsubscribe === 'function') {
-            authListenerSubscription.subscription.unsubscribe();
-          } else {
-            console.warn("🎧 AuthListener: Could not find unsubscribe method", authListenerSubscription);
-          }
-        } catch (e) {
-          console.error("🎧 AuthListener: Error unsubscribing:", e);
-        }
-      }
+      isMounted = false;
+      authListener.subscription.unsubscribe();
     };
-  }, [updateState]);
+  }, []);
 
   useEffect(() => {
     console.log("🎧 AuthListener: Auth state updated:", { 
-      isAuthenticated: state.isAuthenticated, 
-      loading: state.loading, 
-      userId: state.user?.id,
-      userEmail: state.user?.email
+      isAuthenticated: !!user, 
+      loading, 
+      authChecked,
+      userId: user?.id
     });
-  }, [state.user, state.loading, state.isAuthenticated]);
+  }, [user, loading, authChecked]);
 
-  return {
-    user: state.user,
-    loading: state.loading,
-    isAuthenticated: state.isAuthenticated
-  };
+  return { user, loading, authChecked };
 };

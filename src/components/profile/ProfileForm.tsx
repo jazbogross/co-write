@@ -41,7 +41,6 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
         .upsert({ 
           id: user.id, 
           username: formData.username,
-          // Don't update email as it should remain fixed
           updated_at: new Date().toISOString()
         });
 

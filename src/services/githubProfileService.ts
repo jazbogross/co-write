@@ -16,7 +16,6 @@ export const checkProfileExists = async (userId: string) => {
       
     if (error) {
       console.error('🧩 GitHubProfileService: Error checking profile existence:', error);
-      console.log('🧩 GitHubProfileService: Error details:', JSON.stringify(error));
       return { exists: false, error };
     }
     
@@ -39,13 +38,6 @@ export const createProfileWithGitHubToken = async (
   console.log('🧩 GitHubProfileService: Creating new profile with GitHub token for user:', userId);
   
   try {
-    // First verify the user doesn't already exist to prevent duplicate errors
-    const checkResult = await checkProfileExists(userId);
-    if (checkResult.exists) {
-      console.log('🧩 GitHubProfileService: Profile already exists, updating instead of creating');
-      return updateProfileGitHubToken(userId, githubToken);
-    }
-    
     const { error } = await supabase
       .from('profiles')
       .insert({ 
@@ -58,13 +50,6 @@ export const createProfileWithGitHubToken = async (
     if (error) {
       console.error('🧩 GitHubProfileService: Error creating profile:', error);
       console.log('🧩 GitHubProfileService: Insert error details:', JSON.stringify(error));
-      
-      // If the error is a duplicate key violation, try to update instead
-      if (error.code === '23505') {
-        console.log('🧩 GitHubProfileService: Duplicate key violation, attempting update instead');
-        return updateProfileGitHubToken(userId, githubToken);
-      }
-      
       return { success: false, error };
     }
     
@@ -81,7 +66,6 @@ export const createProfileWithGitHubToken = async (
  */
 export const updateProfileGitHubToken = async (userId: string, githubToken: string) => {
   console.log('🧩 GitHubProfileService: Updating GitHub token for user:', userId);
-  console.log('🧩 GitHubProfileService: Token to store (truncated):', githubToken.substring(0, 10) + '...');
   
   try {
     const { error } = await supabase
@@ -116,31 +100,19 @@ export const storeGitHubToken = async (
 ) => {
   console.log('🧩 GitHubProfileService: Storing GitHub token for user:', userId);
   
-  try {
-    // Skip existence check to simplify the process and avoid race conditions
-    // Using upsert pattern: try insert, if fails do update
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({ 
-        id: userId,
-        username: email?.split('@')[0] || 'user',
-        github_access_token: githubToken,
-        updated_at: new Date().toISOString()
-      }, { 
-        onConflict: 'id',
-        ignoreDuplicates: false
-      });
-      
-    if (error) {
-      console.error('🧩 GitHubProfileService: Error on upsert operation:', error);
-      console.log('🧩 GitHubProfileService: Upsert error details:', JSON.stringify(error));
-      return { success: false, error };
-    }
-      
-    console.log('🧩 GitHubProfileService: GitHub token stored successfully via upsert');
-    return { success: true, error: null };
-  } catch (error) {
-    console.error('🧩 GitHubProfileService: Exception storing GitHub token:', error);
-    return { success: false, error };
+  // First check if profile exists
+  const { exists, error: checkError } = await checkProfileExists(userId);
+  
+  if (checkError) {
+    console.error('🧩 GitHubProfileService: Error checking profile before token storage:', checkError);
+    return { success: false, error: checkError };
+  }
+  
+  if (!exists) {
+    console.log('🧩 GitHubProfileService: No profile found, creating one with GitHub token');
+    return createProfileWithGitHubToken(userId, email, githubToken);
+  } else {
+    console.log('🧩 GitHubProfileService: Existing profile found, updating GitHub token');
+    return updateProfileGitHubToken(userId, githubToken);
   }
 };
