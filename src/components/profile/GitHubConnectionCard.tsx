@@ -68,7 +68,6 @@ export function GitHubConnectionCard() {
     }
   };
 
-  // Add the missing handleGithubConnect function
   const handleGithubConnect = async () => {
     try {
       setIsLoading(true);

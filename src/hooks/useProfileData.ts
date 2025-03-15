@@ -118,6 +118,7 @@ export function useProfileData() {
    */
   const fetchProfileData = async (userId: string) => {
     try {
+      console.log("📋 PROFILE: Fetching profile data for user ID:", userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('username, email, github_access_token')
@@ -156,7 +157,7 @@ export function useProfileData() {
    * Handles the case where no profile exists yet
    */
   const handleMissingProfile = async (userId: string, isMounted: boolean) => {
-    console.log("📋 PROFILE: No profile data found, using defaults");
+    console.log("📋 PROFILE: No profile data found, using defaults and creating profile");
     // If profile doesn't exist yet
     if (isMounted) {
       setProfile({
@@ -179,6 +180,11 @@ export function useProfileData() {
    */
   const createNewProfile = async (userId: string) => {
     try {
+      if (!isAuthenticated) {
+        console.log("📋 PROFILE: Cannot create profile - user not authenticated");
+        return;
+      }
+
       console.log("📋 PROFILE: Creating new profile for user", userId);
       const { error: insertError } = await supabase
         .from('profiles')
