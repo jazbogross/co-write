@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,39 @@ export function GitHubConnectionCard() {
       console.error("🔗 GITHUB: Error checking GitHub connection:", error);
       toast.error("Failed to check GitHub connection status");
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add the missing handleGithubConnect function
+  const handleGithubConnect = async () => {
+    try {
+      setIsLoading(true);
+      console.log("🔗 GITHUB: Initiating GitHub OAuth connection");
+      
+      // Generate state for redirection and CSRF protection
+      const redirectPath = "/profile";
+      const state = encodeURIComponent(redirectPath);
+      
+      // Initiate GitHub OAuth
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: `${window.location.origin}/github/callback?state=${state}`,
+          scopes: 'repo'
+        }
+      });
+      
+      if (error) {
+        console.error("🔗 GITHUB: OAuth error:", error);
+        toast.error("Failed to connect to GitHub");
+        throw error;
+      }
+      
+      console.log("🔗 GITHUB: OAuth initiated, redirecting to GitHub");
+    } catch (error) {
+      console.error("🔗 GITHUB: Connection error:", error);
+      toast.error("Failed to connect to GitHub");
       setIsLoading(false);
     }
   };
