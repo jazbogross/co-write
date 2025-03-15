@@ -21,7 +21,8 @@ interface Script {
 export const Index = () => {
   console.log("🏠 INDEX: Component rendering");
   const { user, loading: authLoading } = useAuth();
-  const [scripts, setScripts] = useState<Script[]>([]);
+  const [publicScripts, setPublicScripts] = useState<Script[]>([]);
+  const [yourScripts, setYourScripts] = useState<Script[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasFetched, setHasFetched] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -47,121 +48,91 @@ export const Index = () => {
     setIsLoading(true);
     
     try {
-      if (user) {
-        console.log("🏠 INDEX: User is logged in, fetching all scripts for user:", user.id);
-        // If user is logged in, fetch all public scripts and user's private scripts
-        const { data, error } = await supabase
-          .from('scripts')
-          .select(`
-            id,
-            title,
-            created_at,
-            admin_id,
-            is_private,
-            github_repo,
-            github_owner
-          `);
-          
-        if (error) {
-          console.error("🏠 INDEX: Error fetching scripts:", error);
-          setFetchError(`Scripts fetch error: ${error.message}`);
-          throw error;
-        }
+      // Always fetch public scripts from all users
+      const { data: publicData, error: publicError } = await supabase
+        .from('scripts')
+        .select(`
+          id,
+          title,
+          created_at,
+          admin_id,
+          is_private,
+          github_repo,
+          github_owner
+        `)
+        .eq('is_private', false);
         
-        console.log("🏠 INDEX: Fetched scripts:", data);
-        
-        // Fetch admin usernames in a separate query
-        const adminIds = [...new Set(data.map(script => script.admin_id))];
-        console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
-        
-        const { data: profilesData, error: profilesError } = await supabase
+      if (publicError) {
+        console.error("🏠 INDEX: Error fetching public scripts:", publicError);
+        setFetchError(`Public scripts fetch error: ${publicError.message}`);
+        throw publicError;
+      }
+      
+      console.log("🏠 INDEX: Fetched public scripts:", publicData);
+      
+      // Fetch admin usernames for public scripts
+      const publicAdminIds = [...new Set(publicData.map(script => script.admin_id))];
+      let publicFormattedScripts: Script[] = [];
+      
+      if (publicAdminIds.length > 0) {
+        const { data: publicProfilesData, error: publicProfilesError } = await supabase
           .from('profiles')
           .select('id, username')
-          .in('id', adminIds);
+          .in('id', publicAdminIds);
           
-        if (profilesError) {
-          console.error("🏠 INDEX: Error fetching profiles:", profilesError);
-          setFetchError(`Profiles fetch error: ${profilesError.message}`);
-          throw profilesError;
+        if (publicProfilesError) {
+          console.error("🏠 INDEX: Error fetching profiles for public scripts:", publicProfilesError);
+          setFetchError(`Profiles fetch error: ${publicProfilesError.message}`);
+          throw publicProfilesError;
         }
         
-        console.log("🏠 INDEX: Fetched profiles:", profilesData);
-        
-        // Create a map of admin_id to username
-        const adminUsernameMap = new Map();
-        profilesData?.forEach(profile => {
-          adminUsernameMap.set(profile.id, profile.username);
+        // Create a map of admin_id to username for public scripts
+        const publicAdminUsernameMap = new Map();
+        publicProfilesData?.forEach(profile => {
+          publicAdminUsernameMap.set(profile.id, profile.username);
         });
         
-        const formattedScripts = data.map(script => ({
-          id: script.id,
-          title: script.title,
-          created_at: script.created_at,
-          admin_id: script.admin_id,
-          is_private: script.is_private ?? false,
-          admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
-        }));
-        
-        console.log("🏠 INDEX: Formatted scripts:", formattedScripts);
-        setScripts(formattedScripts);
-      } else {
-        console.log("🏠 INDEX: No user logged in, fetching only public scripts");
-        // If no user is logged in, fetch only public scripts
-        const { data, error } = await supabase
-          .from('scripts')
-          .select(`
-            id,
-            title,
-            created_at,
-            admin_id,
-            is_private,
-            github_repo,
-            github_owner
-          `)
-          .eq('is_private', false);
-          
-        if (error) {
-          console.error("🏠 INDEX: Error fetching public scripts:", error);
-          setFetchError(`Public scripts fetch error: ${error.message}`);
-          throw error;
-        }
-        
-        console.log("🏠 INDEX: Fetched public scripts:", data);
-        
-        // Fetch admin usernames in a separate query
-        const adminIds = [...new Set(data.map(script => script.admin_id))];
-        console.log("🏠 INDEX: Fetching usernames for admin IDs:", adminIds);
-        
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .in('id', adminIds);
-          
-        if (profilesError) {
-          console.error("🏠 INDEX: Error fetching profiles for public scripts:", profilesError);
-          setFetchError(`Profiles fetch error: ${profilesError.message}`);
-          throw profilesError;
-        }
-        
-        console.log("🏠 INDEX: Fetched profiles for public scripts:", profilesData);
-        
-        // Create a map of admin_id to username
-        const adminUsernameMap = new Map();
-        profilesData?.forEach(profile => {
-          adminUsernameMap.set(profile.id, profile.username);
-        });
-        
-        const formattedScripts = data.map(script => ({
+        publicFormattedScripts = publicData.map(script => ({
           id: script.id,
           title: script.title,
           created_at: script.created_at,
           admin_id: script.admin_id,
           is_private: false,
-          admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
+          admin_username: publicAdminUsernameMap.get(script.admin_id) || 'Unknown'
         }));
-        
-        console.log("🏠 INDEX: Formatted public scripts:", formattedScripts);
-        setScripts(formattedScripts);
+      }
+      
+      setPublicScripts(publicFormattedScripts);
+      
+      // If user is logged in, also fetch their scripts
+      if (user) {
+        const { data: userScriptsData, error: userScriptsError } = await supabase
+          .from('scripts')
+          .select(`
+            id,
+            title,
+            created_at,
+            admin_id,
+            is_private
+          `)
+          .eq('admin_id', user.id);
+          
+        if (userScriptsError) {
+          console.error("🏠 INDEX: Error fetching user scripts:", userScriptsError);
+          setFetchError(`User scripts fetch error: ${userScriptsError.message}`);
+          // Don't throw here, continue with partial data
+        } else {
+          const userFormattedScripts = userScriptsData.map(script => ({
+            id: script.id,
+            title: script.title,
+            created_at: script.created_at,
+            admin_id: script.admin_id,
+            is_private: script.is_private ?? false,
+            admin_username: user.username || 'You'
+          }));
+          
+          setYourScripts(userFormattedScripts);
+        }
       }
       
       setHasFetched(true);
@@ -174,11 +145,68 @@ export const Index = () => {
     }
   };
   
-  console.log("🏠 INDEX: Rendering component with state:", { 
-    scriptsCount: scripts.length, 
-    isLoading, 
-    userAuthenticated: !!user 
-  });
+  const renderScriptCards = (scripts: Script[], showPrivateIndicator = true) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {scripts.map(script => (
+        <Card key={script.id} className="hover:shadow-md transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <span className="truncate">{script.title}</span>
+              {showPrivateIndicator && script.is_private && (
+                <LockIcon className="ml-2 h-4 w-4 text-amber-500" />
+              )}
+            </CardTitle>
+            <CardDescription className="flex items-center text-sm">
+              <CalendarIcon className="mr-1 h-3 w-3" />
+              {format(new Date(script.created_at), 'MMM d, yyyy')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center space-x-2 mb-4">
+              <Avatar className="h-6 w-6">
+                <AvatarFallback>{script.admin_username ? script.admin_username[0] : '?'}</AvatarFallback>
+              </Avatar>
+              <span className="text-sm text-gray-600">{script.admin_username}</span>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button asChild variant="secondary" size="sm">
+              <Link to={`/script/${script.id}`}>
+                <EyeIcon className="mr-1 h-4 w-4" />
+                View
+              </Link>
+            </Button>
+            {user && (
+              <Button asChild size="sm">
+                <Link to={`/script/${script.id}/edit`}>
+                  <GitForkIcon className="mr-1 h-4 w-4" />
+                  Edit
+                </Link>
+              </Button>
+            )}
+          </CardFooter>
+        </Card>
+      ))}
+    </div>
+  );
+  
+  const renderLoadingCards = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {[1, 2, 3, 4, 5, 6].map(i => (
+        <Card key={i} className="animate-pulse">
+          <CardHeader className="space-y-2">
+            <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          </CardHeader>
+          <CardContent className="h-16 bg-gray-100 rounded"></CardContent>
+          <CardFooter className="flex justify-between">
+            <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          </CardFooter>
+        </Card>
+      ))}
+    </div>
+  );
   
   return (
     <div className="container mx-auto py-8">
@@ -192,81 +220,51 @@ export const Index = () => {
       </div>
       
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map(i => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader className="space-y-2">
-                <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              </CardHeader>
-              <CardContent className="h-16 bg-gray-100 rounded"></CardContent>
-              <CardFooter className="flex justify-between">
-                <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-                <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      ) : scripts.length === 0 ? (
-        <div className="text-center py-20">
-          <h3 className="text-xl font-medium text-gray-600 mb-4">No scripts found</h3>
-          {fetchError && (
-            <div className="mt-2 p-4 bg-red-50 text-red-800 rounded mb-4">
-              Debug info: {fetchError}
-            </div>
-          )}
-          {user ? (
-            <Button asChild>
-              <Link to="/profile">Create Your First Script</Link>
-            </Button>
-          ) : (
-            <Button asChild>
-              <Link to="/auth">Sign In to Create Scripts</Link>
-            </Button>
-          )}
-        </div>
+        renderLoadingCards()
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {scripts.map(script => (
-            <Card key={script.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <span className="truncate">{script.title}</span>
-                  {script.is_private && (
-                    <LockIcon className="ml-2 h-4 w-4 text-amber-500" />
-                  )}
-                </CardTitle>
-                <CardDescription className="flex items-center text-sm">
-                  <CalendarIcon className="mr-1 h-3 w-3" />
-                  {format(new Date(script.created_at), 'MMM d, yyyy')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center space-x-2 mb-4">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback>{script.admin_username ? script.admin_username[0] : '?'}</AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm text-gray-600">{script.admin_username}</span>
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button asChild variant="secondary" size="sm">
-                  <Link to={`/script/${script.id}`}>
-                    <EyeIcon className="mr-1 h-4 w-4" />
-                    View
-                  </Link>
-                </Button>
-                {user && (
-                  <Button asChild size="sm">
-                    <Link to={`/script/${script.id}/edit`}>
-                      <GitForkIcon className="mr-1 h-4 w-4" />
-                      Edit
-                    </Link>
+        <div className="space-y-12">
+          {/* User's scripts section (if logged in) */}
+          {user && yourScripts.length > 0 && (
+            <section>
+              <h3 className="text-2xl font-semibold mb-4">Your Scripts</h3>
+              {renderScriptCards(yourScripts)}
+            </section>
+          )}
+          
+          {/* Public scripts section */}
+          <section>
+            <h3 className="text-2xl font-semibold mb-4">Public Scripts</h3>
+            {publicScripts.length === 0 ? (
+              <div className="text-center py-10">
+                <h4 className="text-xl font-medium text-gray-600 mb-4">No public scripts available</h4>
+                {fetchError && (
+                  <div className="mt-2 p-4 bg-red-50 text-red-800 rounded mb-4">
+                    Debug info: {fetchError}
+                  </div>
+                )}
+                {user ? (
+                  <Button asChild>
+                    <Link to="/profile">Create the First Public Script</Link>
+                  </Button>
+                ) : (
+                  <Button asChild>
+                    <Link to="/auth">Sign In to Create Scripts</Link>
                   </Button>
                 )}
-              </CardFooter>
-            </Card>
-          ))}
+              </div>
+            ) : (
+              renderScriptCards(publicScripts, false)
+            )}
+          </section>
+          
+          {/* Call-to-action if no scripts at all */}
+          {!user && publicScripts.length === 0 && (
+            <div className="text-center py-8">
+              <Button asChild>
+                <Link to="/auth">Sign In to Create Your Own Scripts</Link>
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
