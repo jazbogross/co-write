@@ -33,8 +33,12 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({ scriptId, isAd
         if (error) throw error;
         
         if (data?.content_delta) {
-          // Convert the plain JSON to a Delta object
-          setCurrentContent(new Delta(data.content_delta) as unknown as DeltaStatic);
+          // Make sure we're dealing with a plain object before passing to Delta constructor
+          const contentObj = typeof data.content_delta === 'string' 
+            ? JSON.parse(data.content_delta) 
+            : data.content_delta;
+            
+          setCurrentContent(new Delta(contentObj.ops || []) as unknown as DeltaStatic);
         }
       } catch (error) {
         console.error('Error loading script content:', error);

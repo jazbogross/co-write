@@ -40,15 +40,17 @@ export const SuggestionForm: React.FC<SuggestionFormProps> = ({
     setIsSubmitting(true);
     
     try {
-      // Create a proper Delta for the suggestion
+      // Create a Delta for the suggestion, then convert to plain object for storage
       const suggestionDelta = new Delta([{ insert: comment + "\n" }]);
+      // Convert Delta to a plain JSON object that Supabase can store
+      const jsonDeltaDiff = JSON.parse(JSON.stringify(suggestionDelta));
       
       const { error } = await supabase
         .from('script_suggestions')
         .insert({
           script_id: scriptId,
           user_id: user.id,
-          delta_diff: suggestionDelta,
+          delta_diff: jsonDeltaDiff,
           status: 'pending',
           created_at: new Date().toISOString()
         });
