@@ -8,13 +8,20 @@ export const useAuthListener = (
   authListenerCleanupRef: React.MutableRefObject<(() => void) | null>,
   setUser: (user: any) => void,
   setLoading: (loading: boolean) => void,
-  setAuthChecked: (checked: boolean) => void
+  setAuthChecked: (checked: boolean) => void,
+  isInitializedRef: React.MutableRefObject<boolean>
 ) => {
   useEffect(() => {
     console.log("🔑 useAuthListener: Setting up auth state listener");
     
     const checkSession = async () => {
       try {
+        // Skip if initialization was already completed
+        if (isInitializedRef.current) {
+          console.log("🔑 useAuthListener: Authentication already initialized, skipping session check");
+          return;
+        }
+
         console.log("🔑 useAuthListener: Checking for existing session");
         
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -64,6 +71,8 @@ export const useAuthListener = (
             });
             setLoading(false);
             setAuthChecked(true);
+            // Mark initialization as complete
+            isInitializedRef.current = true;
             console.log("🔑 useAuthListener: User set from session:", userId);
             console.log("🔑 useAuthListener: Auth checked set to true after user loaded");
           }
@@ -77,6 +86,8 @@ export const useAuthListener = (
             });
             setLoading(false);
             setAuthChecked(true);
+            // Mark initialization as complete even if there was an error
+            isInitializedRef.current = true;
             console.log("🔑 useAuthListener: User set with basic info due to profile error:", userId);
             console.log("🔑 useAuthListener: Auth checked set to true after profile error");
           }
@@ -119,6 +130,12 @@ export const useAuthListener = (
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
           try {
             console.log(`🔑 useAuthListener: User ${event === 'SIGNED_IN' ? 'signed in' : 'token refreshed'}:`, session.user.id);
+            
+            // First, update the loading state to indicate we're fetching profile
+            if (isMountedRef.current) {
+              setLoading(true);
+            }
+            
             const { profile } = await getUserProfile(session.user.id);
             
             if (isMountedRef.current) {
@@ -128,6 +145,8 @@ export const useAuthListener = (
                 username: profile?.username
               });
               setLoading(false);
+              // Mark initialization as complete
+              isInitializedRef.current = true;
               console.log("🔑 useAuthListener: User state updated after auth change:", session.user.id);
             }
           } catch (error) {
@@ -139,6 +158,8 @@ export const useAuthListener = (
                 email: session.user.email
               });
               setLoading(false);
+              // Mark initialization as complete even if there was an error
+              isInitializedRef.current = true;
             }
           }
         } else if (event === 'SIGNED_OUT') {
@@ -146,6 +167,8 @@ export const useAuthListener = (
           if (isMountedRef.current) {
             setUser(null);
             setLoading(false);
+            // Reset initialization flag on sign out
+            isInitializedRef.current = false;
           }
         } else if (event === 'USER_UPDATED' && session) {
           console.log("🔑 useAuthListener: User updated:", session.user.id);
@@ -159,6 +182,8 @@ export const useAuthListener = (
                 username: profile?.username
               });
               setLoading(false);
+              // Mark initialization as complete
+              isInitializedRef.current = true;
             }
           } catch (error) {
             console.error("🔑 useAuthListener: Error updating user after USER_UPDATED:", error);

@@ -62,7 +62,7 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
           setFetchError(null);
           
           // Set basic profile data from auth user
-          if (isMounted.current) {
+          if (isMounted.current && user.email) {
             setProfile({
               email: user.email || "",
               username: user.username || "",

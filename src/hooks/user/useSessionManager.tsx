@@ -28,6 +28,7 @@ export const useSessionManager = (
   // Check for initial session and set up auth state listener
   useEffect(() => {
     console.log('👤 useSessionManager: Initializing user data check...');
+    let isInitializationComplete = false;
     
     const checkInitialSession = async () => {
       try {
@@ -44,6 +45,7 @@ export const useSessionManager = (
             setters.setError(sessionError.message);
             setters.setIsLoading(false);
             setters.setAuthCheckedOnce(true);
+            isInitializationComplete = true;
             console.log('👤 useSessionManager: Auth checked set to true after session error');
           }
           return;
@@ -56,6 +58,7 @@ export const useSessionManager = (
             setters.setAuthProvider(null);
             setters.setIsLoading(false);
             setters.setAuthCheckedOnce(true);
+            isInitializationComplete = true;
             console.log('👤 useSessionManager: Auth checked set to true after no session found');
           }
           return;
@@ -80,6 +83,7 @@ export const useSessionManager = (
             setters.setIsLoading(false);
             setters.setAuthCheckedOnce(true);
             setters.setError(null);
+            isInitializationComplete = true;
             console.log('👤 useSessionManager: State updated with session data, userId:', user.id);
             console.log('👤 useSessionManager: Auth checked set to true after session data loaded');
           }
@@ -90,6 +94,7 @@ export const useSessionManager = (
           setters.setError(error instanceof Error ? error.message : 'Unknown error');
           setters.setIsLoading(false);
           setters.setAuthCheckedOnce(true);
+          isInitializationComplete = true;
           console.log('👤 useSessionManager: Auth checked set to true after exception');
         }
       }

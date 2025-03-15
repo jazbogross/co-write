@@ -1,5 +1,5 @@
 
-import { createContext, useContext, ReactNode, useEffect } from 'react';
+import { createContext, useContext, ReactNode, useEffect, useRef } from 'react';
 import { useAuthState } from './auth/useAuthState';
 import { useAuthListener } from './auth/useAuthListener';
 import { useAuthActions } from './auth/useAuthActions';
@@ -25,13 +25,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { setUser, setLoading, setAuthChecked } = setters;
   const { isMounted, authListenerCleanup } = refs;
   
+  // Track initialization to prevent race conditions
+  const isInitialized = useRef(false);
+  
   // Set up auth listener
   useAuthListener(
     isMounted,
     authListenerCleanup,
     setUser,
     setLoading,
-    setAuthChecked
+    setAuthChecked,
+    isInitialized
   );
   
   // Get auth actions
@@ -62,13 +66,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [user, loading, authChecked]);
 
+  // Return a stable context value
+  const contextValue = {
+    user, 
+    loading, 
+    authChecked,
+    ...actions
+  };
+
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      loading, 
-      authChecked,
-      ...actions
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

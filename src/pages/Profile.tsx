@@ -55,7 +55,7 @@ export default function Profile() {
   console.log("📋 PROFILE: Auth check complete, user authenticated, rendering profile content for user:", user.id);
   return (
     <>
-      <ProfileDataLoader>
+      <ProfileDataLoader key={user.id}>
         {({ profile, scripts, loading, fetchError }) => {
           // Handle the case where profile data is loading
           if (loading) {
@@ -74,4 +74,4 @@ export default function Profile() {
       </ProfileDataLoader>
     </>
   );
-}
+};
