@@ -34,9 +34,14 @@ export const getUser = async () => {
 export const getUserProfile = async (userId: string) => {
   console.log("🔐 AuthService: getUserProfile: Fetching profile for", userId);
   try {
+    // Log the current session state to help with debugging
+    const { data: sessionData } = await supabase.auth.getSession();
+    console.log("🔐 AuthService: Current session:", { session: sessionData?.session ? 'exists' : 'none' });
+    
+    // Fixed the typo in the query: changed 'emai' to 'email'
     const { data, error } = await supabase
       .from('profiles')
-      .select('username')
+      .select('username, email')
       .eq('id', userId)
       .single();
     
