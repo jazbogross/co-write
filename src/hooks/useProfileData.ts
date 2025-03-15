@@ -26,18 +26,19 @@ export function useProfileData() {
   const [hasFetched, setHasFetched] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Reset fetched state if user changes
+  // Reset fetched state if user changes or logs out
   useEffect(() => {
-    // If user ID changed, reset the hasFetched state to trigger a new fetch
-    if (user?.id !== userIdRef.current) {
-      console.log("📋 PROFILE: User ID changed, resetting fetch state", {
+    // If user ID changed or auth state changed, reset the hasFetched state
+    if (user?.id !== userIdRef.current || !isAuthenticated) {
+      console.log("📋 PROFILE: User changed or auth state changed, resetting fetch state", {
         previousUserId: userIdRef.current,
-        currentUserId: user?.id
+        currentUserId: user?.id,
+        isAuthenticated
       });
       userIdRef.current = user?.id || null;
       setHasFetched(false);
     }
-  }, [user?.id]);
+  }, [user?.id, isAuthenticated]);
 
   // Fetch user data when authenticated
   useEffect(() => {

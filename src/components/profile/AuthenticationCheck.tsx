@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ProfileLoadingState } from './ProfileLoadingState';
+import { debugSessionState } from '@/utils/sessionDebug';
 
 interface AuthenticationCheckProps {
   children: React.ReactNode;
@@ -12,6 +13,17 @@ export const AuthenticationCheck: React.FC<AuthenticationCheckProps> = ({ childr
   const navigate = useNavigate();
   const { loading: authLoading, isAuthenticated } = useAuth();
   const [redirecting, setRedirecting] = useState(false);
+  const [debugChecked, setDebugChecked] = useState(false);
+
+  // Debug session state when component mounts
+  useEffect(() => {
+    if (!debugChecked) {
+      debugSessionState().then(result => {
+        console.log("📋 PROFILE: Session debug check result:", result);
+        setDebugChecked(true);
+      });
+    }
+  }, [debugChecked]);
 
   // Redirect to auth if not authenticated
   useEffect(() => {

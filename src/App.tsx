@@ -1,3 +1,4 @@
+
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Index from "@/pages/Index";
 import Auth from "@/pages/Auth";
@@ -26,7 +27,7 @@ export default function App() {
     // Log Supabase and browser info for debugging
     console.log("🔑 App: Runtime information", {
       localStorage: localStorage.length,
-      hasSupabasePersistSession: localStorage.getItem('supabase.auth.token') !== null,
+      hasSupabasePersistSession: localStorage.getItem('sb-uoasmfawwtkejjdglyws-auth-token') !== null,
       userAgent: navigator.userAgent,
       language: navigator.language,
       referrer: document.referrer || 'none'
@@ -35,7 +36,7 @@ export default function App() {
     return () => {
       console.log("🔑 App: App unmounting", { time: new Date().toISOString() });
     };
-  }, []);
+  }, [appInitTime]);
   
   return (
     <Router>

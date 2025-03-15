@@ -2,6 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { AuthState, SessionData } from './types';
 import { getBasicUserData, fetchUserProfile, createFullUserData } from './userProfileManager';
+import { debugSessionState } from '@/utils/sessionDebug';
 
 export const checkCurrentSession = async (): Promise<{
   sessionData: any;
@@ -12,14 +13,18 @@ export const checkCurrentSession = async (): Promise<{
     console.log("🎧 AuthListener: Calling supabase.auth.getSession()");
     
     // Check for token in localStorage first
+    const storageTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
     const hasLocalToken = typeof localStorage !== 'undefined' && 
-      localStorage.getItem('supabase.auth.token') !== null;
+      localStorage.getItem(storageTokenKey) !== null;
     
     console.log("🎧 AuthListener: Local storage token check:", { 
       hasLocalToken,
       tokenExists: hasLocalToken ? 'yes' : 'no',
       storageAvailable: typeof localStorage !== 'undefined'
     });
+    
+    // Debug session state to get more info
+    await debugSessionState();
     
     const { data: sessionData, error } = await supabase.auth.getSession();
     
@@ -35,7 +40,7 @@ export const checkCurrentSession = async (): Promise<{
       userId: hasSession ? sessionData.session?.user?.id : 'none',
       sessionExpiry: hasSession ? sessionData.session?.expires_at : 'none',
       sessionObject: sessionData.session ? 'exists' : 'null',
-      storageData: typeof localStorage !== 'undefined' ? !!localStorage.getItem('supabase.auth.token') : 'no localStorage',
+      localStorageToken: hasLocalToken ? 'exists' : 'missing',
     });
     
     // Debug session expiry if it exists
@@ -47,6 +52,23 @@ export const checkCurrentSession = async (): Promise<{
         currentTime: now.toISOString(),
         isExpired: expiryDate < now
       });
+    }
+    
+    // If there is no session but there's a local token, try to refresh
+    if (!hasSession && hasLocalToken) {
+      console.log("🎧 AuthListener: Local token exists but no session, trying to refresh");
+      try {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (!refreshError && refreshData.session) {
+          console.log("🎧 AuthListener: Session refreshed successfully:", refreshData.session.user?.id);
+          return { 
+            sessionData: refreshData, 
+            hasSession: true 
+          };
+        }
+      } catch (refreshError) {
+        console.error("🎧 AuthListener: Error refreshing session:", refreshError);
+      }
     }
     
     return { sessionData, hasSession };
