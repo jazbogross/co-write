@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +14,7 @@ export default function Profile() {
   console.log("📋 PROFILE: Component rendering");
   const navigate = useNavigate();
   const { user, loading: authLoading, signOut, authChecked } = useAuth();
+  const isMounted = useRef(true);
   
   const [profile, setProfile] = useState<{ email: string; username: string }>({
     email: "",
@@ -30,14 +31,25 @@ export default function Profile() {
     userId: user?.id,
     loading,
     hasFetched,
-    authChecked
+    authChecked,
+    fetchError: !!fetchError
   });
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      console.log("📋 PROFILE: Component unmounting");
+      isMounted.current = false;
+    };
+  }, []);
 
   // Reset fetch state when user changes
   useEffect(() => {
     if (!user && authChecked) {
       console.log("📋 PROFILE: User is null and auth has been checked, resetting hasFetched");
-      setHasFetched(false);
+      if (isMounted.current) {
+        setHasFetched(false);
+      }
     }
   }, [user, authChecked]);
 
@@ -48,14 +60,21 @@ export default function Profile() {
       const getProfile = async () => {
         console.log("📋 PROFILE: Fetching profile data for user:", user.id);
         try {
+          if (!isMounted.current) {
+            console.log("📋 PROFILE: Component unmounted during fetch start, aborting");
+            return;
+          }
+          
           setLoading(true);
           setFetchError(null);
           
           // Set basic profile data from auth user
-          setProfile({
-            email: user.email || "",
-            username: user.username || "",
-          });
+          if (isMounted.current) {
+            setProfile({
+              email: user.email || "",
+              username: user.username || "",
+            });
+          }
 
           // Fetch user scripts
           console.log("📋 PROFILE: Fetching scripts for user:", user.id);
@@ -64,34 +83,49 @@ export default function Profile() {
             .select('id, title, created_at, is_private, admin_id')
             .eq('admin_id', user.id);
 
+          if (!isMounted.current) {
+            console.log("📋 PROFILE: Component unmounted during fetch, aborting");
+            return;
+          }
+
           if (scriptsError) {
             console.error("📋 PROFILE: Error fetching scripts:", scriptsError);
             setFetchError(`Scripts fetch error: ${scriptsError.message}`);
-            throw scriptsError;
+            // Don't throw here, continue with partial data if possible
+          } else {
+            console.log("📋 PROFILE: Scripts data fetched successfully:", scriptsData?.length || 0, "scripts");
+
+            // Transform the data to match the Script type
+            const formattedScripts: Script[] = (scriptsData || []).map(script => ({
+              id: script.id,
+              title: script.title,
+              admin_id: script.admin_id,
+              created_at: script.created_at,
+              is_private: script.is_private,
+              profiles: { username: "" } // Add a default profiles property
+            }));
+
+            if (isMounted.current) {
+              setScripts(formattedScripts);
+            }
           }
-
-          console.log("📋 PROFILE: Scripts data:", scriptsData);
-
-          // Transform the data to match the Script type
-          const formattedScripts: Script[] = (scriptsData || []).map(script => ({
-            id: script.id,
-            title: script.title,
-            admin_id: script.admin_id,
-            created_at: script.created_at,
-            is_private: script.is_private,
-            profiles: { username: "" } // Add a default profiles property
-          }));
-
-          setScripts(formattedScripts);
-          setHasFetched(true); // Mark that we've fetched data
-          setFetchError(null);
-          console.log("📋 PROFILE: Data fetching complete, hasFetched set to true");
+          
+          if (isMounted.current) {
+            setHasFetched(true); // Mark that we've fetched data
+            setFetchError(null);
+            console.log("📋 PROFILE: Data fetching complete, hasFetched set to true");
+          }
         } catch (error) {
           console.error("📋 PROFILE: Error loading profile:", error);
-          toast.error("Failed to load profile");
+          if (isMounted.current) {
+            setFetchError(error instanceof Error ? error.message : String(error));
+            toast.error("Failed to load profile");
+          }
         } finally {
-          setLoading(false);
-          console.log("📋 PROFILE: Loading state set to false");
+          if (isMounted.current) {
+            setLoading(false);
+            console.log("📋 PROFILE: Loading state set to false");
+          }
         }
       };
 
@@ -117,13 +151,18 @@ export default function Profile() {
   // Handle the case where authentication check is still in progress
   if (authLoading || !authChecked) {
     console.log("📋 PROFILE: Rendering loading state - auth state is loading or not checked yet");
-    return <div className="container py-8 text-center">Checking authentication...</div>;
+    return <div className="container py-8 text-center">
+      <div className="text-lg">Checking authentication...</div>
+      <div className="text-sm text-gray-500 mt-2">Please wait while we verify your session</div>
+    </div>;
   }
 
   // Handle the case where the user is not authenticated
   if (!user) {
-    console.log("📋 PROFILE: No user, should redirect to auth");
-    return <div className="container py-8 text-center">Not authenticated. Redirecting...</div>;
+    console.log("📋 PROFILE: No user, redirecting to auth");
+    return <div className="container py-8 text-center">
+      <div className="text-lg">Not authenticated. Redirecting...</div>
+    </div>;
   }
 
   // Handle the case where profile data is loading
@@ -131,10 +170,12 @@ export default function Profile() {
     console.log("📋 PROFILE: Rendering loading state - profile data is loading");
     return (
       <div className="container py-8 text-center">
-        <div>Loading profile...</div>
+        <div className="text-lg">Loading profile...</div>
+        <div className="text-sm text-gray-500 mt-2">Fetching your data and scripts</div>
         {fetchError && (
           <div className="mt-4 p-4 bg-red-50 text-red-800 rounded">
-            Debug info: {fetchError}
+            <div className="font-semibold">Error loading data:</div>
+            <div>{fetchError}</div>
           </div>
         )}
       </div>

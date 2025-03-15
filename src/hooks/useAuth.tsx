@@ -1,5 +1,5 @@
 
-import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
+import { createContext, useContext, ReactNode, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { signInWithPassword, signUpWithPassword, signOut as authSignOut, resetPassword as authResetPassword, getUserProfile } from '@/services/authService';
@@ -24,22 +24,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const navigate = useNavigate();
+  const isMounted = useRef(true);
+  const authListenerCleanup = useRef<(() => void) | null>(null);
+
+  // Set up cleanup on unmount
+  useEffect(() => {
+    return () => {
+      console.log("🔑 AuthProvider: Unmounting, cleaning up");
+      isMounted.current = false;
+      
+      // Clean up auth listener if it exists
+      if (authListenerCleanup.current) {
+        console.log("🔑 AuthProvider: Cleaning up auth listener on unmount");
+        authListenerCleanup.current();
+        authListenerCleanup.current = null;
+      }
+    };
+  }, []);
 
   // Check for session on mount and set up auth state listener
   useEffect(() => {
     console.log("🔑 AuthProvider: Setting up auth state");
-    let mounted = true;
     
     const checkSession = async () => {
       try {
-        setLoading(true);
         console.log("🔑 AuthProvider: Checking for existing session");
         
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           console.error("🔑 AuthProvider: Session error:", sessionError);
-          if (mounted) {
+          if (isMounted.current) {
             setUser(null);
             setLoading(false);
             setAuthChecked(true);
@@ -49,7 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (!sessionData.session) {
           console.log("🔑 AuthProvider: No active session");
-          if (mounted) {
+          if (isMounted.current) {
             setUser(null);
             setLoading(false);
             setAuthChecked(true);
@@ -61,20 +76,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userId = sessionData.session.user.id;
         console.log("🔑 AuthProvider: Active session found for user:", userId);
         
-        const { profile } = await getUserProfile(userId);
-        
-        if (mounted) {
-          setUser({
-            id: userId,
-            email: sessionData.session.user.email,
-            username: profile?.username
-          });
-          setLoading(false);
-          setAuthChecked(true);
+        try {
+          const { profile, error: profileError } = await getUserProfile(userId);
+          
+          if (profileError) {
+            console.error("🔑 AuthProvider: Error fetching user profile:", profileError);
+          }
+          
+          if (isMounted.current) {
+            setUser({
+              id: userId,
+              email: sessionData.session.user.email,
+              username: profile?.username
+            });
+            setLoading(false);
+            setAuthChecked(true);
+            console.log("🔑 AuthProvider: User set from session:", userId);
+          }
+        } catch (profileError) {
+          console.error("🔑 AuthProvider: Exception fetching profile:", profileError);
+          if (isMounted.current) {
+            // Still set the user with basic info even if profile fetch fails
+            setUser({
+              id: userId,
+              email: sessionData.session.user.email
+            });
+            setLoading(false);
+            setAuthChecked(true);
+            console.log("🔑 AuthProvider: User set with basic info due to profile error:", userId);
+          }
         }
       } catch (error) {
         console.error("🔑 AuthProvider: Error checking session:", error);
-        if (mounted) {
+        if (isMounted.current) {
           setUser(null);
           setLoading(false);
           setAuthChecked(true);
@@ -85,44 +119,93 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Check for session immediately
     checkSession();
     
-    // Set up auth listener for changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`🔑 AuthProvider: Auth state change: ${event}`, {
-        hasSession: !!session,
-        userId: session?.user?.id
-      });
-      
-      if (!mounted) return;
-      
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
-        try {
-          const { profile } = await getUserProfile(session.user.id);
-          
-          if (mounted) {
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              username: profile?.username
-            });
+    // Set up auth listener with better error handling
+    try {
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log(`🔑 AuthProvider: Auth state change: ${event}`, {
+          hasSession: !!session,
+          userId: session?.user?.id
+        });
+        
+        if (!isMounted.current) {
+          console.log("🔑 AuthProvider: Component unmounted, skipping auth state update");
+          return;
+        }
+        
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+          try {
+            console.log(`🔑 AuthProvider: User ${event === 'SIGNED_IN' ? 'signed in' : 'token refreshed'}:`, session.user.id);
+            const { profile } = await getUserProfile(session.user.id);
+            
+            if (isMounted.current) {
+              setUser({
+                id: session.user.id,
+                email: session.user.email,
+                username: profile?.username
+              });
+              setLoading(false);
+              setAuthChecked(true);
+              console.log("🔑 AuthProvider: User state updated after auth change:", session.user.id);
+            }
+          } catch (error) {
+            console.error(`🔑 AuthProvider: Error updating user after ${event}:`, error);
+            if (isMounted.current) {
+              // Still set basic user info even if profile fetch fails
+              setUser({
+                id: session.user.id,
+                email: session.user.email
+              });
+              setLoading(false);
+              setAuthChecked(true);
+            }
+          }
+        } else if (event === 'SIGNED_OUT') {
+          console.log("🔑 AuthProvider: User signed out");
+          if (isMounted.current) {
+            setUser(null);
             setLoading(false);
             setAuthChecked(true);
           }
-        } catch (error) {
-          console.error("🔑 AuthProvider: Error updating user after auth change:", error);
+        } else if (event === 'USER_UPDATED' && session) {
+          console.log("🔑 AuthProvider: User updated:", session.user.id);
+          try {
+            const { profile } = await getUserProfile(session.user.id);
+            
+            if (isMounted.current) {
+              setUser({
+                id: session.user.id,
+                email: session.user.email,
+                username: profile?.username
+              });
+              setLoading(false);
+              setAuthChecked(true);
+            }
+          } catch (error) {
+            console.error("🔑 AuthProvider: Error updating user after USER_UPDATED:", error);
+          }
         }
-      } else if (event === 'SIGNED_OUT') {
-        if (mounted) {
-          setUser(null);
-          setLoading(false);
-          setAuthChecked(true);
-        }
+      });
+
+      // Store cleanup function
+      authListenerCleanup.current = () => {
+        console.log("🔑 AuthProvider: Cleaning up auth listener via stored cleanup function");
+        authListener.subscription.unsubscribe();
+      };
+
+    } catch (error) {
+      console.error("🔑 AuthProvider: Error setting up auth listener:", error);
+      if (isMounted.current) {
+        setLoading(false);
+        setAuthChecked(true);
       }
-    });
+    }
     
     return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
-      console.log("🔑 AuthProvider: Cleaned up auth listener");
+      if (authListenerCleanup.current) {
+        console.log("🔑 AuthProvider: Cleaning up auth listener on effect cleanup");
+        authListenerCleanup.current();
+        authListenerCleanup.current = null;
+      }
     };
   }, []);
 
