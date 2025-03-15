@@ -1,4 +1,3 @@
-
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Index from "@/pages/Index";
 import Auth from "@/pages/Auth";
@@ -9,11 +8,15 @@ import GitHubCallback from "@/pages/GitHubCallback";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "./hooks/useAuth";
 import { useState, useEffect } from "react";
+import { cleanupDuplicateTokens } from './utils/sessionDebug';
 
 export default function App() {
   const [appInitTime] = useState(new Date().toISOString());
   
   useEffect(() => {
+    // Clean up any duplicate auth tokens on app initialization
+    cleanupDuplicateTokens();
+    
     console.log("🔑 App: Initializing application", { 
       time: appInitTime,
       url: window.location.href,
@@ -32,7 +35,7 @@ export default function App() {
     return () => {
       console.log("🔑 App: App unmounting", { time: new Date().toISOString() });
     };
-  }, [appInitTime]);
+  }, []);
   
   return (
     <Router>

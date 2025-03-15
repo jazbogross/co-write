@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 /**
@@ -17,13 +16,24 @@ export const debugSessionState = async () => {
       const keys = Object.keys(localStorage);
       console.log('All Local Storage Keys:', keys);
       
-      const authTokenKey = 'supabase.auth.token';
-      const hasAuthToken = localStorage.getItem(authTokenKey) !== null;
-      console.log('Auth Token Exists:', hasAuthToken);
+      // Check for both possible auth token keys
+      const officialAuthTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
+      const legacyAuthTokenKey = 'supabase.auth.token';
       
-      if (hasAuthToken) {
-        const token = localStorage.getItem(authTokenKey);
-        console.log('Token Preview:', token ? `${token.substring(0, 20)}...` : 'null');
+      const hasOfficialToken = localStorage.getItem(officialAuthTokenKey) !== null;
+      const hasLegacyToken = localStorage.getItem(legacyAuthTokenKey) !== null;
+      
+      console.log('Auth Tokens:', {
+        officialToken: hasOfficialToken,
+        legacyToken: hasLegacyToken
+      });
+      
+      if (hasLegacyToken && !hasOfficialToken) {
+        console.log('Legacy token found but official token missing. This may cause auth issues.');
+      }
+      
+      if (hasOfficialToken && hasLegacyToken) {
+        console.log('Both token types found. This may cause conflicts.');
       }
     }
     
@@ -64,5 +74,42 @@ export const refreshSessionToken = async () => {
   } catch (error) {
     console.error('Session Refresh Error:', error);
     return { success: false, error };
+  }
+};
+
+/**
+ * Clean up duplicate auth tokens in localStorage
+ */
+export const cleanupDuplicateTokens = () => {
+  try {
+    // Only run in browser environment
+    if (typeof localStorage === 'undefined') return;
+    
+    const officialAuthTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
+    const legacyAuthTokenKey = 'supabase.auth.token';
+    
+    const hasOfficialToken = localStorage.getItem(officialAuthTokenKey) !== null;
+    const hasLegacyToken = localStorage.getItem(legacyAuthTokenKey) !== null;
+    
+    // If both tokens exist, keep the official one and remove the legacy one
+    if (hasOfficialToken && hasLegacyToken) {
+      console.log('Cleaning up duplicate auth tokens');
+      localStorage.removeItem(legacyAuthTokenKey);
+      return true;
+    }
+    
+    // If only legacy token exists, move it to the official key
+    if (!hasOfficialToken && hasLegacyToken) {
+      console.log('Migrating legacy token to official format');
+      const legacyToken = localStorage.getItem(legacyAuthTokenKey);
+      localStorage.setItem(officialAuthTokenKey, legacyToken!);
+      localStorage.removeItem(legacyAuthTokenKey);
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error cleaning up tokens:', error);
+    return false;
   }
 };

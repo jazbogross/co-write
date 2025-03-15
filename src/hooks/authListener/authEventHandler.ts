@@ -1,6 +1,7 @@
 
 import { AuthState, AuthEventData } from './types';
 import { updateStateFromSession, loadFullUserProfile } from './sessionManager';
+import { cleanupDuplicateTokens } from '@/utils/sessionDebug';
 
 export const handleAuthStateChange = async (
   event: string,
@@ -8,7 +9,12 @@ export const handleAuthStateChange = async (
   isMounted: boolean,
   setState: (state: Partial<AuthState>) => void
 ): Promise<void> => {
-  const storageToken = typeof localStorage !== 'undefined' ? localStorage.getItem('supabase.auth.token') : null;
+  // Check for and clean up any duplicate tokens
+  cleanupDuplicateTokens();
+  
+  // Get the storage token using the correct key
+  const storageTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
+  const storageToken = typeof localStorage !== 'undefined' ? localStorage.getItem(storageTokenKey) : null;
   
   console.log(`🎧 AuthListener: Auth state change event: ${event}`, {
     sessionExists: !!session,
