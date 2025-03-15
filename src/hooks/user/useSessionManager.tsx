@@ -33,6 +33,10 @@ export const useSessionManager = (
       try {
         console.log('👤 useSessionManager: Checking for initial session...');
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        console.log('👤 useSessionManager: Session check result:', { 
+          hasSession: !!sessionData?.session, 
+          hasError: !!sessionError 
+        });
         
         if (sessionError) {
           console.error('👤 useSessionManager: Error getting session:', sessionError);
@@ -96,6 +100,7 @@ export const useSessionManager = (
     
     // Set up auth state change listener with better cleanup
     try {
+      console.log('👤 useSessionManager: Setting up Supabase auth state change listener');
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         console.log(`👤 useSessionManager: Auth state change event: ${event}`, {
           sessionExists: !!session,
@@ -105,6 +110,12 @@ export const useSessionManager = (
         if (!refs.isMounted.current) {
           console.log('👤 useSessionManager: Component unmounted, skipping auth state update');
           return;
+        }
+        
+        // Always set authCheckedOnce to true for any non-initial auth event
+        if (refs.isMounted.current && !event.includes('INITIAL')) {
+          setters.setAuthCheckedOnce(true);
+          console.log(`👤 useSessionManager: Auth checked explicitly set to true for event: ${event}`);
         }
         
         if (event === 'SIGNED_IN' && session?.user) {
@@ -120,10 +131,8 @@ export const useSessionManager = (
             setters.setUserId(session.user.id);
             setters.setAuthProvider(provider);
             setters.setIsLoading(false);
-            setters.setAuthCheckedOnce(true);
             setters.setError(null);
             console.log('👤 useSessionManager: State updated after sign in, userId:', session.user.id);
-            console.log('👤 useSessionManager: Auth checked set to true after sign in');
           }
         } else if (event === 'SIGNED_OUT') {
           console.log('👤 useSessionManager: User signed out');
@@ -131,9 +140,7 @@ export const useSessionManager = (
             setters.setUserId(null);
             setters.setAuthProvider(null);
             setters.setIsLoading(false);
-            setters.setAuthCheckedOnce(true);
             setters.setError(null);
-            console.log('👤 useSessionManager: Auth checked set to true after sign out');
           }
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
           console.log('👤 useSessionManager: Token refreshed for user:', session.user.id);
@@ -148,10 +155,8 @@ export const useSessionManager = (
             setters.setUserId(session.user.id);
             setters.setAuthProvider(provider);
             setters.setIsLoading(false);
-            setters.setAuthCheckedOnce(true);
             setters.setError(null);
             console.log('👤 useSessionManager: State updated after token refresh, userId:', session.user.id);
-            console.log('👤 useSessionManager: Auth checked set to true after token refresh');
           }
         } else if (event === 'USER_UPDATED' && session?.user) {
           console.log('👤 useSessionManager: User updated:', session.user.id);
@@ -161,16 +166,8 @@ export const useSessionManager = (
             setters.setUserId(session.user.id);
             setters.setAuthProvider(provider);
             setters.setIsLoading(false);
-            setters.setAuthCheckedOnce(true);
             setters.setError(null);
             console.log('👤 useSessionManager: State updated after user update, userId:', session.user.id);
-            console.log('👤 useSessionManager: Auth checked set to true after user update');
-          }
-        } else {
-          // For any other event, ensure we've properly set authCheckedOnce
-          if (refs.isMounted.current && !event.includes('INITIAL')) {
-            setters.setAuthCheckedOnce(true);
-            console.log(`👤 useSessionManager: Auth checked set to true after unhandled event: ${event}`);
           }
         }
       });

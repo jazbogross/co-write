@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Log state changes
   useEffect(() => {
-    console.log("🔑 AuthProvider: Current state:", { 
+    console.log("🔑 AuthProvider: State Updated:", { 
       isAuthenticated: !!user, 
       loading, 
       authChecked,

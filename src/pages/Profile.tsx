@@ -48,22 +48,22 @@ export default function Profile() {
 
   // Handle the case where the user is not authenticated
   if (!user) {
-    console.log("📋 PROFILE: No user, redirecting to auth");
+    console.log("📋 PROFILE: User not authenticated, showing error or redirecting");
     return <ProfileError />;
   }
 
-  console.log("📋 PROFILE: Rendering profile data loader");
+  console.log("📋 PROFILE: Auth check complete, user authenticated, rendering profile content for user:", user.id);
   return (
     <>
       <ProfileDataLoader>
         {({ profile, scripts, loading, fetchError }) => {
           // Handle the case where profile data is loading
           if (loading) {
-            console.log("📋 PROFILE: Rendering loading state - profile data is loading");
+            console.log("📋 PROFILE: Profile data is loading");
             return <ProfileLoading fetchError={fetchError} />;
           }
 
-          console.log("📋 PROFILE: Rendering complete profile page");
+          console.log("📋 PROFILE: Rendering complete profile page with", scripts.length, "scripts");
           return (
             <>
               <ProfileContent profile={profile} scripts={scripts} />

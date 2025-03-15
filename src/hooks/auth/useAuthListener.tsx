@@ -18,6 +18,10 @@ export const useAuthListener = (
         console.log("🔑 useAuthListener: Checking for existing session");
         
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        console.log("🔑 useAuthListener: Session check result:", { 
+          hasSession: !!sessionData?.session, 
+          hasError: !!sessionError 
+        });
         
         if (sessionError) {
           console.error("🔑 useAuthListener: Session error:", sessionError);
@@ -93,6 +97,7 @@ export const useAuthListener = (
     
     // Set up auth listener
     try {
+      console.log("🔑 useAuthListener: Setting up Supabase auth state change listener");
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         console.log(`🔑 useAuthListener: Auth state change: ${event}`, {
           hasSession: !!session,
@@ -102,6 +107,13 @@ export const useAuthListener = (
         if (!isMountedRef.current) {
           console.log("🔑 useAuthListener: Component unmounted, skipping auth state update");
           return;
+        }
+
+        // Always ensure authChecked gets set to true for any auth event
+        // This ensures we don't get stuck in loading state
+        if (isMountedRef.current && !event.includes('INITIAL')) {
+          setAuthChecked(true);
+          console.log(`🔑 useAuthListener: Auth checked explicitly set to true for event: ${event}`);
         }
         
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
@@ -116,9 +128,7 @@ export const useAuthListener = (
                 username: profile?.username
               });
               setLoading(false);
-              setAuthChecked(true);
               console.log("🔑 useAuthListener: User state updated after auth change:", session.user.id);
-              console.log("🔑 useAuthListener: Auth checked set to true after auth change");
             }
           } catch (error) {
             console.error(`🔑 useAuthListener: Error updating user after ${event}:`, error);
@@ -129,8 +139,6 @@ export const useAuthListener = (
                 email: session.user.email
               });
               setLoading(false);
-              setAuthChecked(true);
-              console.log("🔑 useAuthListener: Auth checked set to true after auth change error");
             }
           }
         } else if (event === 'SIGNED_OUT') {
@@ -138,8 +146,6 @@ export const useAuthListener = (
           if (isMountedRef.current) {
             setUser(null);
             setLoading(false);
-            setAuthChecked(true);
-            console.log("🔑 useAuthListener: Auth checked set to true after sign out");
           }
         } else if (event === 'USER_UPDATED' && session) {
           console.log("🔑 useAuthListener: User updated:", session.user.id);
@@ -153,8 +159,6 @@ export const useAuthListener = (
                 username: profile?.username
               });
               setLoading(false);
-              setAuthChecked(true);
-              console.log("🔑 useAuthListener: Auth checked set to true after user update");
             }
           } catch (error) {
             console.error("🔑 useAuthListener: Error updating user after USER_UPDATED:", error);
@@ -164,15 +168,7 @@ export const useAuthListener = (
                 email: session.user.email
               });
               setLoading(false);
-              setAuthChecked(true);
-              console.log("🔑 useAuthListener: Auth checked set to true after user update error");
             }
-          }
-        } else {
-          // For any other event, ensure we've properly set authChecked
-          if (isMountedRef.current && !event.includes('INITIAL')) {
-            setAuthChecked(true);
-            console.log(`🔑 useAuthListener: Auth checked set to true after unhandled event: ${event}`);
           }
         }
       });
@@ -186,6 +182,7 @@ export const useAuthListener = (
     } catch (error) {
       console.error("🔑 useAuthListener: Error setting up auth listener:", error);
       if (isMountedRef.current) {
+        setUser(null);
         setLoading(false);
         setAuthChecked(true);
         console.log("🔑 useAuthListener: Auth checked set to true after listener setup error");
