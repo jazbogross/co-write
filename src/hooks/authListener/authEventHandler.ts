@@ -8,11 +8,14 @@ export const handleAuthStateChange = async (
   isMounted: boolean,
   setState: (state: Partial<AuthState>) => void
 ): Promise<void> => {
+  const storageToken = typeof localStorage !== 'undefined' ? localStorage.getItem('supabase.auth.token') : null;
+  
   console.log(`🎧 AuthListener: Auth state change event: ${event}`, {
     sessionExists: !!session,
     userId: session?.user?.id,
     eventTimestamp: new Date().toISOString(),
-    hasLocalStorage: typeof localStorage !== 'undefined' ? !!localStorage.getItem('supabase.auth.token') : 'no localStorage'
+    hasLocalStorage: !!storageToken,
+    tokenLength: storageToken ? `${storageToken.substring(0, 15)}...` : 'none'
   });
   
   if (!isMounted) {

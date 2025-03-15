@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { debugSessionState } from '@/utils/sessionDebug';
 
 const OAuthRedirectHandler = () => {
   useEffect(() => {
@@ -29,9 +30,8 @@ const OAuthRedirectHandler = () => {
             // Detailed logging for debugging
             console.log("Auth: GitHub token to store:", providerToken.substring(0, 10) + "...");
             
-            // Verify session is persisted
-            const session = await supabase.auth.getSession();
-            console.log("Auth: Session persisted:", !!session.data.session);
+            // Verify session is persisted and debug session state
+            await debugSessionState();
             
             // Store the github_access_token in the profiles table
             const { data: profileData, error: profileCheckError } = await supabase

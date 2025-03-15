@@ -10,6 +10,17 @@ export const checkCurrentSession = async (): Promise<{
   console.log("🎧 AuthListener: Checking for current user session");
   try {
     console.log("🎧 AuthListener: Calling supabase.auth.getSession()");
+    
+    // Check for token in localStorage first
+    const hasLocalToken = typeof localStorage !== 'undefined' && 
+      localStorage.getItem('supabase.auth.token') !== null;
+    
+    console.log("🎧 AuthListener: Local storage token check:", { 
+      hasLocalToken,
+      tokenExists: hasLocalToken ? 'yes' : 'no',
+      storageAvailable: typeof localStorage !== 'undefined'
+    });
+    
     const { data: sessionData, error } = await supabase.auth.getSession();
     
     if (error) {

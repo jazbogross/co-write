@@ -14,9 +14,10 @@ export const supabase = createClient<Database>(
   SUPABASE_PUBLISHABLE_KEY,
   {
     auth: {
-      persistSession: true, // Enable session persistence in localStorage
+      persistSession: true,
       autoRefreshToken: true,
-      storageKey: 'supabase.auth.token' // Key used in localStorage
+      storageKey: 'supabase.auth.token',
+      detectSessionInUrl: true
     }
   }
 );
