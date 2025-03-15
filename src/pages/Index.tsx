@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +8,7 @@ import { CalendarIcon, GitForkIcon, LockIcon, EyeIcon, Users } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 interface Script {
   id: string;
@@ -47,11 +49,15 @@ export const Index = () => {
   const fetchScripts = async () => {
     console.log("🏠 INDEX: Fetching scripts...");
     setIsLoading(true);
+    setFetchError(null);
+    
     try {
+      // Explicitly select is_private=false to ensure we get only public scripts
       const {
         data: publicData,
         error: publicError
-      } = await supabase.from('scripts').select(`
+      } = await supabase.from('scripts')
+        .select(`
           id,
           title,
           created_at,
@@ -59,47 +65,71 @@ export const Index = () => {
           is_private,
           github_repo,
           github_owner
-        `).eq('is_private', false);
+        `)
+        .eq('is_private', false);
 
       if (publicError) {
         console.error("🏠 INDEX: Error fetching public scripts:", publicError);
         setFetchError(`Public scripts fetch error: ${publicError.message}`);
+        toast.error("Failed to load public scripts");
         throw publicError;
       }
 
       console.log("🏠 INDEX: Fetched public scripts:", publicData);
+      
+      // Check if we have any public scripts
+      if (publicData.length === 0) {
+        console.log("🏠 INDEX: No public scripts found in the database");
+        setPublicScripts([]);
+      } else {
+        // Get usernames for script admins
+        const publicAdminIds = [...new Set(publicData.map(script => script.admin_id))];
+        let publicFormattedScripts: Script[] = [];
+        
+        if (publicAdminIds.length > 0) {
+          const {
+            data: publicProfilesData,
+            error: publicProfilesError
+          } = await supabase.from('profiles').select('id, username').in('id', publicAdminIds);
 
-      const publicAdminIds = [...new Set(publicData.map(script => script.admin_id))];
-      let publicFormattedScripts: Script[] = [];
-      if (publicAdminIds.length > 0) {
-        const {
-          data: publicProfilesData,
-          error: publicProfilesError
-        } = await supabase.from('profiles').select('id, username').in('id', publicAdminIds);
+          if (publicProfilesError) {
+            console.error("🏠 INDEX: Error fetching profiles for public scripts:", publicProfilesError);
+            setFetchError(`Profiles fetch error: ${publicProfilesError.message}`);
+            toast.error("Failed to load user profiles");
+            throw publicProfilesError;
+          }
 
-        if (publicProfilesError) {
-          console.error("🏠 INDEX: Error fetching profiles for public scripts:", publicProfilesError);
-          setFetchError(`Profiles fetch error: ${publicProfilesError.message}`);
-          throw publicProfilesError;
+          console.log("🏠 INDEX: Fetched profiles:", publicProfilesData);
+
+          const publicAdminUsernameMap = new Map();
+          publicProfilesData?.forEach(profile => {
+            publicAdminUsernameMap.set(profile.id, profile.username);
+          });
+
+          publicFormattedScripts = publicData.map(script => ({
+            id: script.id,
+            title: script.title,
+            created_at: script.created_at,
+            admin_id: script.admin_id,
+            is_private: script.is_private ?? false,
+            admin_username: publicAdminUsernameMap.get(script.admin_id) || 'Unknown'
+          }));
+        } else {
+          // Handle the case where we have scripts but no admin IDs
+          publicFormattedScripts = publicData.map(script => ({
+            id: script.id,
+            title: script.title,
+            created_at: script.created_at,
+            admin_id: script.admin_id,
+            is_private: script.is_private ?? false,
+            admin_username: 'Unknown'
+          }));
         }
-
-        const publicAdminUsernameMap = new Map();
-        publicProfilesData?.forEach(profile => {
-          publicAdminUsernameMap.set(profile.id, profile.username);
-        });
-
-        publicFormattedScripts = publicData.map(script => ({
-          id: script.id,
-          title: script.title,
-          created_at: script.created_at,
-          admin_id: script.admin_id,
-          is_private: false,
-          admin_username: publicAdminUsernameMap.get(script.admin_id) || 'Unknown'
-        }));
+        
+        setPublicScripts(publicFormattedScripts);
       }
 
-      setPublicScripts(publicFormattedScripts);
-
+      // Fetch user's scripts if user is logged in
       if (user) {
         const {
           data: userScriptsData,
@@ -115,6 +145,7 @@ export const Index = () => {
         if (userScriptsError) {
           console.error("🏠 INDEX: Error fetching user scripts:", userScriptsError);
           setFetchError(`User scripts fetch error: ${userScriptsError.message}`);
+          toast.error("Failed to load your scripts");
         } else {
           const userFormattedScripts = userScriptsData.map(script => ({
             id: script.id,
@@ -132,6 +163,8 @@ export const Index = () => {
       console.log("🏠 INDEX: Scripts fetched successfully, hasFetched set to true");
     } catch (error) {
       console.error('🏠 INDEX: Error fetching scripts:', error);
+      setFetchError(`Failed to fetch scripts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error("Failed to load scripts");
     } finally {
       setIsLoading(false);
       console.log("🏠 INDEX: Loading state set to false");
@@ -208,8 +241,18 @@ export const Index = () => {
             {publicScripts.length === 0 ? <div className="text-center py-10">
                 <h4 className="text-xl font-medium text-gray-600 mb-4">No public scripts available</h4>
                 {fetchError && <div className="mt-2 p-4 bg-red-50 text-red-800 rounded mb-4">
-                    Debug info: {fetchError}
+                    {fetchError}
                   </div>}
+                <Button 
+                  onClick={() => {
+                    setHasFetched(false);
+                    fetchScripts();
+                  }}
+                  variant="outline"
+                  className="mt-2"
+                >
+                  Retry Loading Scripts
+                </Button>
               </div> : renderScriptCards(publicScripts, false)}
           </section>
         </div>}
