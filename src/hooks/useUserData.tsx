@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuthStateHandler } from './useAuthStateHandler';
+import { storeGitHubToken } from '@/services/githubProfileService';
 
 export const useUserData = () => {
   const [userId, setUserId] = useState<string | null>(null);
@@ -10,7 +10,7 @@ export const useUserData = () => {
   const [authProvider, setAuthProvider] = useState<string | null>(null);
   const [authCheckedOnce, setAuthCheckedOnce] = useState(false);
 
-  // Check for initial session on mount
+  // Check for initial session and set up auth state listener
   useEffect(() => {
     console.log('👤 useUserData: Initializing user data check...');
     let mounted = true;
@@ -47,6 +47,14 @@ export const useUserData = () => {
         
         if (mounted) {
           const provider = user.app_metadata?.provider || null;
+          console.log('👤 useUserData: Auth provider:', provider);
+          
+          // Update the github_access_token in profile if available
+          if (provider === 'github' && sessionData.session.provider_token) {
+            console.log('👤 useUserData: Storing GitHub token for user');
+            await storeGitHubToken(user.id, user.email, sessionData.session.provider_token);
+          }
+          
           setUserId(user.id);
           setAuthProvider(provider);
           setIsLoading(false);
@@ -63,23 +71,69 @@ export const useUserData = () => {
       }
     };
     
+    // Check session immediately
     checkInitialSession();
+    
+    // Set up auth state change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`👤 useUserData: Auth state change event: ${event}`, {
+        sessionExists: !!session,
+        userId: session?.user?.id
+      });
+      
+      if (!mounted) {
+        console.log('👤 useUserData: Component unmounted, skipping auth state update');
+        return;
+      }
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log('👤 useUserData: User signed in:', session.user.id);
+        const provider = session.user.app_metadata?.provider || null;
+        
+        // Update GitHub token if available
+        if (provider === 'github' && session.provider_token) {
+          console.log('👤 useUserData: Storing GitHub token for user on sign in');
+          await storeGitHubToken(session.user.id, session.user.email, session.provider_token);
+        }
+        
+        setUserId(session.user.id);
+        setAuthProvider(provider);
+        setIsLoading(false);
+        setAuthCheckedOnce(true);
+        setError(null);
+      } else if (event === 'SIGNED_OUT') {
+        console.log('👤 useUserData: User signed out');
+        setUserId(null);
+        setAuthProvider(null);
+        setIsLoading(false);
+        setAuthCheckedOnce(true);
+        setError(null);
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        console.log('👤 useUserData: Token refreshed for user:', session.user.id);
+        const provider = session.user.app_metadata?.provider || null;
+        
+        // Update GitHub token if available
+        if (provider === 'github' && session.provider_token) {
+          console.log('👤 useUserData: Storing refreshed GitHub token');
+          await storeGitHubToken(session.user.id, session.user.email, session.provider_token);
+        }
+        
+        setUserId(session.user.id);
+        setAuthProvider(provider);
+        setIsLoading(false);
+        setAuthCheckedOnce(true);
+        setError(null);
+      }
+    });
     
     return () => {
       mounted = false;
+      authListener.subscription.unsubscribe();
+      console.log('👤 useUserData: Cleanup - unsubscribed from auth listener');
     };
   }, []);
 
-  // Set up auth state change handler
-  useAuthStateHandler({
-    userId,
-    setUserId,
-    setAuthProvider,
-    setIsLoading,
-    setAuthCheckedOnce,
-    setError
-  });
-
+  // Log state updates
   useEffect(() => {
     console.log('👤 useUserData: State updated:', {
       userId,
