@@ -40,6 +40,7 @@ export const useSessionManager = (
             setters.setError(sessionError.message);
             setters.setIsLoading(false);
             setters.setAuthCheckedOnce(true);
+            console.log('👤 useSessionManager: Auth checked set to true after session error');
           }
           return;
         }
@@ -51,6 +52,7 @@ export const useSessionManager = (
             setters.setAuthProvider(null);
             setters.setIsLoading(false);
             setters.setAuthCheckedOnce(true);
+            console.log('👤 useSessionManager: Auth checked set to true after no session found');
           }
           return;
         }
@@ -75,6 +77,7 @@ export const useSessionManager = (
             setters.setAuthCheckedOnce(true);
             setters.setError(null);
             console.log('👤 useSessionManager: State updated with session data, userId:', user.id);
+            console.log('👤 useSessionManager: Auth checked set to true after session data loaded');
           }
         }
       } catch (error) {
@@ -83,6 +86,7 @@ export const useSessionManager = (
           setters.setError(error instanceof Error ? error.message : 'Unknown error');
           setters.setIsLoading(false);
           setters.setAuthCheckedOnce(true);
+          console.log('👤 useSessionManager: Auth checked set to true after exception');
         }
       }
     };
@@ -119,6 +123,7 @@ export const useSessionManager = (
             setters.setAuthCheckedOnce(true);
             setters.setError(null);
             console.log('👤 useSessionManager: State updated after sign in, userId:', session.user.id);
+            console.log('👤 useSessionManager: Auth checked set to true after sign in');
           }
         } else if (event === 'SIGNED_OUT') {
           console.log('👤 useSessionManager: User signed out');
@@ -128,6 +133,7 @@ export const useSessionManager = (
             setters.setIsLoading(false);
             setters.setAuthCheckedOnce(true);
             setters.setError(null);
+            console.log('👤 useSessionManager: Auth checked set to true after sign out');
           }
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
           console.log('👤 useSessionManager: Token refreshed for user:', session.user.id);
@@ -145,6 +151,7 @@ export const useSessionManager = (
             setters.setAuthCheckedOnce(true);
             setters.setError(null);
             console.log('👤 useSessionManager: State updated after token refresh, userId:', session.user.id);
+            console.log('👤 useSessionManager: Auth checked set to true after token refresh');
           }
         } else if (event === 'USER_UPDATED' && session?.user) {
           console.log('👤 useSessionManager: User updated:', session.user.id);
@@ -157,6 +164,13 @@ export const useSessionManager = (
             setters.setAuthCheckedOnce(true);
             setters.setError(null);
             console.log('👤 useSessionManager: State updated after user update, userId:', session.user.id);
+            console.log('👤 useSessionManager: Auth checked set to true after user update');
+          }
+        } else {
+          // For any other event, ensure we've properly set authCheckedOnce
+          if (refs.isMounted.current && !event.includes('INITIAL')) {
+            setters.setAuthCheckedOnce(true);
+            console.log(`👤 useSessionManager: Auth checked set to true after unhandled event: ${event}`);
           }
         }
       });
@@ -173,6 +187,7 @@ export const useSessionManager = (
         setters.setError('Error setting up authentication listener');
         setters.setIsLoading(false);
         setters.setAuthCheckedOnce(true);
+        console.log('👤 useSessionManager: Auth checked set to true after listener setup error');
       }
     }
     

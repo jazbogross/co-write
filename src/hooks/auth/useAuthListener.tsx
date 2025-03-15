@@ -25,6 +25,7 @@ export const useAuthListener = (
             setUser(null);
             setLoading(false);
             setAuthChecked(true);
+            console.log("🔑 useAuthListener: Auth checked set to true after session error");
           }
           return;
         }
@@ -35,6 +36,7 @@ export const useAuthListener = (
             setUser(null);
             setLoading(false);
             setAuthChecked(true);
+            console.log("🔑 useAuthListener: Auth checked set to true after no session found");
           }
           return;
         }
@@ -59,6 +61,7 @@ export const useAuthListener = (
             setLoading(false);
             setAuthChecked(true);
             console.log("🔑 useAuthListener: User set from session:", userId);
+            console.log("🔑 useAuthListener: Auth checked set to true after user loaded");
           }
         } catch (profileError) {
           console.error("🔑 useAuthListener: Exception fetching profile:", profileError);
@@ -71,6 +74,7 @@ export const useAuthListener = (
             setLoading(false);
             setAuthChecked(true);
             console.log("🔑 useAuthListener: User set with basic info due to profile error:", userId);
+            console.log("🔑 useAuthListener: Auth checked set to true after profile error");
           }
         }
       } catch (error) {
@@ -79,6 +83,7 @@ export const useAuthListener = (
           setUser(null);
           setLoading(false);
           setAuthChecked(true);
+          console.log("🔑 useAuthListener: Auth checked set to true after exception");
         }
       }
     };
@@ -113,6 +118,7 @@ export const useAuthListener = (
               setLoading(false);
               setAuthChecked(true);
               console.log("🔑 useAuthListener: User state updated after auth change:", session.user.id);
+              console.log("🔑 useAuthListener: Auth checked set to true after auth change");
             }
           } catch (error) {
             console.error(`🔑 useAuthListener: Error updating user after ${event}:`, error);
@@ -124,6 +130,7 @@ export const useAuthListener = (
               });
               setLoading(false);
               setAuthChecked(true);
+              console.log("🔑 useAuthListener: Auth checked set to true after auth change error");
             }
           }
         } else if (event === 'SIGNED_OUT') {
@@ -132,6 +139,7 @@ export const useAuthListener = (
             setUser(null);
             setLoading(false);
             setAuthChecked(true);
+            console.log("🔑 useAuthListener: Auth checked set to true after sign out");
           }
         } else if (event === 'USER_UPDATED' && session) {
           console.log("🔑 useAuthListener: User updated:", session.user.id);
@@ -146,9 +154,25 @@ export const useAuthListener = (
               });
               setLoading(false);
               setAuthChecked(true);
+              console.log("🔑 useAuthListener: Auth checked set to true after user update");
             }
           } catch (error) {
             console.error("🔑 useAuthListener: Error updating user after USER_UPDATED:", error);
+            if (isMountedRef.current) {
+              setUser({
+                id: session.user.id,
+                email: session.user.email
+              });
+              setLoading(false);
+              setAuthChecked(true);
+              console.log("🔑 useAuthListener: Auth checked set to true after user update error");
+            }
+          }
+        } else {
+          // For any other event, ensure we've properly set authChecked
+          if (isMountedRef.current && !event.includes('INITIAL')) {
+            setAuthChecked(true);
+            console.log(`🔑 useAuthListener: Auth checked set to true after unhandled event: ${event}`);
           }
         }
       });
@@ -164,6 +188,7 @@ export const useAuthListener = (
       if (isMountedRef.current) {
         setLoading(false);
         setAuthChecked(true);
+        console.log("🔑 useAuthListener: Auth checked set to true after listener setup error");
       }
     }
     
