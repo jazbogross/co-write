@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +7,6 @@ import { CalendarIcon, GitForkIcon, LockIcon, EyeIcon, Users } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
-
 interface Script {
   id: string;
   title: string;
@@ -17,16 +15,17 @@ interface Script {
   is_private?: boolean;
   admin_username?: string;
 }
-
 export const Index = () => {
   console.log("🏠 INDEX: Component rendering");
-  const { user, loading: authLoading } = useAuth();
+  const {
+    user,
+    loading: authLoading
+  } = useAuth();
   const [publicScripts, setPublicScripts] = useState<Script[]>([]);
   const [yourScripts, setYourScripts] = useState<Script[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasFetched, setHasFetched] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-
   console.log("🏠 INDEX: Current states -", {
     authLoading,
     userExists: !!user,
@@ -34,7 +33,6 @@ export const Index = () => {
     isLoading,
     hasFetched
   });
-  
   useEffect(() => {
     // Only fetch scripts if authentication state is resolved and we haven't already fetched
     if (!authLoading && !hasFetched) {
@@ -42,16 +40,15 @@ export const Index = () => {
       fetchScripts();
     }
   }, [authLoading, hasFetched]);
-  
   const fetchScripts = async () => {
     console.log("🏠 INDEX: Fetching scripts...");
     setIsLoading(true);
-    
     try {
       // Always fetch public scripts from all users
-      const { data: publicData, error: publicError } = await supabase
-        .from('scripts')
-        .select(`
+      const {
+        data: publicData,
+        error: publicError
+      } = await supabase.from('scripts').select(`
           id,
           title,
           created_at,
@@ -59,39 +56,33 @@ export const Index = () => {
           is_private,
           github_repo,
           github_owner
-        `)
-        .eq('is_private', false);
-        
+        `).eq('is_private', false);
       if (publicError) {
         console.error("🏠 INDEX: Error fetching public scripts:", publicError);
         setFetchError(`Public scripts fetch error: ${publicError.message}`);
         throw publicError;
       }
-      
       console.log("🏠 INDEX: Fetched public scripts:", publicData);
-      
+
       // Fetch admin usernames for public scripts
       const publicAdminIds = [...new Set(publicData.map(script => script.admin_id))];
       let publicFormattedScripts: Script[] = [];
-      
       if (publicAdminIds.length > 0) {
-        const { data: publicProfilesData, error: publicProfilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .in('id', publicAdminIds);
-          
+        const {
+          data: publicProfilesData,
+          error: publicProfilesError
+        } = await supabase.from('profiles').select('id, username').in('id', publicAdminIds);
         if (publicProfilesError) {
           console.error("🏠 INDEX: Error fetching profiles for public scripts:", publicProfilesError);
           setFetchError(`Profiles fetch error: ${publicProfilesError.message}`);
           throw publicProfilesError;
         }
-        
+
         // Create a map of admin_id to username for public scripts
         const publicAdminUsernameMap = new Map();
         publicProfilesData?.forEach(profile => {
           publicAdminUsernameMap.set(profile.id, profile.username);
         });
-        
         publicFormattedScripts = publicData.map(script => ({
           id: script.id,
           title: script.title,
@@ -101,22 +92,20 @@ export const Index = () => {
           admin_username: publicAdminUsernameMap.get(script.admin_id) || 'Unknown'
         }));
       }
-      
       setPublicScripts(publicFormattedScripts);
-      
+
       // If user is logged in, also fetch their scripts
       if (user) {
-        const { data: userScriptsData, error: userScriptsError } = await supabase
-          .from('scripts')
-          .select(`
+        const {
+          data: userScriptsData,
+          error: userScriptsError
+        } = await supabase.from('scripts').select(`
             id,
             title,
             created_at,
             admin_id,
             is_private
-          `)
-          .eq('admin_id', user.id);
-          
+          `).eq('admin_id', user.id);
         if (userScriptsError) {
           console.error("🏠 INDEX: Error fetching user scripts:", userScriptsError);
           setFetchError(`User scripts fetch error: ${userScriptsError.message}`);
@@ -130,11 +119,9 @@ export const Index = () => {
             is_private: script.is_private ?? false,
             admin_username: user.username || 'You'
           }));
-          
           setYourScripts(userFormattedScripts);
         }
       }
-      
       setHasFetched(true);
       console.log("🏠 INDEX: Scripts fetched successfully, hasFetched set to true");
     } catch (error) {
@@ -144,17 +131,12 @@ export const Index = () => {
       console.log("🏠 INDEX: Loading state set to false");
     }
   };
-  
-  const renderScriptCards = (scripts: Script[], showPrivateIndicator = true) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {scripts.map(script => (
-        <Card key={script.id} className="hover:shadow-md transition-shadow">
+  const renderScriptCards = (scripts: Script[], showPrivateIndicator = true) => <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {scripts.map(script => <Card key={script.id} className="hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center">
               <span className="truncate">{script.title}</span>
-              {showPrivateIndicator && script.is_private && (
-                <LockIcon className="ml-2 h-4 w-4 text-amber-500" />
-              )}
+              {showPrivateIndicator && script.is_private && <LockIcon className="ml-2 h-4 w-4 text-amber-500" />}
             </CardTitle>
             <CardDescription className="flex items-center text-sm">
               <CalendarIcon className="mr-1 h-3 w-3" />
@@ -176,24 +158,17 @@ export const Index = () => {
                 View
               </Link>
             </Button>
-            {user && (
-              <Button asChild size="sm">
+            {user && <Button asChild size="sm">
                 <Link to={`/script/${script.id}/edit`}>
                   <GitForkIcon className="mr-1 h-4 w-4" />
                   Edit
                 </Link>
-              </Button>
-            )}
+              </Button>}
           </CardFooter>
-        </Card>
-      ))}
-    </div>
-  );
-  
-  const renderLoadingCards = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {[1, 2, 3, 4, 5, 6].map(i => (
-        <Card key={i} className="animate-pulse">
+        </Card>)}
+    </div>;
+  const renderLoadingCards = () => <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {[1, 2, 3, 4, 5, 6].map(i => <Card key={i} className="animate-pulse">
           <CardHeader className="space-y-2">
             <div className="h-6 bg-gray-200 rounded w-3/4"></div>
             <div className="h-4 bg-gray-200 rounded w-1/2"></div>
@@ -203,72 +178,46 @@ export const Index = () => {
             <div className="h-8 bg-gray-200 rounded w-1/4"></div>
             <div className="h-8 bg-gray-200 rounded w-1/4"></div>
           </CardFooter>
-        </Card>
-      ))}
-    </div>
-  );
-  
-  return (
-    <div className="container mx-auto py-8">
+        </Card>)}
+    </div>;
+  return <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-bold">Script Library</h2>
-        {user && (
-          <Button asChild>
+        {user && <Button asChild>
             <Link to="/profile">Manage Your Scripts</Link>
-          </Button>
-        )}
+          </Button>}
       </div>
       
-      {isLoading ? (
-        renderLoadingCards()
-      ) : (
-        <div className="space-y-12">
+      {isLoading ? renderLoadingCards() : <div className="space-y-12">
           {/* User's scripts section (if logged in) */}
-          {user && yourScripts.length > 0 && (
-            <section>
+          {user && yourScripts.length > 0 && <section>
               <h3 className="text-2xl font-semibold mb-4">Your Scripts</h3>
               {renderScriptCards(yourScripts)}
-            </section>
-          )}
+            </section>}
           
           {/* Public scripts section */}
           <section>
             <h3 className="text-2xl font-semibold mb-4">Public Scripts</h3>
-            {publicScripts.length === 0 ? (
-              <div className="text-center py-10">
+            {publicScripts.length === 0 ? <div className="text-center py-10">
                 <h4 className="text-xl font-medium text-gray-600 mb-4">No public scripts available</h4>
-                {fetchError && (
-                  <div className="mt-2 p-4 bg-red-50 text-red-800 rounded mb-4">
+                {fetchError && <div className="mt-2 p-4 bg-red-50 text-red-800 rounded mb-4">
                     Debug info: {fetchError}
-                  </div>
-                )}
-                {user ? (
-                  <Button asChild>
+                  </div>}
+                {user ? <Button asChild>
                     <Link to="/profile">Create the First Public Script</Link>
-                  </Button>
-                ) : (
-                  <Button asChild>
-                    <Link to="/auth">Sign In to Create Scripts</Link>
-                  </Button>
-                )}
-              </div>
-            ) : (
-              renderScriptCards(publicScripts, false)
-            )}
+                  </Button> : <Button asChild>
+                    <Link to="/auth">Sign In to View Public Scripts</Link>
+                  </Button>}
+              </div> : renderScriptCards(publicScripts, false)}
           </section>
           
           {/* Call-to-action if no scripts at all */}
-          {!user && publicScripts.length === 0 && (
-            <div className="text-center py-8">
+          {!user && publicScripts.length === 0 && <div className="text-center py-8">
               <Button asChild>
                 <Link to="/auth">Sign In to Create Your Own Scripts</Link>
               </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+            </div>}
+        </div>}
+    </div>;
 };
-
 export default Index;
