@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { DeltaStatic } from 'quill';
+import Delta from 'quill-delta';
 
 interface SuggestionFormProps {
   scriptId: string;
@@ -39,20 +40,15 @@ export const SuggestionForm: React.FC<SuggestionFormProps> = ({
     setIsSubmitting(true);
     
     try {
-      // In a real implementation, you would calculate the actual delta diff
-      // This is a simplified version for demonstration
-      const dummyDiff = {
-        ops: [
-          { insert: comment + "\n" }
-        ]
-      };
+      // Create a proper Delta for the suggestion
+      const suggestionDelta = new Delta([{ insert: comment + "\n" }]);
       
       const { error } = await supabase
         .from('script_suggestions')
         .insert({
           script_id: scriptId,
           user_id: user.id,
-          delta_diff: dummyDiff,
+          delta_diff: suggestionDelta,
           status: 'pending',
           created_at: new Date().toISOString()
         });

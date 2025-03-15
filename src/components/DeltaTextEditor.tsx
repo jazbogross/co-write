@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { DeltaStatic } from 'quill';
+import Delta from 'quill-delta';
 
 interface DeltaTextEditorProps {
   scriptId: string;
@@ -15,7 +16,7 @@ interface DeltaTextEditorProps {
 
 export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({ scriptId, isAdmin }) => {
   const [refreshKey, setRefreshKey] = useState(0);
-  const [currentContent, setCurrentContent] = useState<DeltaStatic>({ ops: [{ insert: '\n' }] });
+  const [currentContent, setCurrentContent] = useState<DeltaStatic>(new Delta([{ insert: '\n' }]) as unknown as DeltaStatic);
   const [loadingContent, setLoadingContent] = useState(true);
   
   // Fetch the current content of the script
@@ -32,7 +33,8 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({ scriptId, isAd
         if (error) throw error;
         
         if (data?.content_delta) {
-          setCurrentContent(data.content_delta as unknown as DeltaStatic);
+          // Convert the plain JSON to a Delta object
+          setCurrentContent(new Delta(data.content_delta) as unknown as DeltaStatic);
         }
       } catch (error) {
         console.error('Error loading script content:', error);
