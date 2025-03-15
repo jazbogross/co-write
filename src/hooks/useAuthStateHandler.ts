@@ -24,6 +24,72 @@ export const useAuthStateHandler = ({
     console.log('🔄 useAuthStateHandler: Setting up auth state change listener');
     let mounted = true;
     
+    // First check if there's an existing session
+    const checkExistingSession = async () => {
+      console.log('🔄 useAuthStateHandler: Checking for existing session');
+      
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('🔄 useAuthStateHandler: Error fetching session:', sessionError);
+          if (mounted) {
+            setError(sessionError.message);
+            setUserId(null);
+            setAuthProvider(null);
+            setIsLoading(false);
+            setAuthCheckedOnce(true);
+          }
+          return;
+        }
+        
+        const session = sessionData.session;
+        
+        if (!session) {
+          console.log('🔄 useAuthStateHandler: No active session found');
+          if (mounted) {
+            setUserId(null);
+            setAuthProvider(null);
+            setIsLoading(false);
+            setAuthCheckedOnce(true);
+            setError(null);
+          }
+          return;
+        }
+        
+        console.log('🔄 useAuthStateHandler: Found active session for user:', session.user.id);
+        const provider = session.user.app_metadata?.provider || null;
+        console.log('🔄 useAuthStateHandler: Auth provider from session:', provider);
+        
+        // Update the github_access_token in profile if available
+        if (provider === 'github' && session.provider_token) {
+          console.log('🔄 useAuthStateHandler: GitHub provider token available, updating profile');
+          await storeGitHubToken(session.user.id, session.user.email, session.provider_token);
+        }
+        
+        if (mounted) {
+          setUserId(session.user.id);
+          setAuthProvider(provider);
+          setIsLoading(false);
+          setAuthCheckedOnce(true);
+          setError(null);
+        }
+      } catch (error) {
+        console.error('🔄 useAuthStateHandler: Exception checking session:', error);
+        if (mounted) {
+          setError(error instanceof Error ? error.message : 'Unknown error');
+          setUserId(null);
+          setIsLoading(false);
+          setAuthProvider(null);
+          setAuthCheckedOnce(true);
+        }
+      }
+    };
+    
+    // Check for existing session immediately
+    checkExistingSession();
+    
+    // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`🔄 useAuthStateHandler: Auth state change event: ${event}`, {
         sessionExists: !!session,
@@ -80,6 +146,13 @@ export const useAuthStateHandler = ({
             setAuthCheckedOnce(true);
             setError(null);
           }
+        } else if (mounted) {
+          // Handle the case where the token was refreshed but there's no session
+          setUserId(null);
+          setAuthProvider(null);
+          setIsLoading(false);
+          setAuthCheckedOnce(true);
+          setError(null);
         }
       }
     });

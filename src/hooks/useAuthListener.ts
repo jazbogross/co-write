@@ -22,6 +22,31 @@ export const useAuthListener = (): UseAuthListenerResult => {
     const checkCurrentUser = async () => {
       console.log("🎧 AuthListener: Checking for current user session");
       try {
+        // Get the current session first
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("🎧 AuthListener: Error fetching session:", sessionError);
+          if (isMounted) {
+            setUser(null);
+            setLoading(false);
+            setAuthChecked(true);
+          }
+          return;
+        }
+        
+        if (!sessionData.session) {
+          console.log("🎧 AuthListener: No active session found");
+          if (isMounted) {
+            setUser(null);
+            setLoading(false);
+            setAuthChecked(true);
+          }
+          return;
+        }
+        
+        // If we have a session, get the user
+        console.log("🎧 AuthListener: Session found, getting user data");
         const { data } = await supabase.auth.getUser();
         
         if (!isMounted) {
@@ -123,7 +148,17 @@ export const useAuthListener = (): UseAuthListenerResult => {
         }
       } else if (event === 'TOKEN_REFRESHED') {
         console.log("🎧 AuthListener: Token refreshed for user:", session?.user?.id);
-        // No need to update user state here as the session is just refreshed
+        if (session?.user && isMounted) {
+          const { profile } = await getUserProfile(session.user.id);
+          
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            username: profile?.username
+          });
+          setLoading(false);
+          setAuthChecked(true);
+        }
       }
     });
 
