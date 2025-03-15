@@ -16,12 +16,13 @@ export default function App() {
   
   useEffect(() => {
     // Clean up any duplicate auth tokens on app initialization
-    cleanupDuplicateTokens();
+    const cleaned = cleanupDuplicateTokens();
     
     console.log("🔑 App: Initializing application", { 
       time: appInitTime,
       url: window.location.href,
-      path: window.location.pathname
+      path: window.location.pathname,
+      tokensCleanedUp: cleaned
     });
     
     // Log Supabase and browser info for debugging

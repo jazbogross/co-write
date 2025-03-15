@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 /**
@@ -16,24 +17,27 @@ export const debugSessionState = async () => {
       const keys = Object.keys(localStorage);
       console.log('All Local Storage Keys:', keys);
       
-      // Check for both possible auth token keys
-      const officialAuthTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
-      const legacyAuthTokenKey = 'supabase.auth.token';
+      // Check for all possible auth token keys
+      const possibleAuthTokenKeys = [
+        'sb-uoasmfawwtkejjdglyws-auth-token',  // Current correct key
+        'sb-rvcjjrthsktrkrdcujna-auth-token',  // Old project key
+        'supabase.auth.token'                   // Legacy key
+      ];
       
-      const hasOfficialToken = localStorage.getItem(officialAuthTokenKey) !== null;
-      const hasLegacyToken = localStorage.getItem(legacyAuthTokenKey) !== null;
-      
-      console.log('Auth Tokens:', {
-        officialToken: hasOfficialToken,
-        legacyToken: hasLegacyToken
+      const tokenStatuses = {};
+      possibleAuthTokenKeys.forEach(key => {
+        tokenStatuses[key] = localStorage.getItem(key) !== null;
       });
       
-      if (hasLegacyToken && !hasOfficialToken) {
-        console.log('Legacy token found but official token missing. This may cause auth issues.');
-      }
+      console.log('Auth Tokens Status:', tokenStatuses);
       
-      if (hasOfficialToken && hasLegacyToken) {
-        console.log('Both token types found. This may cause conflicts.');
+      // Detailed logging for conflicts
+      const correctKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
+      const hasIncorrectTokens = Object.entries(tokenStatuses)
+        .some(([key, exists]) => key !== correctKey && exists);
+      
+      if (hasIncorrectTokens) {
+        console.log('WARNING: Incorrect tokens found. This may cause auth issues.');
       }
     }
     
@@ -85,29 +89,23 @@ export const cleanupDuplicateTokens = () => {
     // Only run in browser environment
     if (typeof localStorage === 'undefined') return;
     
-    const officialAuthTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
-    const legacyAuthTokenKey = 'supabase.auth.token';
+    const correctTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
+    const oldTokenKeys = [
+      'sb-rvcjjrthsktrkrdcujna-auth-token',
+      'supabase.auth.token'
+    ];
     
-    const hasOfficialToken = localStorage.getItem(officialAuthTokenKey) !== null;
-    const hasLegacyToken = localStorage.getItem(legacyAuthTokenKey) !== null;
+    // Remove any old tokens
+    let tokensRemoved = false;
+    oldTokenKeys.forEach(key => {
+      if (localStorage.getItem(key)) {
+        console.log(`Cleaning up old auth token: ${key}`);
+        localStorage.removeItem(key);
+        tokensRemoved = true;
+      }
+    });
     
-    // If both tokens exist, keep the official one and remove the legacy one
-    if (hasOfficialToken && hasLegacyToken) {
-      console.log('Cleaning up duplicate auth tokens');
-      localStorage.removeItem(legacyAuthTokenKey);
-      return true;
-    }
-    
-    // If only legacy token exists, move it to the official key
-    if (!hasOfficialToken && hasLegacyToken) {
-      console.log('Migrating legacy token to official format');
-      const legacyToken = localStorage.getItem(legacyAuthTokenKey);
-      localStorage.setItem(officialAuthTokenKey, legacyToken!);
-      localStorage.removeItem(legacyAuthTokenKey);
-      return true;
-    }
-    
-    return false;
+    return tokensRemoved;
   } catch (error) {
     console.error('Error cleaning up tokens:', error);
     return false;

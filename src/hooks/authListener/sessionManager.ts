@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { AuthState, SessionData } from './types';
 import { getBasicUserData, fetchUserProfile, createFullUserData } from './userProfileManager';
-import { debugSessionState } from '@/utils/sessionDebug';
+import { debugSessionState, cleanupDuplicateTokens } from '@/utils/sessionDebug';
 
 export const checkCurrentSession = async (): Promise<{
   sessionData: any;
@@ -11,6 +11,9 @@ export const checkCurrentSession = async (): Promise<{
   console.log("🎧 AuthListener: Checking for current user session");
   try {
     console.log("🎧 AuthListener: Calling supabase.auth.getSession()");
+    
+    // Clean up any duplicate tokens first
+    cleanupDuplicateTokens();
     
     // Check for token in localStorage first
     const storageTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
@@ -65,9 +68,13 @@ export const checkCurrentSession = async (): Promise<{
             sessionData: refreshData, 
             hasSession: true 
           };
+        } else {
+          console.log("🎧 AuthListener: Failed to refresh session, removing invalid token");
+          localStorage.removeItem(storageTokenKey);
         }
       } catch (refreshError) {
         console.error("🎧 AuthListener: Error refreshing session:", refreshError);
+        localStorage.removeItem(storageTokenKey);
       }
     }
     

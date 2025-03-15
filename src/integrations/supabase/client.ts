@@ -21,3 +21,18 @@ export const supabase = createClient<Database>(
     }
   }
 );
+
+// Clean up any old tokens on client initialization
+if (typeof localStorage !== 'undefined') {
+  const oldTokenKeys = [
+    'sb-rvcjjrthsktrkrdcujna-auth-token',
+    'supabase.auth.token'
+  ];
+  
+  oldTokenKeys.forEach(key => {
+    if (localStorage.getItem(key)) {
+      console.log(`Removing old token: ${key}`);
+      localStorage.removeItem(key);
+    }
+  });
+}
