@@ -27,7 +27,7 @@ const OAuthRedirectHandler = () => {
             console.log("Auth: Auth provider from metadata:", user.app_metadata?.provider);
             console.log("Auth: Storing GitHub access token");
             
-            // Detailed logging for debugging
+            // Debug logging for token handling
             console.log("Auth: GitHub token to store:", providerToken.substring(0, 10) + "...");
             
             // Verify session is persisted and debug session state

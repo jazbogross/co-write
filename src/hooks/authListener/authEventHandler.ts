@@ -1,7 +1,7 @@
 
 import { AuthState, AuthEventData } from './types';
 import { updateStateFromSession, loadFullUserProfile } from './sessionManager';
-import { cleanupDuplicateTokens } from '@/utils/sessionDebug';
+import { cleanupLegacyTokens } from '@/utils/sessionDebug';
 
 export const handleAuthStateChange = async (
   event: string,
@@ -9,19 +9,13 @@ export const handleAuthStateChange = async (
   isMounted: boolean,
   setState: (state: Partial<AuthState>) => void
 ): Promise<void> => {
-  // Check for and clean up any duplicate tokens
-  cleanupDuplicateTokens();
-  
-  // Get the storage token using the correct key
-  const storageTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
-  const storageToken = typeof localStorage !== 'undefined' ? localStorage.getItem(storageTokenKey) : null;
+  // Check for and clean up any legacy tokens
+  cleanupLegacyTokens();
   
   console.log(`🎧 AuthListener: Auth state change event: ${event}`, {
     sessionExists: !!session,
     userId: session?.user?.id,
-    eventTimestamp: new Date().toISOString(),
-    hasLocalStorage: !!storageToken,
-    tokenLength: storageToken ? `${storageToken.substring(0, 15)}...` : 'none'
+    eventTimestamp: new Date().toISOString()
   });
   
   if (!isMounted) {
@@ -33,22 +27,6 @@ export const handleAuthStateChange = async (
     // Handle sign out event first
     if (event === 'SIGNED_OUT') {
       console.log("🎧 AuthListener: User signed out");
-      
-      // Make sure we remove all auth tokens on signout
-      if (typeof localStorage !== 'undefined') {
-        const possibleAuthTokenKeys = [
-          'sb-uoasmfawwtkejjdglyws-auth-token',
-          'sb-rvcjjrthsktrkrdcujna-auth-token',
-          'supabase.auth.token'
-        ];
-        
-        possibleAuthTokenKeys.forEach(key => {
-          if (localStorage.getItem(key)) {
-            console.log(`🎧 AuthListener: Removing token on signout: ${key}`);
-            localStorage.removeItem(key);
-          }
-        });
-      }
       
       setState({
         isAuthenticated: false,

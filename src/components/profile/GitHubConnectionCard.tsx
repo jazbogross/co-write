@@ -67,38 +67,6 @@ export function GitHubConnectionCard() {
     }
   };
 
-  const handleGithubConnect = async () => {
-    try {
-      setIsLoading(true);
-      console.log("🔗 GITHUB: Initiating GitHub connection...");
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'github',
-        options: {
-          scopes: 'repo',
-          redirectTo: `${window.location.origin}/auth`,
-        },
-      });
-
-      if (error) {
-        console.error("🔗 GITHUB: OAuth error:", error);
-        uiToast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("🔗 GITHUB: Connection error:", error);
-      uiToast({
-        title: "Error",
-        description: "Failed to connect GitHub account",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   if (isLoading) {
     return (
       <Card className="mb-8">

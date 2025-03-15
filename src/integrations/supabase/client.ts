@@ -14,25 +14,12 @@ export const supabase = createClient<Database>(
   SUPABASE_PUBLISHABLE_KEY,
   {
     auth: {
-      persistSession: true,
       autoRefreshToken: true,
-      storageKey: 'sb-uoasmfawwtkejjdglyws-auth-token',
+      persistSession: true,
       detectSessionInUrl: true
     }
   }
 );
 
-// Clean up any old tokens on client initialization
-if (typeof localStorage !== 'undefined') {
-  const oldTokenKeys = [
-    'sb-rvcjjrthsktrkrdcujna-auth-token',
-    'supabase.auth.token'
-  ];
-  
-  oldTokenKeys.forEach(key => {
-    if (localStorage.getItem(key)) {
-      console.log(`Removing old token: ${key}`);
-      localStorage.removeItem(key);
-    }
-  });
-}
+// Log initialization for debugging
+console.log("Supabase client initialized with URL:", SUPABASE_URL);

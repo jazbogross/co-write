@@ -13,34 +13,6 @@ export const debugSessionState = async () => {
     const hasLocalStorage = typeof localStorage !== 'undefined';
     console.log('Local Storage Available:', hasLocalStorage);
     
-    if (hasLocalStorage) {
-      const keys = Object.keys(localStorage);
-      console.log('All Local Storage Keys:', keys);
-      
-      // Check for all possible auth token keys
-      const possibleAuthTokenKeys = [
-        'sb-uoasmfawwtkejjdglyws-auth-token',  // Current correct key
-        'sb-rvcjjrthsktrkrdcujna-auth-token',  // Old project key
-        'supabase.auth.token'                   // Legacy key
-      ];
-      
-      const tokenStatuses = {};
-      possibleAuthTokenKeys.forEach(key => {
-        tokenStatuses[key] = localStorage.getItem(key) !== null;
-      });
-      
-      console.log('Auth Tokens Status:', tokenStatuses);
-      
-      // Detailed logging for conflicts
-      const correctKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
-      const hasIncorrectTokens = Object.entries(tokenStatuses)
-        .some(([key, exists]) => key !== correctKey && exists);
-      
-      if (hasIncorrectTokens) {
-        console.log('WARNING: Incorrect tokens found. This may cause auth issues.');
-      }
-    }
-    
     // Check current session from Supabase
     const { data, error } = await supabase.auth.getSession();
     console.log('Current Session:', {
@@ -82,32 +54,52 @@ export const refreshSessionToken = async () => {
 };
 
 /**
- * Clean up duplicate auth tokens in localStorage
+ * Clean up all legacy auth tokens in localStorage
  */
-export const cleanupDuplicateTokens = () => {
+export const cleanupLegacyTokens = () => {
   try {
     // Only run in browser environment
     if (typeof localStorage === 'undefined') return;
     
-    const correctTokenKey = 'sb-uoasmfawwtkejjdglyws-auth-token';
-    const oldTokenKeys = [
-      'sb-rvcjjrthsktrkrdcujna-auth-token',
-      'supabase.auth.token'
+    // Find and remove legacy tokens by looking for Supabase auth token patterns
+    const legacyPatterns = [
+      /^sb-.*-auth-token$/,
+      /^supabase\.auth\.token$/
     ];
     
-    // Remove any old tokens
     let tokensRemoved = false;
-    oldTokenKeys.forEach(key => {
-      if (localStorage.getItem(key)) {
-        console.log(`Cleaning up old auth token: ${key}`);
-        localStorage.removeItem(key);
-        tokensRemoved = true;
+    
+    // Loop through all localStorage items
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      
+      // Check if key matches legacy patterns but ignore current session
+      const isLegacyToken = legacyPatterns.some(pattern => pattern.test(key));
+      
+      if (isLegacyToken) {
+        // Don't log the actual token for security
+        console.log(`Found legacy token: ${key}`);
+        
+        // Check if token is not the current one
+        try {
+          const token = JSON.parse(localStorage.getItem(key) || '{}');
+          if (token && typeof token === 'object') {
+            console.log('Removing legacy token');
+            localStorage.removeItem(key);
+            tokensRemoved = true;
+          }
+        } catch (e) {
+          // Not a valid JSON token, remove it anyway
+          localStorage.removeItem(key);
+          tokensRemoved = true;
+        }
       }
-    });
+    }
     
     return tokensRemoved;
   } catch (error) {
-    console.error('Error cleaning up tokens:', error);
+    console.error('Error cleaning up legacy tokens:', error);
     return false;
   }
 };

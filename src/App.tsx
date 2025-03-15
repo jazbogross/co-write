@@ -9,29 +9,20 @@ import GitHubCallback from "@/pages/GitHubCallback";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "./hooks/useAuth";
 import { useState, useEffect } from "react";
-import { cleanupDuplicateTokens } from './utils/sessionDebug';
+import { cleanupLegacyTokens } from './utils/sessionDebug';
 
 export default function App() {
   const [appInitTime] = useState(new Date().toISOString());
   
   useEffect(() => {
-    // Clean up any duplicate auth tokens on app initialization
-    const cleaned = cleanupDuplicateTokens();
+    // Clean up any legacy auth tokens on app initialization
+    const tokensRemoved = cleanupLegacyTokens();
     
     console.log("🔑 App: Initializing application", { 
       time: appInitTime,
       url: window.location.href,
       path: window.location.pathname,
-      tokensCleanedUp: cleaned
-    });
-    
-    // Log Supabase and browser info for debugging
-    console.log("🔑 App: Runtime information", {
-      localStorage: localStorage.length,
-      hasSupabasePersistSession: localStorage.getItem('sb-uoasmfawwtkejjdglyws-auth-token') !== null,
-      userAgent: navigator.userAgent,
-      language: navigator.language,
-      referrer: document.referrer || 'none'
+      tokensCleanedUp: tokensRemoved
     });
     
     return () => {
