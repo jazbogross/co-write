@@ -40,6 +40,7 @@ export const ScriptSuggestions: React.FC<ScriptSuggestionsProps> = ({
       setLoading(true);
       
       try {
+        // Create the base query
         let query = supabase
           .from('script_suggestions')
           .select(`
@@ -47,7 +48,7 @@ export const ScriptSuggestions: React.FC<ScriptSuggestionsProps> = ({
             user_id,
             status,
             created_at,
-            profiles:user_id (username)
+            profiles(username)
           `)
           .eq('script_id', scriptId)
           .order('created_at', { ascending: false });

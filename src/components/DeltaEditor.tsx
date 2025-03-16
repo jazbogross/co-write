@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { DeltaStatic } from 'quill';
 import { saveContent, loadContent } from '@/utils/deltaUtils';
+import Delta from 'quill-delta';
 
 interface DeltaEditorProps {
   scriptId: string;
@@ -106,12 +107,19 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
         return;
       }
       
-      // Calculate diff between original and suggestion
-      const originalDelta = data.content_delta as unknown as DeltaStatic;
+      // Convert the database content_delta to a proper Delta object
+      const contentDeltaData = typeof data.content_delta === 'string' 
+        ? JSON.parse(data.content_delta) 
+        : data.content_delta;
+        
+      // Create a proper Delta object using the quill-delta package
+      const originalDelta = new Delta(contentDeltaData.ops || []);
+      
+      // Calculate diff between original and suggestion using the Delta instance
       const diffDelta = originalDelta.diff(suggestedContent);
       
       // Only submit if there are actual changes
-      if (diffDelta.ops.length <= 1) {
+      if (diffDelta.ops?.length <= 1) {
         toast.info('No changes detected');
         return;
       }
