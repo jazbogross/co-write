@@ -115,8 +115,11 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
       // Create a proper Delta object using the quill-delta package
       const originalDelta = new Delta(contentDeltaData.ops || []);
       
+      // Convert suggestedContent (DeltaStatic) to Delta format
+      const suggestedDelta = new Delta(suggestedContent.ops || []);
+      
       // Calculate diff between original and suggestion using the Delta instance
-      const diffDelta = originalDelta.diff(suggestedContent);
+      const diffDelta = originalDelta.diff(suggestedDelta);
       
       // Only submit if there are actual changes
       if (diffDelta.ops?.length <= 1) {
