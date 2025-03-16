@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { DiffChange } from '@/utils/diff';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -9,60 +10,116 @@ interface SuggestionDiffViewProps {
   lineNumber?: number;
 }
 
+interface ContextLine {
+  lineNumber: number;
+  text: string;
+  type: 'context' | 'deleted' | 'added';
+}
+
 export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
   originalContent,
   suggestedContent,
   diffChanges,
   lineNumber
 }) => {
-  // Get context lines (one before and one after changes)
-  const getContextWithChanges = () => {
-    const lines = originalContent.split('\n');
-    const changeLineIndex = lineNumber ? lineNumber - 1 : 0;
-    
-    // Determine line indexes to show (context + changes)
+  const getContextLinesForChange = (change: DiffChange, lines: string[]): ContextLine[] => {
+    const changeLineIndex = (change.lineNumber || 1) - 1;
     const startIndex = Math.max(0, changeLineIndex - 1);
     const endIndex = Math.min(lines.length - 1, changeLineIndex + 1);
     
-    // Create context array with line numbers
-    const contextLines = [];
-    for (let i = startIndex; i <= endIndex; i++) {
-      if (i === changeLineIndex) {
-        // This is the changed line - highlight changes instead of showing whole line
-        const hasDeleted = diffChanges.some(c => c.type === 'delete' || c.type === 'modify');
-        const hasAdded = diffChanges.some(c => c.type === 'add' || c.type === 'modify');
-        
-        if (hasDeleted) {
-          const deletedText = diffChanges.find(c => c.type === 'delete' || c.type === 'modify')?.originalText || '';
-          contextLines.push({
-            lineNumber: i + 1,
-            text: deletedText,
-            type: 'deleted'
-          });
-        }
-        
-        if (hasAdded) {
-          const addedText = diffChanges.find(c => c.type === 'add' || c.type === 'modify')?.text || '';
-          contextLines.push({
-            lineNumber: i + 1,
-            text: addedText,
-            type: 'added'
-          });
-        }
-      } else {
-        // Context line (unchanged)
-        contextLines.push({
-          lineNumber: i + 1,
-          text: lines[i],
-          type: 'context'
-        });
-      }
+    const contextLines: ContextLine[] = [];
+    
+    // Add lines before the change as context
+    if (startIndex < changeLineIndex) {
+      contextLines.push({
+        lineNumber: startIndex + 1,
+        text: lines[startIndex],
+        type: 'context'
+      });
+    }
+    
+    // Add the changed line
+    if (change.type === 'delete' || change.type === 'modify') {
+      contextLines.push({
+        lineNumber: changeLineIndex + 1,
+        text: change.originalText || '',
+        type: 'deleted'
+      });
+    }
+    
+    if (change.type === 'add' || change.type === 'modify') {
+      contextLines.push({
+        lineNumber: changeLineIndex + 1,
+        text: change.text,
+        type: 'added'
+      });
+    }
+    
+    // Add lines after the change as context
+    if (endIndex > changeLineIndex) {
+      contextLines.push({
+        lineNumber: endIndex + 1,
+        text: lines[endIndex],
+        type: 'context'
+      });
     }
     
     return contextLines;
   };
   
-  const contextWithChanges = getContextWithChanges();
+  // Get all context lines for all changes
+  const getAllContextWithChanges = () => {
+    const lines = originalContent.split('\n');
+    let allContextLines: ContextLine[] = [];
+    
+    // Process each change with its context
+    diffChanges.forEach(change => {
+      const contextForChange = getContextLinesForChange(change, lines);
+      
+      // Avoid duplicating lines that are already in the result
+      contextForChange.forEach(line => {
+        // Only add if this line number doesn't already exist
+        if (!allContextLines.some(existing => existing.lineNumber === line.lineNumber && existing.type === line.type)) {
+          allContextLines.push(line);
+        }
+      });
+    });
+    
+    // Sort lines by line number
+    allContextLines.sort((a, b) => {
+      // First sort by line number
+      if (a.lineNumber !== b.lineNumber) {
+        return a.lineNumber - b.lineNumber;
+      }
+      
+      // For same line number, show deleted before added
+      if (a.type === 'deleted' && b.type === 'added') {
+        return -1;
+      }
+      if (a.type === 'added' && b.type === 'deleted') {
+        return 1;
+      }
+      
+      return 0;
+    });
+    
+    return allContextLines;
+  };
+  
+  const contextWithChanges = getAllContextWithChanges();
+  
+  // Extract removed and added content for the summary section
+  const removedContent = diffChanges
+    .filter(c => c.type === 'delete' || c.type === 'modify')
+    .map(c => c.originalText)
+    .filter(Boolean)
+    .join('\n');
+    
+  const addedContent = diffChanges
+    .filter(c => c.type === 'add' || c.type === 'modify')
+    .map(c => c.text)
+    .filter(Boolean)
+    .join('\n');
   
   return (
     <div className="border rounded-md p-4 space-y-4">
@@ -91,11 +148,11 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-red-50 p-3 rounded border">
           <div className="text-sm font-medium text-red-700">Removed:</div>
-          <div className="text-red-800 line-through">{diffChanges.find(c => c.type === 'delete' || c.type === 'modify')?.originalText || 'No removals'}</div>
+          <div className="text-red-800 line-through whitespace-pre-wrap">{removedContent || 'No removals'}</div>
         </div>
         <div className="bg-green-50 p-3 rounded border">
           <div className="text-sm font-medium text-green-700">Added:</div>
-          <div className="text-green-800">{diffChanges.find(c => c.type === 'add' || c.type === 'modify')?.text || 'No additions'}</div>
+          <div className="text-green-800 whitespace-pre-wrap">{addedContent || 'No additions'}</div>
         </div>
       </div>
     </div>

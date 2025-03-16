@@ -40,26 +40,30 @@ export const SuggestionPreview: React.FC<SuggestionPreviewProps> = ({
     original: string;
     suggested: string;
     changes: any[];
-    lineNumber?: number;
-  }>({ original: '', suggested: '', changes: [] });
+    lineNumbers: number[];
+  }>({ original: '', suggested: '', changes: [], lineNumbers: [] });
   
   // Analyze differences when suggestion changes
   useEffect(() => {
     if (suggestion && originalContent) {
       // Extract text content
       const originalText = extractPlainTextFromDelta(originalContent);
-      const suggestedText = extractPlainTextFromDelta(
-        originalContent.compose(suggestion.deltaDiff)
-      );
       
-      // Analyze the differences
-      const { changes, lineNumber } = analyzeDeltaDifferences(originalText, suggestedText);
+      // Apply suggestion delta to get the new content
+      const suggestedContent = originalContent.compose(suggestion.deltaDiff);
+      const suggestedText = extractPlainTextFromDelta(suggestedContent);
+      
+      // Analyze the differences to get ALL changes
+      const { changes } = analyzeDeltaDifferences(originalText, suggestedText);
+      
+      // Extract line numbers from changes
+      const lineNumbers = changes.map(change => change.lineNumber || 0).filter(num => num > 0);
       
       setDiffData({
         original: originalText,
         suggested: suggestedText,
         changes,
-        lineNumber
+        lineNumbers
       });
     }
   }, [suggestion, originalContent]);
@@ -104,7 +108,7 @@ export const SuggestionPreview: React.FC<SuggestionPreviewProps> = ({
           originalContent={diffData.original}
           suggestedContent={diffData.suggested}
           diffChanges={diffData.changes}
-          lineNumber={diffData.lineNumber}
+          lineNumber={diffData.lineNumbers[0]}
         />
         
         <DialogFooter>

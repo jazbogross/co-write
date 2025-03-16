@@ -11,6 +11,8 @@ export interface DiffChange {
   text: string;
   originalText?: string;
   lineNumber?: number;
+  startIndex?: number;
+  endIndex?: number;
 }
 
 /**
@@ -65,8 +67,25 @@ export function generateContentDiff(original: any, suggested: any): LineDiff {
 }
 
 /**
+ * Finds all lines that contain changes between original and suggested text
+ */
+function findChangedLines(originalLines: string[], suggestedLines: string[]): number[] {
+  const changedLineIndices: number[] = [];
+  
+  // Find all lines that differ
+  for (let i = 0; i < Math.max(originalLines.length, suggestedLines.length); i++) {
+    if (i >= originalLines.length || i >= suggestedLines.length || 
+        originalLines[i] !== suggestedLines[i]) {
+      changedLineIndices.push(i);
+    }
+  }
+  
+  return changedLineIndices;
+}
+
+/**
  * Analyzes differences between two text contents and returns structured change data
- * with line number estimation
+ * with line number estimation for ALL changes
  */
 export function analyzeDeltaDifferences(
   originalText: string, 
@@ -81,61 +100,49 @@ export function analyzeDeltaDifferences(
   const originalLines = originalText.split('\n');
   const suggestedLines = suggestedText.split('\n');
   
-  // For simple implementation, find the first line that differs
-  let firstDifferentLine = -1;
+  // Find all changed line indices
+  const changedLineIndices = findChangedLines(originalLines, suggestedLines);
   
-  // Find the first differing line
-  for (let i = 0; i < Math.max(originalLines.length, suggestedLines.length); i++) {
-    if (i >= originalLines.length || i >= suggestedLines.length || 
-        originalLines[i] !== suggestedLines[i]) {
-      firstDifferentLine = i;
-      break;
-    }
+  if (changedLineIndices.length === 0) {
+    return { changes: [] };
   }
   
-  // For a basic implementation, assume a single change:
-  // If suggested has more lines, it's an addition
-  // If original has more lines, it's a deletion
-  // If same number but content differs, it's a modification
-  let changeType: 'add' | 'delete' | 'modify' = 'modify';
-  
-  if (suggestedLines.length > originalLines.length) {
-    changeType = 'add';
-  } else if (originalLines.length > suggestedLines.length) {
-    changeType = 'delete';
-  }
-  
-  // Create a change object based on what we found
+  // Create change objects for each changed line
   const changes: DiffChange[] = [];
   
-  if (changeType === 'modify') {
-    // In case of modification, log both original and new content
-    changes.push({
-      type: 'modify',
-      text: suggestedLines[firstDifferentLine] || '',
-      originalText: originalLines[firstDifferentLine] || '',
-      lineNumber: firstDifferentLine + 1
-    });
-  } else if (changeType === 'add') {
-    // For addition, include the new content
-    changes.push({
-      type: 'add',
-      text: suggestedLines[firstDifferentLine] || '',
-      lineNumber: firstDifferentLine + 1
-    });
-  } else if (changeType === 'delete') {
-    // For deletion, include the removed content
-    changes.push({
-      type: 'delete',
-      text: '',
-      originalText: originalLines[firstDifferentLine] || '',
-      lineNumber: firstDifferentLine + 1
-    });
-  }
+  changedLineIndices.forEach(lineIndex => {
+    const originalLine = lineIndex < originalLines.length ? originalLines[lineIndex] : '';
+    const suggestedLine = lineIndex < suggestedLines.length ? suggestedLines[lineIndex] : '';
+    
+    if (!originalLine && suggestedLine) {
+      // Line added
+      changes.push({
+        type: 'add',
+        text: suggestedLine,
+        lineNumber: lineIndex + 1
+      });
+    } else if (originalLine && !suggestedLine) {
+      // Line deleted
+      changes.push({
+        type: 'delete',
+        text: '',
+        originalText: originalLine,
+        lineNumber: lineIndex + 1
+      });
+    } else {
+      // Line modified
+      changes.push({
+        type: 'modify',
+        text: suggestedLine,
+        originalText: originalLine,
+        lineNumber: lineIndex + 1
+      });
+    }
+  });
   
   return { 
-    changes, 
-    lineNumber: firstDifferentLine + 1 
+    changes,
+    lineNumber: changedLineIndices[0] + 1  // Return the first changed line for backward compatibility
   };
 }
 

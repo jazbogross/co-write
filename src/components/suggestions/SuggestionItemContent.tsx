@@ -20,8 +20,8 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
     original: string;
     suggested: string;
     changes: any[];
-    lineNumber?: number;
-  }>({ original: '', suggested: '', changes: [] });
+    lineNumbers: number[];
+  }>({ original: '', suggested: '', changes: [], lineNumbers: [] });
   
   // Toggle diff view
   const toggleDiff = () => setShowDiff(!showDiff);
@@ -39,14 +39,17 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
     const displayOriginal = getDisplayContent(originalContent);
     const displaySuggested = getDisplayContent(suggestedContent);
     
-    // Analyze differences
-    const { changes, lineNumber } = analyzeDeltaDifferences(displayOriginal, displaySuggested);
+    // Analyze differences to get ALL changes
+    const { changes } = analyzeDeltaDifferences(displayOriginal, displaySuggested);
+    
+    // Extract line numbers from changes
+    const lineNumbers = changes.map(change => change.lineNumber || 0).filter(num => num > 0);
     
     setDiffData({
       original: displayOriginal,
       suggested: displaySuggested,
       changes,
-      lineNumber
+      lineNumbers
     });
   }, [originalContent, suggestedContent]);
   
@@ -79,7 +82,7 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
           originalContent={diffData.original}
           suggestedContent={diffData.suggested}
           diffChanges={diffData.changes}
-          lineNumber={diffData.lineNumber}
+          lineNumber={diffData.lineNumbers[0]}
         />
       ) : (
         <div className="bg-gray-50 p-2 rounded border whitespace-pre-wrap">
