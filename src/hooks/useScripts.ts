@@ -10,6 +10,7 @@ export interface Script {
   admin_id: string;
   is_private?: boolean;
   admin_username?: string;
+  profiles?: { username?: string }[];
 }
 
 export const useScripts = (userId: string | null) => {
@@ -53,8 +54,9 @@ export const useScripts = (userId: string | null) => {
       } else {
         // Format scripts with admin usernames from profiles
         const formattedPublicScripts = publicData.map(script => {
-          // Correctly handle the profiles data (it's an array of objects)
-          const username = script.profiles?.[0]?.username || 'Unknown';
+          // Type-safe access to profiles data
+          const profilesData = script.profiles as { username?: string }[] | null;
+          const username = profilesData && profilesData[0]?.username ? profilesData[0].username : 'Unknown';
           
           return {
             id: script.id,
