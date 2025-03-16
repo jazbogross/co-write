@@ -1,8 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff } from 'lucide-react';
 import { extractPlainTextFromDelta } from '@/utils/editor';
+import { SuggestionDiffView } from '@/components/editor/SuggestionDiffView';
+import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
 
 interface SuggestionItemContentProps {
   originalContent: string;
@@ -14,6 +16,12 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
   suggestedContent
 }) => {
   const [showDiff, setShowDiff] = useState(false);
+  const [diffData, setDiffData] = useState<{
+    original: string;
+    suggested: string;
+    changes: any[];
+    lineNumber?: number;
+  }>({ original: '', suggested: '', changes: [] });
   
   // Toggle diff view
   const toggleDiff = () => setShowDiff(!showDiff);
@@ -27,8 +35,20 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
     return extractPlainTextFromDelta(content);
   };
   
-  const displayOriginal = getDisplayContent(originalContent);
-  const displaySuggested = getDisplayContent(suggestedContent);
+  useEffect(() => {
+    const displayOriginal = getDisplayContent(originalContent);
+    const displaySuggested = getDisplayContent(suggestedContent);
+    
+    // Analyze differences
+    const { changes, lineNumber } = analyzeDeltaDifferences(displayOriginal, displaySuggested);
+    
+    setDiffData({
+      original: displayOriginal,
+      suggested: displaySuggested,
+      changes,
+      lineNumber
+    });
+  }, [originalContent, suggestedContent]);
   
   return (
     <div className="mt-2">
@@ -55,19 +75,15 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
       </div>
       
       {showDiff ? (
-        <div className="space-y-2">
-          <div className="bg-red-50 border-l-4 border-red-400 pl-2 p-2 rounded">
-            <div className="text-xs font-medium text-red-700 mb-1">Removed:</div>
-            <pre className="whitespace-pre-wrap text-sm">{displayOriginal}</pre>
-          </div>
-          <div className="bg-green-50 border-l-4 border-green-400 pl-2 p-2 rounded">
-            <div className="text-xs font-medium text-green-700 mb-1">Added:</div>
-            <pre className="whitespace-pre-wrap text-sm">{displaySuggested}</pre>
-          </div>
-        </div>
+        <SuggestionDiffView
+          originalContent={diffData.original}
+          suggestedContent={diffData.suggested}
+          diffChanges={diffData.changes}
+          lineNumber={diffData.lineNumber}
+        />
       ) : (
         <div className="bg-gray-50 p-2 rounded border whitespace-pre-wrap">
-          {displaySuggested}
+          {diffData.suggested}
         </div>
       )}
       
@@ -75,7 +91,7 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
         <div className="mt-2">
           <h4 className="text-sm font-medium mb-1">Original Content</h4>
           <div className="bg-gray-100 p-2 rounded border whitespace-pre-wrap">
-            {displayOriginal}
+            {diffData.original}
           </div>
         </div>
       )}

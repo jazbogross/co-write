@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -9,11 +9,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { DeltaStatic } from 'quill';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.bubble.css';
 import { Suggestion } from './types';
 import { approveSuggestion } from '@/services/suggestionService';
 import { toast } from 'sonner';
+import { SuggestionDiffView } from '@/components/editor/SuggestionDiffView';
+import { extractPlainTextFromDelta } from '@/utils/editor';
+import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
 
 interface SuggestionPreviewProps {
   open: boolean;
@@ -35,6 +36,33 @@ export const SuggestionPreview: React.FC<SuggestionPreviewProps> = ({
   onSuccess
 }) => {
   const [isApplying, setIsApplying] = useState(false);
+  const [diffData, setDiffData] = useState<{
+    original: string;
+    suggested: string;
+    changes: any[];
+    lineNumber?: number;
+  }>({ original: '', suggested: '', changes: [] });
+  
+  // Analyze differences when suggestion changes
+  useEffect(() => {
+    if (suggestion && originalContent) {
+      // Extract text content
+      const originalText = extractPlainTextFromDelta(originalContent);
+      const suggestedText = extractPlainTextFromDelta(
+        originalContent.compose(suggestion.deltaDiff)
+      );
+      
+      // Analyze the differences
+      const { changes, lineNumber } = analyzeDeltaDifferences(originalText, suggestedText);
+      
+      setDiffData({
+        original: originalText,
+        suggested: suggestedText,
+        changes,
+        lineNumber
+      });
+    }
+  }, [suggestion, originalContent]);
   
   // Apply a suggestion
   const handleApplySuggestion = async () => {
@@ -71,28 +99,14 @@ export const SuggestionPreview: React.FC<SuggestionPreviewProps> = ({
         <DialogHeader>
           <DialogTitle>Suggestion Preview</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="border p-4 rounded-md">
-            <h3 className="text-sm font-medium mb-2">Original Content</h3>
-            <div className="bg-gray-50 min-h-[300px] p-2 rounded">
-              <ReactQuill 
-                value={originalContent}
-                readOnly
-                theme="bubble"
-              />
-            </div>
-          </div>
-          <div className="border p-4 rounded-md">
-            <h3 className="text-sm font-medium mb-2">With Suggestion Applied</h3>
-            <div className="bg-gray-50 min-h-[300px] p-2 rounded">
-              <ReactQuill 
-                value={originalContent.compose(suggestion.deltaDiff)}
-                readOnly
-                theme="bubble"
-              />
-            </div>
-          </div>
-        </div>
+        
+        <SuggestionDiffView
+          originalContent={diffData.original}
+          suggestedContent={diffData.suggested}
+          diffChanges={diffData.changes}
+          lineNumber={diffData.lineNumber}
+        />
+        
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} variant="outline">
             Close
