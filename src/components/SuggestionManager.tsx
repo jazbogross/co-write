@@ -83,7 +83,7 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
           setOriginalContent({ ops: [{ insert: '\n' }] } as unknown as DeltaStatic);
         }
         
-        // Load suggestions
+        // Load suggestions (without directly joining with profiles)
         const { data: suggestionsData, error: suggestionsError } = await supabase
           .from('script_suggestions')
           .select(`
@@ -91,8 +91,7 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
             user_id,
             delta_diff, 
             status, 
-            created_at,
-            profiles(username)
+            created_at
           `)
           .eq('script_id', scriptId)
           .eq('status', 'pending');
@@ -105,10 +104,32 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
         console.log("SuggestionManager: Suggestions data loaded:", suggestionsData);
         
         if (suggestionsData && suggestionsData.length > 0) {
+          // Get unique user IDs from suggestions
+          const userIds = [...new Set(suggestionsData.map(suggestion => suggestion.user_id))];
+          
+          // Fetch usernames for these user IDs
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .in('id', userIds);
+            
+          if (profilesError) {
+            console.error('SuggestionManager: Error loading profiles:', profilesError);
+          }
+          
+          // Create mapping of user IDs to usernames
+          const usernameMap: Record<string, string> = {};
+          if (profilesData) {
+            profilesData.forEach(profile => {
+              usernameMap[profile.id] = profile.username || 'Unknown user';
+            });
+          }
+          
+          // Format suggestions with usernames
           const formattedSuggestions: Suggestion[] = suggestionsData.map((item: any) => ({
             id: item.id,
             userId: item.user_id,
-            username: item.profiles?.username || 'Unknown user',
+            username: usernameMap[item.user_id] || 'Unknown user',
             deltaDiff: item.delta_diff as unknown as DeltaStatic,
             createdAt: item.created_at,
             status: item.status as 'pending' | 'approved' | 'rejected'

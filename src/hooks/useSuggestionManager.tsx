@@ -18,7 +18,7 @@ export function useSuggestionManager(scriptId: string) {
     try {
       setIsLoading(true);
       
-      // First, fetch all suggestions with the user profiles
+      // First, fetch all suggestions without joining with profiles
       const { data, error } = await supabase
         .from('script_suggestions')
         .select(`
@@ -29,10 +29,7 @@ export function useSuggestionManager(scriptId: string) {
           script_id,
           user_id,
           created_at,
-          updated_at,
-          profiles (
-            username
-          )
+          updated_at
         `)
         .eq('script_id', scriptId)
         .neq('status', 'draft')
@@ -40,26 +37,59 @@ export function useSuggestionManager(scriptId: string) {
 
       if (error) throw error;
       
-      // Fetch original content for comparison
-      const { data: contentData } = await supabase
-        .from('script_content')
-        .select('content_delta')
-        .eq('script_id', scriptId)
-        .single();
-      
-      const originalDelta = contentData?.content_delta || { ops: [{ insert: '\n' }] };
-      
-      // Enhance each suggestion with the original content
-      const enhancedData = data ? data.map(suggestion => ({
-        ...suggestion,
-        original_content: originalDelta
-      })) : [];
-      
-      setSuggestions(enhancedData);
-      
-      // Group suggestions by user
-      const grouped = SuggestionGroupManager.groupByUser(enhancedData);
-      setGroupedSuggestions(grouped);
+      // If we have suggestions, fetch the profiles separately
+      if (data && data.length > 0) {
+        // Get unique user IDs
+        const userIds = [...new Set(data.map(item => item.user_id))];
+        
+        // Fetch user profiles for these IDs
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', userIds);
+          
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        }
+        
+        // Create a mapping of user IDs to usernames
+        const usernameMap: Record<string, string> = {};
+        if (profilesData) {
+          profilesData.forEach(profile => {
+            usernameMap[profile.id] = profile.username || 'Unknown user';
+          });
+        }
+        
+        // Enhance suggestion data with username information
+        const enhancedData = data.map(suggestion => ({
+          ...suggestion,
+          profiles: { username: usernameMap[suggestion.user_id] || 'Unknown user' }
+        }));
+        
+        // Fetch original content for comparison
+        const { data: contentData } = await supabase
+          .from('script_content')
+          .select('content_delta')
+          .eq('script_id', scriptId)
+          .single();
+        
+        const originalDelta = contentData?.content_delta || { ops: [{ insert: '\n' }] };
+        
+        // Enhance each suggestion with the original content
+        const fullyEnhancedData = enhancedData.map(suggestion => ({
+          ...suggestion,
+          original_content: originalDelta
+        }));
+        
+        setSuggestions(fullyEnhancedData);
+        
+        // Group suggestions by user
+        const grouped = SuggestionGroupManager.groupByUser(fullyEnhancedData);
+        setGroupedSuggestions(grouped);
+      } else {
+        setSuggestions([]);
+        setGroupedSuggestions([]);
+      }
     } catch (error) {
       console.error('Error loading suggestions:', error);
       toast({
