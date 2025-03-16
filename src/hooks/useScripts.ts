@@ -10,7 +10,7 @@ export interface Script {
   admin_id: string;
   is_private?: boolean;
   admin_username?: string;
-  profiles?: { username?: string } | null;
+  profiles?: { username?: string | null } | null;
 }
 
 export const useScripts = (userId: string | null) => {
@@ -59,7 +59,7 @@ export const useScripts = (userId: string | null) => {
           
           // The profiles property is expected to have a username property
           if (script.profiles && typeof script.profiles === 'object') {
-            username = script.profiles.username || 'Unknown';
+            username = script.profiles?.username || 'Unknown';
           }
           
           return {
