@@ -34,7 +34,7 @@ export const useScripts = (userId: string | null) => {
           created_at,
           admin_id,
           is_private,
-          profiles(username)
+          profiles!admin_id(username)
         `)
         .eq('is_private', false);
   
@@ -51,9 +51,12 @@ export const useScripts = (userId: string | null) => {
         console.log("🏠 useScripts: No public scripts found in the database");
         setPublicScripts([]);
       } else {
-        // Format scripts with admin usernames directly from the profiles join
+        // Format scripts with admin usernames
         const formattedPublicScripts: Script[] = publicData.map(script => {
-          const username = script.profiles?.[0]?.username || 'Unknown';
+          // Access the username safely considering structure from Supabase
+          const profileData = script.profiles as { username: string } | null;
+          const username = profileData?.username || 'Unknown';
+          
           return {
             id: script.id,
             title: script.title,
