@@ -36,8 +36,10 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
       return deltaObj;
     }
     
-    if (deltaObj && deltaObj.ops) {
-      return new Delta(deltaObj.ops) as unknown as DeltaStatic;
+    if (deltaObj && typeof deltaObj === 'object') {
+      // Handle potential non-object ops value by checking
+      const ops = Array.isArray(deltaObj.ops) ? deltaObj.ops : [];
+      return new Delta(ops) as unknown as DeltaStatic;
     }
     
     return new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
@@ -96,9 +98,9 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
             <SuggestionDetail
               suggestion={{
                 ...expandedSuggestion,
-                // Ensure delta_diff is a proper Delta object
+                // Fix Type error: Delta object, not string
                 delta_diff: ensureDelta(expandedSuggestion.delta_diff)
-              } as Suggestion}
+              }}
               originalContent={originalContent}
               onApprove={(id) => {
                 handleApprove([id]);
@@ -117,4 +119,3 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
     </div>
   );
 };
-

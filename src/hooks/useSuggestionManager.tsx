@@ -16,6 +16,21 @@ export function useSuggestionManager(scriptId: string) {
   const [originalContent, setOriginalContent] = useState<DeltaStatic | null>(null);
   const { toast } = useToast();
 
+  // Helper function to safely convert any value to a Delta object
+  const safeToDelta = (value: any): DeltaStatic => {
+    if (value && typeof value.compose === 'function') {
+      return value;
+    }
+    
+    if (value && typeof value === 'object') {
+      // Safely access ops, ensuring it's an array
+      const ops = value.ops && Array.isArray(value.ops) ? value.ops : [];
+      return new Delta(ops) as unknown as DeltaStatic;
+    }
+    
+    return new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
+  };
+
   const loadSuggestions = async () => {
     try {
       setIsLoading(true);
@@ -75,7 +90,13 @@ export function useSuggestionManager(scriptId: string) {
           const deltaObj = typeof contentData.content_delta === 'string'
             ? JSON.parse(contentData.content_delta)
             : contentData.content_delta;
-          originalDelta = new Delta(deltaObj.ops || []) as unknown as DeltaStatic;
+          
+          // Safely access ops property after checking type
+          const ops = deltaObj && typeof deltaObj === 'object' && Array.isArray(deltaObj.ops) 
+            ? deltaObj.ops 
+            : [{ insert: '\n' }];
+            
+          originalDelta = new Delta(ops) as unknown as DeltaStatic;
         } else {
           originalDelta = new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
         }
@@ -86,9 +107,23 @@ export function useSuggestionManager(scriptId: string) {
         // Enhance suggestion data with username information and proper Delta objects
         const enhancedData = data.map(suggestion => {
           // Convert delta_diff to proper Delta instance
-          const diffDelta = typeof suggestion.delta_diff === 'string'
-            ? new Delta(JSON.parse(suggestion.delta_diff).ops || [])
-            : new Delta(suggestion.delta_diff.ops || []);
+          let diffDelta;
+          
+          if (suggestion.delta_diff) {
+            // Check if it's a string that needs parsing
+            const diffObj = typeof suggestion.delta_diff === 'string'
+              ? JSON.parse(suggestion.delta_diff)
+              : suggestion.delta_diff;
+              
+            // Safely access ops property
+            const ops = diffObj && typeof diffObj === 'object' && Array.isArray(diffObj.ops)
+              ? diffObj.ops
+              : [{ insert: '\n' }];
+              
+            diffDelta = new Delta(ops) as unknown as DeltaStatic;
+          } else {
+            diffDelta = new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
+          }
             
           return {
             ...suggestion,
@@ -276,12 +311,17 @@ export function useSuggestionManager(scriptId: string) {
         .single();
       
       if (data?.content_delta) {
-        // Create a proper Delta object
+        // Create a proper Delta object with safe access to ops
         const deltaObj = typeof data.content_delta === 'string'
           ? JSON.parse(data.content_delta)
           : data.content_delta;
-        
-        setOriginalContent(new Delta(deltaObj.ops || []) as unknown as DeltaStatic);
+          
+        // Safely handle potentially invalid ops formats
+        const ops = deltaObj && typeof deltaObj === 'object' && Array.isArray(deltaObj.ops)
+          ? deltaObj.ops
+          : [{ insert: '\n' }];
+          
+        setOriginalContent(new Delta(ops) as unknown as DeltaStatic);
       } else {
         setOriginalContent(new Delta([{ insert: '\n' }]) as unknown as DeltaStatic);
       }
@@ -301,4 +341,3 @@ export function useSuggestionManager(scriptId: string) {
     loadSuggestions
   };
 }
-
