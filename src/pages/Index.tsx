@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,7 +48,7 @@ export const Index = () => {
     setFetchError(null);
     
     try {
-      // 1. Fetch public scripts with explicit query for is_private=false
+      // 1. Fetch public scripts with profiles.username
       console.log("🏠 INDEX: Querying for public scripts (is_private=false)");
       const { data: publicData, error: publicError } = await supabase
         .from('scripts')
@@ -75,58 +74,21 @@ export const Index = () => {
         console.log("🏠 INDEX: No public scripts found in the database");
         setPublicScripts([]);
       } else {
-        // 2. Get usernames for script admins
-        const adminIds = [...new Set(publicData.map(script => script.admin_id))];
-        let formattedPublicScripts: Script[] = [];
-        
-        if (adminIds.length > 0) {
-          console.log("🏠 INDEX: Fetching profiles for admin IDs:", adminIds);
-          const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, username')
-            .in('id', adminIds);
+        // Format scripts with admin usernames from profiles
+        const formattedPublicScripts = publicData.map(script => ({
+          id: script.id,
+          title: script.title,
+          created_at: script.created_at,
+          admin_id: script.admin_id,
+          is_private: script.is_private ?? false,
+          admin_username: script.profiles?.username || 'Unknown' // Use profiles.username
+        }));
 
-          if (profilesError) {
-            console.error("🏠 INDEX: Error fetching profiles:", profilesError);
-            setFetchError(`Profiles fetch error: ${profilesError.message}`);
-            toast.error("Failed to load user profiles");
-            return;
-          }
-
-          console.log("🏠 INDEX: Fetched profiles:", profilesData);
-
-          // Create a map of admin ID to username
-          const adminUsernameMap = new Map();
-          profilesData?.forEach(profile => {
-            adminUsernameMap.set(profile.id, profile.username || 'Anonymous');
-          });
-
-          // Format scripts with admin usernames
-          formattedPublicScripts = publicData.map(script => ({
-            id: script.id,
-            title: script.title,
-            created_at: script.created_at,
-            admin_id: script.admin_id,
-            is_private: script.is_private ?? false,
-            admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
-          }));
-        } else {
-          // If no admin IDs, just format without usernames
-          formattedPublicScripts = publicData.map(script => ({
-            id: script.id,
-            title: script.title,
-            created_at: script.created_at,
-            admin_id: script.admin_id,
-            is_private: script.is_private ?? false,
-            admin_username: 'Unknown'
-          }));
-        }
-        
         console.log("🏠 INDEX: Formatted public scripts:", formattedPublicScripts);
         setPublicScripts(formattedPublicScripts);
       }
 
-      // 3. Fetch user's scripts if user is logged in
+      // 2. Fetch user's scripts if user is logged in
       if (user) {
         console.log("🏠 INDEX: Fetching scripts for user:", user.id);
         const { data: userScriptsData, error: userScriptsError } = await supabase
@@ -194,14 +156,14 @@ export const Index = () => {
           </CardContent>
           <CardFooter className="flex justify-between">
             <Button asChild variant="secondary" size="sm">
-              <Link to={`/script/${script.id}`}>
+              <Link to={`/scripts/${script.id}`}>
                 <EyeIcon className="mr-1 h-4 w-4" />
                 View
               </Link>
             </Button>
             {user && (
               <Button asChild size="sm">
-                <Link to={`/script/${script.id}/edit`}>
+                <Link to={`/scripts/${script.id}`}>
                   <GitForkIcon className="mr-1 h-4 w-4" />
                   Edit
                 </Link>
