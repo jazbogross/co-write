@@ -61,44 +61,19 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
           setLoading(true);
           setFetchError(null);
           
-          // Fetch user profile
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('username, email')
-            .eq('id', user.id)
-            .single();
-            
-          if (profileError) {
-            console.error("📋 PROFILE-DATA: Error fetching profile:", profileError);
-            // Fall back to auth user data
-            if (isMounted.current && user.email) {
-              setProfile({
-                email: user.email || "",
-                username: user.username || "",
-              });
-            }
-          } else if (profileData) {
-            console.log("📋 PROFILE-DATA: Profile data fetched:", profileData);
-            if (isMounted.current) {
-              setProfile({
-                email: profileData.email || user.email || "",
-                username: profileData.username || user.username || "",
-              });
-            }
+          // Set basic profile data from auth user
+          if (isMounted.current && user.email) {
+            setProfile({
+              email: user.email || "",
+              username: user.username || "",
+            });
           }
 
           // Fetch user scripts
           console.log("📋 PROFILE-DATA: Fetching scripts for user:", user.id);
           const { data: scriptsData, error: scriptsError } = await supabase
             .from('scripts')
-            .select(`
-              id, 
-              title, 
-              created_at, 
-              is_private, 
-              admin_id,
-              profiles:admin_id(username)
-            `)
+            .select('id, title, created_at, is_private, admin_id')
             .eq('admin_id', user.id);
 
           if (!isMounted.current) {
@@ -120,9 +95,7 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
               admin_id: script.admin_id,
               created_at: script.created_at,
               is_private: script.is_private,
-              profiles: { 
-                username: script.profiles?.username || "You" 
-              }
+              profiles: { username: "" } // Add a default profiles property
             }));
 
             if (isMounted.current) {
