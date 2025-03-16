@@ -35,7 +35,7 @@ export const useScripts = (userId: string | null) => {
           created_at,
           admin_id,
           is_private,
-          profiles:admin_id(username)
+          profiles(username)
         `)
         .eq('is_private', false);
 
@@ -54,8 +54,13 @@ export const useScripts = (userId: string | null) => {
       } else {
         // Format scripts with admin usernames from profiles
         const formattedPublicScripts = publicData.map(script => {
-          // Handle the profiles data which is now a foreign key reference
-          const username = script.profiles?.username || 'Unknown';
+          // Handle the profiles data - can be null or contain a username
+          let username = 'Unknown';
+          
+          // The profiles property is expected to have a username property
+          if (script.profiles && typeof script.profiles === 'object') {
+            username = script.profiles.username || 'Unknown';
+          }
           
           return {
             id: script.id,
