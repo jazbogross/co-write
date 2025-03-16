@@ -10,7 +10,6 @@ export interface Script {
   admin_id: string;
   is_private?: boolean;
   admin_username?: string;
-  profiles?: { username?: string | null } | null;
 }
 
 export const useScripts = (userId: string | null) => {
@@ -35,7 +34,7 @@ export const useScripts = (userId: string | null) => {
           created_at,
           admin_id,
           is_private,
-          profiles:admin_id(username)
+          profiles(username)
         `)
         .eq('is_private', false);
   
@@ -53,15 +52,17 @@ export const useScripts = (userId: string | null) => {
         setPublicScripts([]);
       } else {
         // Format scripts with admin usernames directly from the profiles join
-        const formattedPublicScripts = publicData.map(script => ({
-          id: script.id,
-          title: script.title,
-          created_at: script.created_at,
-          admin_id: script.admin_id,
-          is_private: script.is_private ?? false,
-          admin_username: script.profiles?.username || 'Unknown',
-          profiles: script.profiles
-        }));
+        const formattedPublicScripts: Script[] = publicData.map(script => {
+          const username = script.profiles?.[0]?.username || 'Unknown';
+          return {
+            id: script.id,
+            title: script.title,
+            created_at: script.created_at,
+            admin_id: script.admin_id,
+            is_private: script.is_private ?? false,
+            admin_username: username
+          };
+        });
         
         console.log("🏠 useScripts: Formatted public scripts:", formattedPublicScripts);
         setPublicScripts(formattedPublicScripts);
@@ -88,7 +89,7 @@ export const useScripts = (userId: string | null) => {
         } else {
           console.log("🏠 useScripts: User scripts data:", userScriptsData);
           
-          const userFormattedScripts = userScriptsData.map(script => ({
+          const userFormattedScripts: Script[] = userScriptsData.map(script => ({
             id: script.id,
             title: script.title,
             created_at: script.created_at,
