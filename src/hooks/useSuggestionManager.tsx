@@ -1,10 +1,17 @@
+
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { SuggestionGroupManager, UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
-import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
-import Delta from 'quill-delta';
 import { DeltaStatic } from 'quill';
+import Delta from 'quill-delta';
+import { safeToDelta } from '@/utils/delta/safeDeltaOperations';
+import {
+  fetchSuggestions,
+  fetchUserProfiles,
+  fetchOriginalContent,
+  approveSuggestion,
+  rejectSuggestion
+} from '@/services/suggestionService';
 
 export function useSuggestionManager(scriptId: string) {
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -15,116 +22,29 @@ export function useSuggestionManager(scriptId: string) {
   const [originalContent, setOriginalContent] = useState<DeltaStatic | null>(null);
   const { toast } = useToast();
 
-  // Helper function to safely convert any value to a Delta object
-  const safeToDelta = (value: any): DeltaStatic => {
-    if (value && typeof value.compose === 'function') {
-      return value;
-    }
-    
-    if (value && typeof value === 'object') {
-      // Safely access ops, ensuring it's an array
-      const ops = value.ops && Array.isArray(value.ops) ? value.ops : [];
-      return new Delta(ops) as unknown as DeltaStatic;
-    }
-    
-    return new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
-  };
-
   const loadSuggestions = async () => {
     try {
       setIsLoading(true);
       
-      // First, fetch all suggestions without joining with profiles
-      const { data, error } = await supabase
-        .from('script_suggestions')
-        .select(`
-          id,
-          delta_diff,
-          status,
-          rejection_reason,
-          script_id,
-          user_id,
-          created_at,
-          updated_at
-        `)
-        .eq('script_id', scriptId)
-        .neq('status', 'draft')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      // Fetch all suggestions
+      const suggestionsData = await fetchSuggestions(scriptId);
       
-      // If we have suggestions, fetch the profiles separately
-      if (data && data.length > 0) {
+      // If we have suggestions, fetch the profiles
+      if (suggestionsData.length > 0) {
         // Get unique user IDs
-        const userIds = [...new Set(data.map(item => item.user_id))];
+        const userIds = [...new Set(suggestionsData.map(item => item.user_id))];
         
         // Fetch user profiles for these IDs
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .in('id', userIds);
-          
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-        }
-        
-        // Create a mapping of user IDs to usernames
-        const usernameMap: Record<string, string> = {};
-        if (profilesData) {
-          profilesData.forEach(profile => {
-            usernameMap[profile.id] = profile.username || 'Unknown user';
-          });
-        }
+        const usernameMap = await fetchUserProfiles(userIds);
         
         // Fetch original content for comparison
-        const { data: contentData } = await supabase
-          .from('script_content')
-          .select('content_delta')
-          .eq('script_id', scriptId)
-          .single();
-        
-        // Create proper Delta object from content
-        let originalDelta;
-        if (contentData?.content_delta) {
-          const deltaObj = typeof contentData.content_delta === 'string'
-            ? JSON.parse(contentData.content_delta)
-            : contentData.content_delta;
-          
-          // Safely access ops property after checking type
-          const ops = deltaObj && typeof deltaObj === 'object' && 
-                     'ops' in deltaObj && Array.isArray(deltaObj.ops) 
-            ? deltaObj.ops 
-            : [{ insert: '\n' }];
-            
-          originalDelta = new Delta(ops) as unknown as DeltaStatic;
-        } else {
-          originalDelta = new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
-        }
-        
-        // Store the original content
+        const originalDelta = await fetchOriginalContent(scriptId);
         setOriginalContent(originalDelta);
         
         // Enhance suggestion data with username information and proper Delta objects
-        const enhancedData = data.map(suggestion => {
+        const enhancedData = suggestionsData.map(suggestion => {
           // Convert delta_diff to proper Delta instance
-          let diffDelta;
-          
-          if (suggestion.delta_diff) {
-            // Check if it's a string that needs parsing
-            const diffObj = typeof suggestion.delta_diff === 'string'
-              ? JSON.parse(suggestion.delta_diff)
-              : suggestion.delta_diff;
-              
-            // Safely access ops property
-            const ops = diffObj && typeof diffObj === 'object' && 
-                      'ops' in diffObj && Array.isArray(diffObj.ops)
-              ? diffObj.ops
-              : [{ insert: '\n' }];
-              
-            diffDelta = new Delta(ops) as unknown as DeltaStatic;
-          } else {
-            diffDelta = new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
-          }
+          const diffDelta = safeToDelta(suggestion.delta_diff);
             
           return {
             ...suggestion,
@@ -164,41 +84,17 @@ export function useSuggestionManager(scriptId: string) {
     setIsProcessing(true);
     try {
       for (const id of ids) {
-        // Get the suggestion details first
-        const { data: suggestionData, error: suggestionError } = await supabase
-          .from('script_suggestions')
-          .select('delta_diff, user_id')
-          .eq('id', id)
-          .single();
-
-        if (suggestionError) throw suggestionError;
-        if (!suggestionData) throw new Error('Suggestion not found');
-
-        // Ensure we have a proper Delta object for the suggestion
-        const diffDelta = typeof suggestionData.delta_diff === 'string'
-          ? new Delta(JSON.parse(suggestionData.delta_diff).ops || [])
-          : new Delta(suggestionData.delta_diff.ops || []);
-          
-        // Apply the diff to the original content
-        const newContent = originalContent.compose(diffDelta as unknown as DeltaStatic);
+        // Find the suggestion in our local state
+        const suggestion = suggestions.find(s => s.id === id);
+        if (!suggestion) continue;
         
-        // Update the script_content with the new content
-        const { error: updateError } = await supabase
-          .from('script_content')
-          .update({ 
-            content_delta: JSON.parse(JSON.stringify(newContent))
-          })
-          .eq('script_id', scriptId);
-
-        if (updateError) throw updateError;
-
-        // Update suggestion status
-        const { error: statusError } = await supabase
-          .from('script_suggestions')
-          .update({ status: 'approved' })
-          .eq('id', id);
-
-        if (statusError) throw statusError;
+        // Approve the suggestion
+        await approveSuggestion(
+          scriptId,
+          id,
+          originalContent,
+          suggestion.delta_diff
+        );
       }
 
       // Update the local state
@@ -244,15 +140,7 @@ export function useSuggestionManager(scriptId: string) {
 
     setIsProcessing(true);
     try {
-      const { error } = await supabase
-        .from('script_suggestions')
-        .update({ 
-          status: 'rejected',
-          rejection_reason: reason
-        })
-        .eq('id', id);
-
-      if (error) throw error;
+      await rejectSuggestion(id, reason);
 
       // Update the local state
       setSuggestions(suggestions.map(suggestion =>
@@ -304,35 +192,16 @@ export function useSuggestionManager(scriptId: string) {
     
     // Make sure we have the latest original content for comparison
     if (!originalContent) {
-      // Get the original content for comparison
-      const { data } = await supabase
-        .from('script_content')
-        .select('content_delta')
-        .eq('script_id', scriptId)
-        .single();
-      
-      if (data?.content_delta) {
-        // Create a proper Delta object with safe access to ops
-        const deltaObj = typeof data.content_delta === 'string'
-          ? JSON.parse(data.content_delta)
-          : data.content_delta;
-          
-        // Safely handle potentially invalid ops formats - update this part to fix the error
-        let ops = [{ insert: '\n' }];
-        
-        if (deltaObj && typeof deltaObj === 'object') {
-          // First check if ops property exists using 'in' operator
-          if ('ops' in deltaObj) {
-            // Then check if it's an array
-            if (Array.isArray(deltaObj.ops)) {
-              ops = deltaObj.ops;
-            }
-          }
-        }
-          
-        setOriginalContent(new Delta(ops) as unknown as DeltaStatic);
-      } else {
-        setOriginalContent(new Delta([{ insert: '\n' }]) as unknown as DeltaStatic);
+      try {
+        const content = await fetchOriginalContent(scriptId);
+        setOriginalContent(content);
+      } catch (error) {
+        console.error('Error loading original content:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load original content for comparison",
+          variant: "destructive",
+        });
       }
     }
   };
