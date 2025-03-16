@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { DeltaEditor } from './DeltaEditor';
-import { SuggestionManager } from './SuggestionManager';
+import { SuggestionManager } from './suggestions/SuggestionManager';
 import { ScriptSuggestions } from './suggestions/SuggestionsList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';

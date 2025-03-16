@@ -81,10 +81,23 @@ export const approveSuggestion = async (
   scriptId: string,
   suggestionId: string,
   originalContent: DeltaStatic,
-  diffDelta: DeltaStatic
+  diffDelta?: DeltaStatic
 ) => {
+  // If diffDelta is not provided, fetch it
+  let diff = diffDelta;
+  if (!diff) {
+    const { data, error } = await supabase
+      .from('script_suggestions')
+      .select('delta_diff')
+      .eq('id', suggestionId)
+      .single();
+      
+    if (error) throw error;
+    diff = safeToDelta(data.delta_diff);
+  }
+  
   // Apply the diff to the original content
-  const newContent = originalContent.compose(diffDelta);
+  const newContent = originalContent.compose(diff!);
   
   // Update the script_content with the new content
   const { error: updateError } = await supabase

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,7 +9,6 @@ import { UserGroup, Suggestion } from '@/utils/diff/SuggestionGroupManager';
 import { DeltaStatic } from 'quill';
 import Delta from 'quill-delta';
 
-// Define a local interface that matches SuggestionDetail's expected props
 interface SuggestionForDetail {
   id: string;
   status: string;
@@ -28,7 +26,6 @@ interface SuggestionListProps {
 
 export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
   const [selectedSuggestionId, setSelectedSuggestionId] = useState<string | null>(null);
   
   const {
@@ -42,14 +39,12 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
     setExpandedSuggestion
   } = useSuggestionManager(scriptId);
 
-  // Ensure Delta objects are properly initialized
   const ensureDelta = (deltaObj: any): DeltaStatic => {
     if (deltaObj && typeof deltaObj.compose === 'function') {
       return deltaObj;
     }
     
     if (deltaObj && typeof deltaObj === 'object') {
-      // Handle potential non-object ops value by checking
       const ops = Array.isArray(deltaObj.ops) ? deltaObj.ops : [];
       return new Delta(ops) as unknown as DeltaStatic;
     }
@@ -83,15 +78,9 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
       <RejectionDialog
         open={isRejectionDialogOpen}
         onOpenChange={setIsRejectionDialogOpen}
-        rejectionReason={rejectionReason}
-        onReasonChange={setRejectionReason}
-        onConfirm={() => {
-          if (selectedSuggestionId) {
-            handleReject(selectedSuggestionId, rejectionReason);
-            setIsRejectionDialogOpen(false);
-            setRejectionReason('');
-            setSelectedSuggestionId(null);
-          }
+        suggestionId={selectedSuggestionId || ''}
+        onSuccess={() => {
+          setSelectedSuggestionId(null);
         }}
       />
       
@@ -136,7 +125,6 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
   );
 };
 
-// Helper function to extract plain text from Delta
 const extractPlainTextFromDelta = (delta: DeltaStatic | null): string => {
   if (!delta) return '';
   
