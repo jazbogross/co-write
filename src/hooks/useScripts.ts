@@ -25,7 +25,7 @@ export const useScripts = (userId: string | null) => {
     setFetchError(null);
     
     try {
-      // 1. Fetch public scripts with profiles.username
+      // 1. Fetch public scripts by joining with profiles
       console.log("🏠 useScripts: Querying for public scripts (is_private=false)");
       const { data: publicData, error: publicError } = await supabase
         .from('scripts')
@@ -35,7 +35,7 @@ export const useScripts = (userId: string | null) => {
           created_at,
           admin_id,
           is_private,
-          profiles(username)
+          profiles:admin_id(username)
         `)
         .eq('is_private', false);
 
@@ -54,14 +54,8 @@ export const useScripts = (userId: string | null) => {
       } else {
         // Format scripts with admin usernames from profiles
         const formattedPublicScripts = publicData.map(script => {
-          // Safely handle the profiles data - this avoids the type conversion error
-          let username = 'Unknown';
-          
-          // Check if profiles exists and has the expected structure
-          if (script.profiles && Array.isArray(script.profiles) && script.profiles.length > 0) {
-            // If it's an array with at least one item that has a username
-            username = script.profiles[0]?.username || 'Unknown';
-          }
+          // Handle the profiles data which is now a foreign key reference
+          const username = script.profiles?.username || 'Unknown';
           
           return {
             id: script.id,
