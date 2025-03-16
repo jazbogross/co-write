@@ -10,7 +10,7 @@ export interface Script {
   admin_id: string;
   is_private?: boolean;
   admin_username?: string;
-  profiles?: { username?: string }[];
+  profiles?: { username?: string } | null;
 }
 
 export const useScripts = (userId: string | null) => {
@@ -54,9 +54,14 @@ export const useScripts = (userId: string | null) => {
       } else {
         // Format scripts with admin usernames from profiles
         const formattedPublicScripts = publicData.map(script => {
-          // Type-safe access to profiles data
-          const profilesData = script.profiles as { username?: string }[] | null;
-          const username = profilesData && profilesData[0]?.username ? profilesData[0].username : 'Unknown';
+          // Safely handle the profiles data - this avoids the type conversion error
+          let username = 'Unknown';
+          
+          // Check if profiles exists and has the expected structure
+          if (script.profiles && Array.isArray(script.profiles) && script.profiles.length > 0) {
+            // If it's an array with at least one item that has a username
+            username = script.profiles[0]?.username || 'Unknown';
+          }
           
           return {
             id: script.id,
