@@ -2,6 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { DeltaStatic } from 'quill';
 import { safeToDelta } from '@/utils/delta/safeDeltaOperations';
+import Delta from 'quill-delta';
 
 /**
  * Fetch all suggestions for a script
@@ -21,7 +22,7 @@ export const fetchSuggestions = async (scriptId: string) => {
       updated_at
     `)
     .eq('script_id', scriptId)
-    .neq('status', 'draft')
+    .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -95,10 +96,38 @@ export const approveSuggestion = async (
 
   if (updateError) throw updateError;
 
+  // Get current version
+  const { data: versionData } = await supabase
+    .from('script_content')
+    .select('version')
+    .eq('script_id', scriptId)
+    .single();
+  
+  const newVersion = (versionData?.version || 0) + 1;
+  
+  // Update version number
+  await supabase
+    .from('script_content')
+    .update({ version: newVersion })
+    .eq('script_id', scriptId);
+  
+  // Save version history
+  await supabase
+    .from('script_versions')
+    .insert({
+      script_id: scriptId,
+      version_number: newVersion,
+      content_delta: JSON.parse(JSON.stringify(newContent)),
+      created_at: new Date().toISOString()
+    });
+
   // Update suggestion status
   const { error: statusError } = await supabase
     .from('script_suggestions')
-    .update({ status: 'approved' })
+    .update({ 
+      status: 'approved',
+      updated_at: new Date().toISOString()
+    })
     .eq('id', suggestionId);
 
   if (statusError) throw statusError;
@@ -117,7 +146,8 @@ export const rejectSuggestion = async (
     .from('script_suggestions')
     .update({ 
       status: 'rejected',
-      rejection_reason: reason
+      rejection_reason: reason,
+      updated_at: new Date().toISOString()
     })
     .eq('id', suggestionId);
 
