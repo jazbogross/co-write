@@ -25,7 +25,7 @@ export const useScripts = (userId: string | null) => {
     setFetchError(null);
     
     try {
-      // 1. Fetch public scripts with profiles.username
+      // 1. Fetch public scripts
       console.log("🏠 useScripts: Querying for public scripts (is_private=false)");
       const { data: publicData, error: publicError } = await supabase
         .from('scripts')
@@ -34,50 +34,75 @@ export const useScripts = (userId: string | null) => {
           title,
           created_at,
           admin_id,
-          is_private,
-          profiles(username)
+          is_private
         `)
         .eq('is_private', false);
-
+  
       if (publicError) {
         console.error("🏠 useScripts: Error fetching public scripts:", publicError);
         setFetchError(`Public scripts fetch error: ${publicError.message}`);
         toast.error("Failed to load public scripts");
         return;
       }
-
+  
       console.log("🏠 useScripts: Public scripts raw data:", publicData);
       
       if (!publicData || publicData.length === 0) {
         console.log("🏠 useScripts: No public scripts found in the database");
         setPublicScripts([]);
       } else {
-        // Format scripts with admin usernames from profiles
-        const formattedPublicScripts = publicData.map(script => {
-          // Safely handle the profiles data - this avoids the type conversion error
-          let username = 'Unknown';
-          
-          // Check if profiles exists and has the expected structure
-          if (script.profiles && Array.isArray(script.profiles) && script.profiles.length > 0) {
-            // If it's an array with at least one item that has a username
-            username = script.profiles[0]?.username || 'Unknown';
+        // 2. Fetch usernames for script admins
+        const adminIds = [...new Set(publicData.map(script => script.admin_id))];
+        let formattedPublicScripts: Script[] = [];
+        
+        if (adminIds.length > 0) {
+          console.log("🏠 useScripts: Fetching profiles for admin IDs:", adminIds);
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .in('id', adminIds);
+  
+          if (profilesError) {
+            console.error("🏠 useScripts: Error fetching profiles:", profilesError);
+            setFetchError(`Profiles fetch error: ${profilesError.message}`);
+            toast.error("Failed to load user profiles");
+            return;
           }
-          
-          return {
+  
+          console.log("🏠 useScripts: Fetched profiles:", profilesData);
+  
+          // Create a map of admin ID to username
+          const adminUsernameMap = new Map();
+          profilesData?.forEach(profile => {
+            adminUsernameMap.set(profile.id, profile.username || 'Anonymous');
+          });
+  
+          // Format scripts with admin usernames
+          formattedPublicScripts = publicData.map(script => ({
             id: script.id,
             title: script.title,
             created_at: script.created_at,
             admin_id: script.admin_id,
             is_private: script.is_private ?? false,
-            admin_username: username
-          };
-        });
-
+            admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
+          }));
+        } else {
+          // If no admin IDs, just format without usernames
+          formattedPublicScripts = publicData.map(script => ({
+            id: script.id,
+            title: script.title,
+            created_at: script.created_at,
+            admin_id: script.admin_id,
+            is_private: script.is_private ?? false,
+            admin_username: 'Unknown'
+          }));
+        }
+        
         console.log("🏠 useScripts: Formatted public scripts:", formattedPublicScripts);
         setPublicScripts(formattedPublicScripts);
       }
-
-      // 2. Fetch user's scripts if user is logged in
+  
+      // 3. Fetch user's scripts if user is logged in
       if (userId) {
         console.log("🏠 useScripts: Fetching scripts for user:", userId);
         const { data: userScriptsData, error: userScriptsError } = await supabase
@@ -90,7 +115,7 @@ export const useScripts = (userId: string | null) => {
             is_private
           `)
           .eq('admin_id', userId);
-
+  
         if (userScriptsError) {
           console.error("🏠 useScripts: Error fetching user scripts:", userScriptsError);
           setFetchError(`User scripts fetch error: ${userScriptsError.message}`);
