@@ -66,8 +66,8 @@ export const useSessionManager = (
         }
         
         // We have an active session
-        const user = sessionData.session.user;
-        console.log('👤 useSessionManager: Active session found, user ID:', user.id);
+        let currentUser = sessionData.session.user;
+        console.log('👤 useSessionManager: Active session found, user ID:', currentUser.id);
         
         // Check if the session is about to expire (within 5 minutes)
         const expiresAt = sessionData.session.expires_at;
@@ -111,7 +111,7 @@ export const useSessionManager = (
             console.log('👤 useSessionManager: Token refreshed successfully');
             // Update session data with the refreshed session
             sessionData.session = refreshData.session;
-            user = refreshData.session.user;
+            currentUser = refreshData.session.user;
           } catch (refreshException) {
             console.error('👤 useSessionManager: Exception during token refresh:', refreshException);
             if (refs.isMounted.current) {
@@ -127,22 +127,22 @@ export const useSessionManager = (
         }
         
         if (refs.isMounted.current) {
-          const provider = user.app_metadata?.provider || null;
+          const provider = currentUser.app_metadata?.provider || null;
           console.log('👤 useSessionManager: Auth provider:', provider);
           
           // Update the github_access_token in profile if available
           if (provider === 'github' && sessionData.session.provider_token) {
-            await handleGitHubToken(user.id, user.email, sessionData.session.provider_token);
+            await handleGitHubToken(currentUser.id, currentUser.email, sessionData.session.provider_token);
           }
           
           if (refs.isMounted.current) {
-            setters.setUserId(user.id);
+            setters.setUserId(currentUser.id);
             setters.setAuthProvider(provider);
             setters.setIsLoading(false);
             setters.setAuthCheckedOnce(true);
             setters.setError(null);
             isInitializationComplete = true;
-            console.log('👤 useSessionManager: State updated with session data, userId:', user.id);
+            console.log('👤 useSessionManager: State updated with session data, userId:', currentUser.id);
             console.log('👤 useSessionManager: Auth checked set to true after session data loaded');
           }
         }
