@@ -32,11 +32,7 @@ export function useSuggestionGroups(suggestions: any[]) {
       setGroupedSuggestions(grouped);
     } catch (error) {
       console.error('Error grouping suggestions:', error);
-      toast({
-        title: "Error",
-        description: "Failed to group suggestions",
-        variant: "destructive",
-      });
+      toast.error("Failed to group suggestions");
     }
   };
 

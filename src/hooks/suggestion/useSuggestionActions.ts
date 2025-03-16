@@ -30,22 +30,15 @@ export function useSuggestionActions(
         );
       }
 
-      toast({
-        title: "Success",
-        description: ids.length > 1 
-          ? `${ids.length} suggestions approved` 
-          : "Suggestion approved and changes applied",
-      });
+      toast.success(ids.length > 1 
+        ? `${ids.length} suggestions approved` 
+        : "Suggestion approved and changes applied");
       
       // Reload suggestions to get fresh data
       loadSuggestions();
     } catch (error) {
       console.error('Error approving suggestion:', error);
-      toast({
-        title: "Error",
-        description: "Failed to approve suggestion",
-        variant: "destructive",
-      });
+      toast.error("Failed to approve suggestion");
     } finally {
       setIsProcessing(false);
     }
@@ -58,20 +51,13 @@ export function useSuggestionActions(
     try {
       await rejectSuggestion(id, reason);
 
-      toast({
-        title: "Success",
-        description: "Suggestion rejected",
-      });
+      toast.success("Suggestion rejected");
       
       // Reload suggestions to get fresh data
       loadSuggestions();
     } catch (error) {
       console.error('Error rejecting suggestion:', error);
-      toast({
-        title: "Error",
-        description: "Failed to reject suggestion",
-        variant: "destructive",
-      });
+      toast.error("Failed to reject suggestion");
     } finally {
       setIsProcessing(false);
     }
