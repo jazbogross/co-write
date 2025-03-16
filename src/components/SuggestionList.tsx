@@ -10,6 +10,18 @@ import { UserGroup, Suggestion } from '@/utils/diff/SuggestionGroupManager';
 import { DeltaStatic } from 'quill';
 import Delta from 'quill-delta';
 
+// Define a local interface that matches SuggestionDetail's expected props
+interface SuggestionForDetail {
+  id: string;
+  status: string;
+  user: {
+    username: string;
+  };
+  content: any;
+  line_number?: number;
+  rejection_reason?: string;
+}
+
 interface SuggestionListProps {
   scriptId: string;
 }
@@ -97,11 +109,15 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
           {expandedSuggestion && originalContent && (
             <SuggestionDetail
               suggestion={{
-                ...expandedSuggestion,
-                // Fix Type error: Delta object, not string
-                delta_diff: ensureDelta(expandedSuggestion.delta_diff)
+                id: expandedSuggestion.id,
+                status: expandedSuggestion.status,
+                user: { 
+                  username: expandedSuggestion.profiles?.username || 'Unknown user' 
+                },
+                content: ensureDelta(expandedSuggestion.delta_diff),
+                rejection_reason: expandedSuggestion.rejection_reason
               }}
-              originalContent={originalContent}
+              originalContent={extractPlainTextFromDelta(originalContent)}
               onApprove={(id) => {
                 handleApprove([id]);
                 setExpandedSuggestion(null);
@@ -118,4 +134,20 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
       </Dialog>
     </div>
   );
+};
+
+// Helper function to extract plain text from Delta
+const extractPlainTextFromDelta = (delta: DeltaStatic | null): string => {
+  if (!delta) return '';
+  
+  let text = '';
+  if (delta.ops && Array.isArray(delta.ops)) {
+    delta.ops.forEach(op => {
+      if (typeof op.insert === 'string') {
+        text += op.insert;
+      }
+    });
+  }
+  
+  return text;
 };

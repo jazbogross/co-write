@@ -3,15 +3,19 @@
  * SuggestionGroupManager - Utilities for grouping suggestions by user
  */
 import { DeltaContent } from '@/utils/editor/types';
+import { DeltaStatic } from 'quill';
 
 export interface Suggestion {
   id: string;
   content: string | DeltaContent;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
-  delta_diff: any;
-  original_content?: any;
+  delta_diff: DeltaStatic;
+  rejection_reason?: string;
   user: {
+    username: string;
+  };
+  profiles?: {
     username: string;
   };
 }
@@ -21,8 +25,11 @@ export interface GroupedSuggestion {
   content: string | DeltaContent;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
-  delta_diff: any;
-  original_content?: any;
+  delta_diff: DeltaStatic;
+  rejection_reason?: string;
+  profiles?: {
+    username: string;
+  };
 }
 
 export interface UserGroup {
@@ -61,7 +68,8 @@ export class SuggestionGroupManager {
         status: suggestion.status,
         createdAt: suggestion.created_at,
         delta_diff: suggestion.delta_diff,
-        original_content: suggestion.original_content
+        rejection_reason: suggestion.rejection_reason,
+        profiles: suggestion.profiles
       });
       group.count = group.suggestions.length;
     });

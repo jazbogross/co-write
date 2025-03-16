@@ -92,7 +92,8 @@ export function useSuggestionManager(scriptId: string) {
             : contentData.content_delta;
           
           // Safely access ops property after checking type
-          const ops = deltaObj && typeof deltaObj === 'object' && Array.isArray(deltaObj.ops) 
+          const ops = deltaObj && typeof deltaObj === 'object' && 
+                     'ops' in deltaObj && Array.isArray(deltaObj.ops) 
             ? deltaObj.ops 
             : [{ insert: '\n' }];
             
@@ -116,7 +117,8 @@ export function useSuggestionManager(scriptId: string) {
               : suggestion.delta_diff;
               
             // Safely access ops property
-            const ops = diffObj && typeof diffObj === 'object' && Array.isArray(diffObj.ops)
+            const ops = diffObj && typeof diffObj === 'object' && 
+                      'ops' in diffObj && Array.isArray(diffObj.ops)
               ? diffObj.ops
               : [{ insert: '\n' }];
               
@@ -317,7 +319,8 @@ export function useSuggestionManager(scriptId: string) {
           : data.content_delta;
           
         // Safely handle potentially invalid ops formats
-        const ops = deltaObj && typeof deltaObj === 'object' && Array.isArray(deltaObj.ops)
+        const ops = deltaObj && typeof deltaObj === 'object' && 
+                   'ops' in deltaObj && Array.isArray(deltaObj.ops)
           ? deltaObj.ops
           : [{ insert: '\n' }];
           
