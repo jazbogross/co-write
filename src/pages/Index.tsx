@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,7 +58,7 @@ export const Index = () => {
           created_at,
           admin_id,
           is_private,
-          profiles!scripts_admin_id_fkey(username)
+          profiles(username)
         `)
         .eq('is_private', false);
 
@@ -83,7 +82,9 @@ export const Index = () => {
           created_at: script.created_at,
           admin_id: script.admin_id,
           is_private: script.is_private ?? false,
-          admin_username: script.profiles?.length > 0 ? script.profiles[0].username : 'Unknown'
+          admin_username: script.profiles && script.profiles[0]?.username 
+            ? script.profiles[0].username 
+            : 'Unknown'
         }));
 
         console.log("🏠 INDEX: Formatted public scripts:", formattedPublicScripts);
