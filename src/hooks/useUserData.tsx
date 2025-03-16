@@ -2,7 +2,13 @@
 import { useEffect } from 'react';
 import { useAuthStateManager } from './user/useAuthStateManager';
 import { useSessionManager } from './user/useSessionManager';
+import { useAuthCleanup } from './user/lifecycle/useAuthCleanup';
+import { useAuthStateTracking } from './user/lifecycle/useAuthStateTracking';
 
+/**
+ * Hook for managing user data and authentication state
+ * @returns Object containing user authentication data and status
+ */
 export const useUserData = () => {
   console.log("👤 useUserData: Initializing user data check...");
   
@@ -11,32 +17,10 @@ export const useUserData = () => {
   
   // Set up session management and auth listener
   useSessionManager(state, setters, refs);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      console.log("👤 useUserData: Component unmounting, cleaning up");
-      refs.isMounted.current = false;
-      
-      // Clean up auth listener if it exists
-      if (refs.authListenerCleanup.current) {
-        console.log("👤 useUserData: Cleaning up auth listener on unmount");
-        refs.authListenerCleanup.current();
-        refs.authListenerCleanup.current = null;
-      }
-    };
-  }, []);
-
-  // Log state updates
-  useEffect(() => {
-    console.log('👤 useUserData: State updated:', {
-      userId: state.userId,
-      isLoading: state.isLoading,
-      error: state.error,
-      authProvider: state.authProvider,
-      authCheckedOnce: state.authCheckedOnce
-    });
-  }, [state.userId, state.isLoading, state.error, state.authProvider, state.authCheckedOnce]);
+  
+  // Set up hooks for cleanup and state tracking
+  useAuthCleanup(refs.isMounted, refs.authListenerCleanup);
+  useAuthStateTracking(state);
 
   return { 
     userId: state.userId, 
