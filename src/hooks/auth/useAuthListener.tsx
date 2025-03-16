@@ -24,6 +24,7 @@ export const useAuthListener = (
 
         console.log("🔑 useAuthListener: Checking for existing session");
         
+        // Check for existing session and refresh token if needed
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         console.log("🔑 useAuthListener: Session check result:", { 
           hasSession: !!sessionData?.session, 
@@ -106,9 +107,11 @@ export const useAuthListener = (
     // Check for session immediately
     checkSession();
     
-    // Set up auth listener
+    // Set up auth listener with retry mechanism
     try {
       console.log("🔑 useAuthListener: Setting up Supabase auth state change listener");
+      
+      // Set up the auth state change listener
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         console.log(`🔑 useAuthListener: Auth state change: ${event}`, {
           hasSession: !!session,

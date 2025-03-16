@@ -54,72 +54,94 @@ export const useScripts = (userId: string | null) => {
         const adminIds = [...new Set(publicData.map(script => script.admin_id))];
         console.log("🏠 useScripts: Fetching usernames for admin IDs:", adminIds);
         
-        // Fetch profile data for these admin IDs
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .in('id', adminIds);
+        try {
+          // Fetch profile data for these admin IDs
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .in('id', adminIds);
+            
+          if (profilesError) {
+            console.error("🏠 useScripts: Error fetching profiles:", profilesError);
+          }
           
-        if (profilesError) {
-          console.error("🏠 useScripts: Error fetching profiles:", profilesError);
-        }
-        
-        // Create a map of admin_id -> username for easier lookup
-        const adminUsernames: Record<string, string> = {};
-        if (profilesData) {
-          profilesData.forEach(profile => {
-            adminUsernames[profile.id] = profile.username || 'Unknown';
+          // Create a map of admin_id -> username for easier lookup
+          const adminUsernames: Record<string, string> = {};
+          if (profilesData) {
+            profilesData.forEach(profile => {
+              adminUsernames[profile.id] = profile.username || 'Unknown';
+            });
+          }
+          
+          // Format scripts with admin usernames
+          const formattedPublicScripts: Script[] = publicData.map(script => {
+            return {
+              id: script.id,
+              title: script.title,
+              created_at: script.created_at,
+              admin_id: script.admin_id,
+              is_private: script.is_private ?? false,
+              admin_username: adminUsernames[script.admin_id] || 'Unknown'
+            };
           });
+          
+          console.log("🏠 useScripts: Formatted public scripts:", formattedPublicScripts);
+          setPublicScripts(formattedPublicScripts);
+        } catch (profilesException) {
+          console.error("🏠 useScripts: Exception fetching profiles:", profilesException);
+          // Still set scripts even if profile fetch fails, just without usernames
+          const formattedPublicScripts: Script[] = publicData.map(script => {
+            return {
+              id: script.id,
+              title: script.title,
+              created_at: script.created_at,
+              admin_id: script.admin_id,
+              is_private: script.is_private ?? false,
+              admin_username: 'Unknown'
+            };
+          });
+          setPublicScripts(formattedPublicScripts);
         }
-        
-        // Format scripts with admin usernames
-        const formattedPublicScripts: Script[] = publicData.map(script => {
-          return {
-            id: script.id,
-            title: script.title,
-            created_at: script.created_at,
-            admin_id: script.admin_id,
-            is_private: script.is_private ?? false,
-            admin_username: adminUsernames[script.admin_id] || 'Unknown'
-          };
-        });
-        
-        console.log("🏠 useScripts: Formatted public scripts:", formattedPublicScripts);
-        setPublicScripts(formattedPublicScripts);
       }
   
       // 3. Fetch user's scripts if user is logged in
       if (userId) {
         console.log("🏠 useScripts: Fetching scripts for user:", userId);
-        const { data: userScriptsData, error: userScriptsError } = await supabase
-          .from('scripts')
-          .select(`
-            id,
-            title,
-            created_at,
-            admin_id,
-            is_private
-          `)
-          .eq('admin_id', userId);
-  
-        if (userScriptsError) {
-          console.error("🏠 useScripts: Error fetching user scripts:", userScriptsError);
-          setFetchError(`User scripts fetch error: ${userScriptsError.message}`);
+        try {
+          const { data: userScriptsData, error: userScriptsError } = await supabase
+            .from('scripts')
+            .select(`
+              id,
+              title,
+              created_at,
+              admin_id,
+              is_private
+            `)
+            .eq('admin_id', userId);
+    
+          if (userScriptsError) {
+            console.error("🏠 useScripts: Error fetching user scripts:", userScriptsError);
+            setFetchError(`User scripts fetch error: ${userScriptsError.message}`);
+            toast.error("Failed to load your scripts");
+          } else {
+            console.log("🏠 useScripts: User scripts data:", userScriptsData);
+            
+            const userFormattedScripts: Script[] = userScriptsData.map(script => ({
+              id: script.id,
+              title: script.title,
+              created_at: script.created_at,
+              admin_id: script.admin_id,
+              is_private: script.is_private ?? false,
+              admin_username: 'You'
+            }));
+            
+            setYourScripts(userFormattedScripts);
+            console.log("🏠 useScripts: Formatted user scripts:", userFormattedScripts);
+          }
+        } catch (userScriptsException) {
+          console.error("🏠 useScripts: Exception fetching user scripts:", userScriptsException);
+          setFetchError(`Failed to fetch user scripts: ${userScriptsException instanceof Error ? userScriptsException.message : 'Unknown error'}`);
           toast.error("Failed to load your scripts");
-        } else {
-          console.log("🏠 useScripts: User scripts data:", userScriptsData);
-          
-          const userFormattedScripts: Script[] = userScriptsData.map(script => ({
-            id: script.id,
-            title: script.title,
-            created_at: script.created_at,
-            admin_id: script.admin_id,
-            is_private: script.is_private ?? false,
-            admin_username: 'You'
-          }));
-          
-          setYourScripts(userFormattedScripts);
-          console.log("🏠 useScripts: Formatted user scripts:", userFormattedScripts);
         }
       }
     } catch (error) {

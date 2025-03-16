@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useGitHubTokenManager } from './useGitHubTokenManager';
+import { toast } from 'sonner';
 
 export const useSessionManager = (
   state: {
@@ -67,6 +68,63 @@ export const useSessionManager = (
         // We have an active session
         const user = sessionData.session.user;
         console.log('👤 useSessionManager: Active session found, user ID:', user.id);
+        
+        // Check if the session is about to expire (within 5 minutes)
+        const expiresAt = sessionData.session.expires_at;
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        const fiveMinutesInSeconds = 5 * 60;
+        
+        // If token is about to expire, refresh it
+        if (expiresAt && expiresAt - nowInSeconds < fiveMinutesInSeconds) {
+          console.log('👤 useSessionManager: Token is about to expire, refreshing...');
+          
+          try {
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            
+            if (refreshError) {
+              console.error('👤 useSessionManager: Failed to refresh token:', refreshError);
+              // If refresh fails, sign the user out and redirect to login
+              if (refs.isMounted.current) {
+                setters.setUserId(null);
+                setters.setAuthProvider(null);
+                setters.setIsLoading(false);
+                setters.setAuthCheckedOnce(true);
+                isInitializationComplete = true;
+                toast.error("Your session has expired. Please sign in again.");
+              }
+              return;
+            }
+            
+            if (!refreshData.session) {
+              console.log('👤 useSessionManager: No session returned after refresh');
+              if (refs.isMounted.current) {
+                setters.setUserId(null);
+                setters.setAuthProvider(null);
+                setters.setIsLoading(false);
+                setters.setAuthCheckedOnce(true);
+                isInitializationComplete = true;
+                toast.error("Your session has expired. Please sign in again.");
+              }
+              return;
+            }
+            
+            console.log('👤 useSessionManager: Token refreshed successfully');
+            // Update session data with the refreshed session
+            sessionData.session = refreshData.session;
+            user = refreshData.session.user;
+          } catch (refreshException) {
+            console.error('👤 useSessionManager: Exception during token refresh:', refreshException);
+            if (refs.isMounted.current) {
+              setters.setUserId(null);
+              setters.setAuthProvider(null);
+              setters.setIsLoading(false);
+              setters.setAuthCheckedOnce(true);
+              isInitializationComplete = true;
+              toast.error("An error occurred refreshing your session. Please sign in again.");
+            }
+            return;
+          }
+        }
         
         if (refs.isMounted.current) {
           const provider = user.app_metadata?.provider || null;
