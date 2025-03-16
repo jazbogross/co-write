@@ -34,7 +34,8 @@ export const useScripts = (userId: string | null) => {
           title,
           created_at,
           admin_id,
-          is_private
+          is_private,
+          profiles:admin_id(username)
         `)
         .eq('is_private', false);
   
@@ -51,52 +52,16 @@ export const useScripts = (userId: string | null) => {
         console.log("🏠 useScripts: No public scripts found in the database");
         setPublicScripts([]);
       } else {
-        // 2. Fetch usernames for script admins
-        const adminIds = [...new Set(publicData.map(script => script.admin_id))];
-        let formattedPublicScripts: Script[] = [];
-        
-        if (adminIds.length > 0) {
-          console.log("🏠 useScripts: Fetching profiles for admin IDs:", adminIds);
-          const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, username')
-            .in('id', adminIds);
-  
-          if (profilesError) {
-            console.error("🏠 useScripts: Error fetching profiles:", profilesError);
-            setFetchError(`Profiles fetch error: ${profilesError.message}`);
-            toast.error("Failed to load user profiles");
-            return;
-          }
-  
-          console.log("🏠 useScripts: Fetched profiles:", profilesData);
-  
-          // Create a map of admin ID to username
-          const adminUsernameMap = new Map();
-          profilesData?.forEach(profile => {
-            adminUsernameMap.set(profile.id, profile.username || 'Anonymous');
-          });
-  
-          // Format scripts with admin usernames
-          formattedPublicScripts = publicData.map(script => ({
-            id: script.id,
-            title: script.title,
-            created_at: script.created_at,
-            admin_id: script.admin_id,
-            is_private: script.is_private ?? false,
-            admin_username: adminUsernameMap.get(script.admin_id) || 'Unknown'
-          }));
-        } else {
-          // If no admin IDs, just format without usernames
-          formattedPublicScripts = publicData.map(script => ({
-            id: script.id,
-            title: script.title,
-            created_at: script.created_at,
-            admin_id: script.admin_id,
-            is_private: script.is_private ?? false,
-            admin_username: 'Unknown'
-          }));
-        }
+        // Format scripts with admin usernames directly from the profiles join
+        const formattedPublicScripts = publicData.map(script => ({
+          id: script.id,
+          title: script.title,
+          created_at: script.created_at,
+          admin_id: script.admin_id,
+          is_private: script.is_private ?? false,
+          admin_username: script.profiles?.username || 'Unknown',
+          profiles: script.profiles
+        }));
         
         console.log("🏠 useScripts: Formatted public scripts:", formattedPublicScripts);
         setPublicScripts(formattedPublicScripts);

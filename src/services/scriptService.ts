@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { DeltaStatic } from 'quill';
 import Delta from 'quill-delta';
@@ -242,6 +241,8 @@ export const createSuggestion = async (
  */
 export const getScriptSuggestions = async (scriptId: string): Promise<ScriptSuggestion[]> => {
   try {
+    console.log("getScriptSuggestions: Fetching for script ID:", scriptId);
+    
     const { data, error } = await supabase
       .from('script_suggestions')
       .select(`
@@ -256,6 +257,13 @@ export const getScriptSuggestions = async (scriptId: string): Promise<ScriptSugg
       return [];
     }
 
+    if (!data || data.length === 0) {
+      console.log("getScriptSuggestions: No suggestions found for script ID:", scriptId);
+      return [];
+    }
+
+    console.log("getScriptSuggestions: Found", data.length, "suggestions");
+    
     return data.map(suggestion => ({
       id: suggestion.id,
       scriptId: suggestion.script_id,

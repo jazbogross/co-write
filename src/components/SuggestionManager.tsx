@@ -61,12 +61,21 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
       setIsLoading(true);
       
       try {
+        console.log("SuggestionManager: Loading data for script ID:", scriptId);
+        
         // Load original content
-        const { data: contentData } = await supabase
+        const { data: contentData, error: contentError } = await supabase
           .from('script_content')
           .select('content_delta')
           .eq('script_id', scriptId)
           .single();
+        
+        if (contentError) {
+          console.error("SuggestionManager: Error fetching content:", contentError);
+          return;
+        }
+        
+        console.log("SuggestionManager: Content data loaded:", !!contentData);
         
         if (contentData?.content_delta) {
           setOriginalContent(contentData.content_delta as unknown as DeltaStatic);
@@ -75,7 +84,7 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
         }
         
         // Load suggestions
-        const { data: suggestionsData, error } = await supabase
+        const { data: suggestionsData, error: suggestionsError } = await supabase
           .from('script_suggestions')
           .select(`
             id, 
@@ -83,18 +92,19 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
             delta_diff, 
             status, 
             created_at,
-            profiles:user_id (username)
+            profiles(username)
           `)
           .eq('script_id', scriptId)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });
+          .eq('status', 'pending');
         
-        if (error) {
-          console.error('Error loading suggestions:', error);
+        if (suggestionsError) {
+          console.error('SuggestionManager: Error loading suggestions:', suggestionsError);
           return;
         }
         
-        if (suggestionsData) {
+        console.log("SuggestionManager: Suggestions data loaded:", suggestionsData);
+        
+        if (suggestionsData && suggestionsData.length > 0) {
           const formattedSuggestions: Suggestion[] = suggestionsData.map((item: any) => ({
             id: item.id,
             userId: item.user_id,
@@ -105,9 +115,13 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
           }));
           
           setSuggestions(formattedSuggestions);
+          console.log("SuggestionManager: Formatted suggestions:", formattedSuggestions.length);
+        } else {
+          console.log("SuggestionManager: No suggestions found");
+          setSuggestions([]);
         }
       } catch (error) {
-        console.error('Error loading suggestions:', error);
+        console.error('SuggestionManager: Error loading suggestions:', error);
         toast.error('Failed to load suggestions');
       } finally {
         setIsLoading(false);
