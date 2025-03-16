@@ -33,7 +33,8 @@ export const useScripts = (userId: string | null) => {
           title,
           created_at,
           admin_id,
-          is_private
+          is_private,
+          profiles:admin_id(username)
         `)
         .eq('is_private', false);
   
@@ -50,28 +51,6 @@ export const useScripts = (userId: string | null) => {
         console.log("🏠 useScripts: No public scripts found in the database");
         setPublicScripts([]);
       } else {
-        // Get unique admin_ids to fetch username data
-        const adminIds = [...new Set(publicData.map(script => script.admin_id))];
-        console.log("🏠 useScripts: Fetching usernames for admin IDs:", adminIds);
-        
-        // Fetch profile data for these admin IDs
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .in('id', adminIds);
-          
-        if (profilesError) {
-          console.error("🏠 useScripts: Error fetching profiles:", profilesError);
-        }
-        
-        // Create a map of admin_id -> username for easier lookup
-        const adminUsernames: Record<string, string> = {};
-        if (profilesData) {
-          profilesData.forEach(profile => {
-            adminUsernames[profile.id] = profile.username || 'Unknown';
-          });
-        }
-        
         // Format scripts with admin usernames
         const formattedPublicScripts: Script[] = publicData.map(script => {
           return {
@@ -80,7 +59,7 @@ export const useScripts = (userId: string | null) => {
             created_at: script.created_at,
             admin_id: script.admin_id,
             is_private: script.is_private ?? false,
-            admin_username: adminUsernames[script.admin_id] || 'Unknown'
+            admin_username: script.profiles?.username || 'Unknown'
           };
         });
         
@@ -98,7 +77,8 @@ export const useScripts = (userId: string | null) => {
             title,
             created_at,
             admin_id,
-            is_private
+            is_private,
+            profiles:admin_id(username)
           `)
           .eq('admin_id', userId);
   

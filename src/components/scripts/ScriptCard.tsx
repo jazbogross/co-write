@@ -26,6 +26,9 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
   showPrivateIndicator = true,
   isLoggedIn
 }) => {
+  // If admin_username is null or empty, use "Unknown" as fallback
+  const displayUsername = admin_username || 'Unknown';
+  
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader>
@@ -41,9 +44,9 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({
       <CardContent>
         <div className="flex items-center space-x-2 mb-4">
           <Avatar className="h-6 w-6">
-            <AvatarFallback>{admin_username ? admin_username[0].toUpperCase() : '?'}</AvatarFallback>
+            <AvatarFallback>{displayUsername ? displayUsername[0].toUpperCase() : '?'}</AvatarFallback>
           </Avatar>
-          <span className="text-sm text-gray-600">{admin_username}</span>
+          <span className="text-sm text-gray-600">{displayUsername}</span>
         </div>
       </CardContent>
       <CardFooter className="flex justify-between">
