@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { SuggestionGroupManager, UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import Delta from 'quill-delta';
+import { DeltaStatic } from 'quill';
 
 export function useSuggestionManager(scriptId: string) {
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -11,7 +13,7 @@ export function useSuggestionManager(scriptId: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [expandedSuggestion, setExpandedSuggestion] = useState<GroupedSuggestion | null>(null);
-  const [originalContent, setOriginalContent] = useState<any>(null);
+  const [originalContent, setOriginalContent] = useState<DeltaStatic | null>(null);
   const { toast } = useToast();
 
   const loadSuggestions = async () => {
@@ -60,12 +62,6 @@ export function useSuggestionManager(scriptId: string) {
           });
         }
         
-        // Enhance suggestion data with username information
-        const enhancedData = data.map(suggestion => ({
-          ...suggestion,
-          profiles: { username: usernameMap[suggestion.user_id] || 'Unknown user' }
-        }));
-        
         // Fetch original content for comparison
         const { data: contentData } = await supabase
           .from('script_content')
@@ -73,18 +69,38 @@ export function useSuggestionManager(scriptId: string) {
           .eq('script_id', scriptId)
           .single();
         
-        const originalDelta = contentData?.content_delta || { ops: [{ insert: '\n' }] };
+        // Create proper Delta object from content
+        let originalDelta;
+        if (contentData?.content_delta) {
+          const deltaObj = typeof contentData.content_delta === 'string'
+            ? JSON.parse(contentData.content_delta)
+            : contentData.content_delta;
+          originalDelta = new Delta(deltaObj.ops || []) as unknown as DeltaStatic;
+        } else {
+          originalDelta = new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
+        }
         
-        // Enhance each suggestion with the original content
-        const fullyEnhancedData = enhancedData.map(suggestion => ({
-          ...suggestion,
-          original_content: originalDelta
-        }));
+        // Store the original content
+        setOriginalContent(originalDelta);
         
-        setSuggestions(fullyEnhancedData);
+        // Enhance suggestion data with username information and proper Delta objects
+        const enhancedData = data.map(suggestion => {
+          // Convert delta_diff to proper Delta instance
+          const diffDelta = typeof suggestion.delta_diff === 'string'
+            ? new Delta(JSON.parse(suggestion.delta_diff).ops || [])
+            : new Delta(suggestion.delta_diff.ops || []);
+            
+          return {
+            ...suggestion,
+            profiles: { username: usernameMap[suggestion.user_id] || 'Unknown user' },
+            delta_diff: diffDelta
+          };
+        });
+        
+        setSuggestions(enhancedData);
         
         // Group suggestions by user
-        const grouped = SuggestionGroupManager.groupByUser(fullyEnhancedData);
+        const grouped = SuggestionGroupManager.groupByUser(enhancedData);
         setGroupedSuggestions(grouped);
       } else {
         setSuggestions([]);
@@ -107,7 +123,7 @@ export function useSuggestionManager(scriptId: string) {
   }, [scriptId]);
 
   const handleApprove = async (ids: string[]) => {
-    if (ids.length === 0) return;
+    if (ids.length === 0 || !originalContent) return;
     
     setIsProcessing(true);
     try {
@@ -122,11 +138,19 @@ export function useSuggestionManager(scriptId: string) {
         if (suggestionError) throw suggestionError;
         if (!suggestionData) throw new Error('Suggestion not found');
 
-        // Update the script_content with the suggestion delta
+        // Ensure we have a proper Delta object for the suggestion
+        const diffDelta = typeof suggestionData.delta_diff === 'string'
+          ? new Delta(JSON.parse(suggestionData.delta_diff).ops || [])
+          : new Delta(suggestionData.delta_diff.ops || []);
+          
+        // Apply the diff to the original content
+        const newContent = originalContent.compose(diffDelta as unknown as DeltaStatic);
+        
+        // Update the script_content with the new content
         const { error: updateError } = await supabase
           .from('script_content')
           .update({ 
-            content_delta: suggestionData.delta_diff
+            content_delta: JSON.parse(JSON.stringify(newContent))
           })
           .eq('script_id', scriptId);
 
@@ -164,6 +188,9 @@ export function useSuggestionManager(scriptId: string) {
           ? `${ids.length} suggestions approved` 
           : "Suggestion approved and changes applied",
       });
+      
+      // Reload suggestions to get fresh data
+      loadSuggestions();
     } catch (error) {
       console.error('Error approving suggestion:', error);
       toast({
@@ -177,7 +204,7 @@ export function useSuggestionManager(scriptId: string) {
   };
 
   const handleReject = async (id: string, reason: string) => {
-    if (!id || !reason.trim()) return;
+    if (!id) return;
 
     setIsProcessing(true);
     try {
@@ -239,17 +266,25 @@ export function useSuggestionManager(scriptId: string) {
     if (!foundSuggestion) return;
     setExpandedSuggestion(foundSuggestion);
     
-    // Get the original content for comparison
-    const { data } = await supabase
-      .from('script_content')
-      .select('content_delta')
-      .eq('script_id', scriptId)
-      .single();
-    
-    if (data?.content_delta) {
-      setOriginalContent(data.content_delta);
-    } else {
-      setOriginalContent({ ops: [{ insert: '\n' }] });
+    // Make sure we have the latest original content for comparison
+    if (!originalContent) {
+      // Get the original content for comparison
+      const { data } = await supabase
+        .from('script_content')
+        .select('content_delta')
+        .eq('script_id', scriptId)
+        .single();
+      
+      if (data?.content_delta) {
+        // Create a proper Delta object
+        const deltaObj = typeof data.content_delta === 'string'
+          ? JSON.parse(data.content_delta)
+          : data.content_delta;
+        
+        setOriginalContent(new Delta(deltaObj.ops || []) as unknown as DeltaStatic);
+      } else {
+        setOriginalContent(new Delta([{ insert: '\n' }]) as unknown as DeltaStatic);
+      }
     }
   };
 
@@ -262,6 +297,8 @@ export function useSuggestionManager(scriptId: string) {
     handleApprove,
     handleReject,
     handleExpandSuggestion,
-    setExpandedSuggestion
+    setExpandedSuggestion,
+    loadSuggestions
   };
 }
+

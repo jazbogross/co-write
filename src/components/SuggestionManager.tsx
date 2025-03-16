@@ -26,6 +26,7 @@ import {
 import { DeltaStatic } from 'quill';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.bubble.css';
+import Delta from 'quill-delta';
 
 interface Suggestion {
   id: string;
@@ -78,9 +79,14 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
         console.log("SuggestionManager: Content data loaded:", !!contentData);
         
         if (contentData?.content_delta) {
-          setOriginalContent(contentData.content_delta as unknown as DeltaStatic);
+          // Ensure we're creating a valid Delta object
+          const deltaObj = typeof contentData.content_delta === 'string' 
+            ? JSON.parse(contentData.content_delta) 
+            : contentData.content_delta;
+          
+          setOriginalContent(new Delta(deltaObj.ops || []) as unknown as DeltaStatic);
         } else {
-          setOriginalContent({ ops: [{ insert: '\n' }] } as unknown as DeltaStatic);
+          setOriginalContent(new Delta([{ insert: '\n' }]) as unknown as DeltaStatic);
         }
         
         // Load suggestions (without directly joining with profiles)
@@ -126,14 +132,21 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
           }
           
           // Format suggestions with usernames
-          const formattedSuggestions: Suggestion[] = suggestionsData.map((item: any) => ({
-            id: item.id,
-            userId: item.user_id,
-            username: usernameMap[item.user_id] || 'Unknown user',
-            deltaDiff: item.delta_diff as unknown as DeltaStatic,
-            createdAt: item.created_at,
-            status: item.status as 'pending' | 'approved' | 'rejected'
-          }));
+          const formattedSuggestions: Suggestion[] = suggestionsData.map((item: any) => {
+            // Ensure we properly convert the delta_diff to a Delta object
+            const diffDelta = typeof item.delta_diff === 'string'
+              ? new Delta(JSON.parse(item.delta_diff).ops || [])
+              : new Delta(item.delta_diff.ops || []);
+              
+            return {
+              id: item.id,
+              userId: item.user_id,
+              username: usernameMap[item.user_id] || 'Unknown user',
+              deltaDiff: diffDelta as unknown as DeltaStatic,
+              createdAt: item.created_at,
+              status: item.status as 'pending' | 'approved' | 'rejected'
+            };
+          });
           
           setSuggestions(formattedSuggestions);
           console.log("SuggestionManager: Formatted suggestions:", formattedSuggestions.length);
@@ -402,3 +415,4 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
     </div>
   );
 };
+

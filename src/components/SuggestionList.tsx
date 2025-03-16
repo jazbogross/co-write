@@ -7,6 +7,8 @@ import { SuggestionGroup } from './suggestions/SuggestionGroup';
 import { SuggestionDetail } from './suggestions/SuggestionDetail';
 import { useSuggestionManager } from '@/hooks/useSuggestionManager';
 import { UserGroup, Suggestion } from '@/utils/diff/SuggestionGroupManager';
+import { DeltaStatic } from 'quill';
+import Delta from 'quill-delta';
 
 interface SuggestionListProps {
   scriptId: string;
@@ -27,6 +29,19 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
     handleExpandSuggestion,
     setExpandedSuggestion
   } = useSuggestionManager(scriptId);
+
+  // Ensure Delta objects are properly initialized
+  const ensureDelta = (deltaObj: any): DeltaStatic => {
+    if (deltaObj && typeof deltaObj.compose === 'function') {
+      return deltaObj;
+    }
+    
+    if (deltaObj && deltaObj.ops) {
+      return new Delta(deltaObj.ops) as unknown as DeltaStatic;
+    }
+    
+    return new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
+  };
 
   if (isLoading) {
     return <div className="text-center py-4">Loading suggestions...</div>;
@@ -77,9 +92,13 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
             <DialogTitle>Suggestion Details</DialogTitle>
           </DialogHeader>
           
-          {expandedSuggestion && (
+          {expandedSuggestion && originalContent && (
             <SuggestionDetail
-              suggestion={expandedSuggestion as Suggestion}
+              suggestion={{
+                ...expandedSuggestion,
+                // Ensure delta_diff is a proper Delta object
+                delta_diff: ensureDelta(expandedSuggestion.delta_diff)
+              } as Suggestion}
               originalContent={originalContent}
               onApprove={(id) => {
                 handleApprove([id]);
@@ -98,3 +117,4 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
     </div>
   );
 };
+
