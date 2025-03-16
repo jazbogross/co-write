@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -318,11 +317,18 @@ export function useSuggestionManager(scriptId: string) {
           ? JSON.parse(data.content_delta)
           : data.content_delta;
           
-        // Safely handle potentially invalid ops formats
-        const ops = deltaObj && typeof deltaObj === 'object' && 
-                   'ops' in deltaObj && Array.isArray(deltaObj.ops)
-          ? deltaObj.ops
-          : [{ insert: '\n' }];
+        // Safely handle potentially invalid ops formats - update this part to fix the error
+        let ops = [{ insert: '\n' }];
+        
+        if (deltaObj && typeof deltaObj === 'object') {
+          // First check if ops property exists using 'in' operator
+          if ('ops' in deltaObj) {
+            // Then check if it's an array
+            if (Array.isArray(deltaObj.ops)) {
+              ops = deltaObj.ops;
+            }
+          }
+        }
           
         setOriginalContent(new Delta(ops) as unknown as DeltaStatic);
       } else {
