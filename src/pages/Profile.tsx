@@ -1,6 +1,6 @@
 
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { ProfileContent } from "@/components/profile/ProfileContent";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
@@ -12,6 +12,7 @@ import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 export default function Profile() {
   console.log("📋 PROFILE: Component rendering");
   const navigate = useNavigate();
+  const location = useLocation();
   const session = useSession();
   const supabase = useSupabaseClient();
 
@@ -24,9 +25,9 @@ export default function Profile() {
   useEffect(() => {
     if (!session) {
       console.log("📋 PROFILE: No authenticated user, redirecting to auth page");
-      navigate("/auth");
+      navigate("/auth", { state: { from: location.pathname } });
     }
-  }, [session, navigate]);
+  }, [session, navigate, location.pathname]);
 
   const handleSignOut = async () => {
     try {

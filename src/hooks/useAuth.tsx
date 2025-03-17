@@ -1,6 +1,8 @@
 
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { toast } from 'sonner';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, createContext, useContext, ReactNode } from 'react';
 
 export type AuthUser = {
   id: string;
@@ -9,9 +11,26 @@ export type AuthUser = {
   provider?: string | null;
 };
 
-export const useAuth = () => {
+// Create a context to track authentication status
+const AuthContext = createContext<ReturnType<typeof useAuthState> | null>(null);
+
+// Provider component
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const authState = useAuthState();
+  
+  return (
+    <AuthContext.Provider value={authState}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Internal hook that provides auth functionality
+function useAuthState() {
   const session = useSession();
   const supabase = useSupabaseClient();
+  const navigate = useNavigate();
+  const location = useLocation();
   
   // Transform the Supabase user into our AuthUser type
   const user = session?.user ? {
@@ -23,6 +42,18 @@ export const useAuth = () => {
 
   const loading = false;
   const authChecked = true;
+  
+  // Handle redirects for protected routes
+  useEffect(() => {
+    if (authChecked && !user && location.pathname !== '/auth') {
+      // Don't automatically redirect from public pages
+      const publicPages = ['/', '/scripts'];
+      if (!publicPages.some(page => location.pathname.startsWith(page))) {
+        console.log('🔑 useAuth: User not authenticated, redirecting to auth page from', location.pathname);
+        navigate('/auth', { state: { from: location.pathname } });
+      }
+    }
+  }, [user, authChecked, navigate, location.pathname]);
   
   const signIn = async (email: string, password: string) => {
     try {
@@ -79,6 +110,7 @@ export const useAuth = () => {
       }
       
       toast.success('Signed out successfully');
+      // No automatic redirect after sign out
     } catch (error) {
       console.error('Sign out error:', error);
       toast.error('Failed to sign out');
@@ -112,4 +144,16 @@ export const useAuth = () => {
     signOut,
     resetPassword
   };
+}
+
+// Export the hook for use in components
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  
+  if (!context) {
+    console.error('🔑 useAuth: Must be used within an AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  
+  return context;
 };

@@ -10,7 +10,11 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-export const AuthContainer = () => {
+interface AuthContainerProps {
+  redirectPath?: string;
+}
+
+export const AuthContainer = ({ redirectPath = '/' }: AuthContainerProps) => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -27,8 +31,8 @@ export const AuthContainer = () => {
         return;
       }
       
-      // Redirect to home page instead of profile
-      navigate('/');
+      // Redirect to the specified path after login
+      navigate(redirectPath);
     } catch (error) {
       console.error('Login error:', error);
       toast.error("An unexpected error occurred during login");
