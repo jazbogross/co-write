@@ -3,7 +3,7 @@ import React from 'react';
 import 'react-quill/dist/quill.snow.css';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { saveContent } from '@/utils/deltaUtils';
+import { saveContent, loadContent } from '@/utils/deltaUtils';
 import Delta from 'quill-delta';
 import { useEditorContent } from '@/hooks/useEditorContent';
 import { EditorContent } from '@/components/editor/EditorContent';
@@ -17,6 +17,7 @@ interface DeltaEditorProps {
 export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) => {
   const {
     content,
+    setContent,
     userId,
     isLoading,
     hasDraft,

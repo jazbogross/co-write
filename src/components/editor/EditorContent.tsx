@@ -23,13 +23,15 @@ export const EditorContent: React.FC<EditorContentProps> = ({
   };
 
   return (
-    <ReactQuill 
-      ref={quillRef}
-      defaultValue={content}
-      onChange={handleChange}
-      theme="snow"
-      modules={modules}
-      className="bg-white h-[80vh]"
-    />
+    <div className="quill-editor-container">
+      <ReactQuill 
+        ref={quillRef}
+        defaultValue={content}
+        onChange={handleChange}
+        theme="snow"
+        modules={modules}
+        className="bg-white h-[80vh]"
+      />
+    </div>
   );
 };
