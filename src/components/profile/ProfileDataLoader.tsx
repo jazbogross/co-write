@@ -59,7 +59,7 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
         }
       }
     }
-  }, [user]);
+  }, [user, hasFetched]);
 
   // Function to fetch profile data
   const fetchProfileData = async () => {

@@ -2,11 +2,12 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getUserProfile } from '@/services/authService';
+import type { AuthUser } from '@/services/authService';
 
 export const useAuthListener = (
   isMountedRef: React.MutableRefObject<boolean>,
   authListenerCleanupRef: React.MutableRefObject<(() => void) | null>,
-  setUser: (user: any) => void,
+  setUser: (user: AuthUser | null) => void,
   setLoading: (loading: boolean) => void,
   setAuthChecked: (checked: boolean) => void,
   isInitializedRef: React.MutableRefObject<boolean>
@@ -65,12 +66,16 @@ export const useAuthListener = (
             }
 
             if (isMountedRef.current) {
-              setUser({
+              // Important: Set user state with complete user information
+              const userData: AuthUser = {
                 id: userId,
                 email: sessionData.session.user.email,
                 username: profile?.username,
                 provider: sessionData.session.user.app_metadata?.provider || null
-              });
+              };
+              
+              console.log("🔑 useAuthListener: Setting user from session:", userData);
+              setUser(userData);
               setLoading(false);
               isInitializedRef.current = true;
               console.log("🔑 useAuthListener: User set from session:", userId);
@@ -78,6 +83,7 @@ export const useAuthListener = (
           } catch (profileError) {
             console.error("🔑 useAuthListener: Exception fetching profile:", profileError);
             if (isMountedRef.current) {
+              // Still set basic user info even if profile fetch fails
               setUser({
                 id: userId,
                 email: sessionData.session.user.email,
@@ -122,9 +128,9 @@ export const useAuthListener = (
           console.log(`🔑 useAuthListener: Auth checked explicitly set to true for event: ${event}`);
         }
         
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
           try {
-            console.log(`🔑 useAuthListener: User ${event === 'SIGNED_IN' ? 'signed in' : 'token refreshed'}:`, session.user.id);
+            console.log(`🔑 useAuthListener: User ${event} event:`, session.user.id);
             
             // Update the loading state to indicate we're fetching profile
             if (isMountedRef.current) {
@@ -134,13 +140,17 @@ export const useAuthListener = (
             const { profile } = await getUserProfile(session.user.id);
             
             if (isMountedRef.current) {
-              // Important: Set user state before setting loading to false
-              setUser({
+              // Important: Set user state with complete user information
+              const userData: AuthUser = {
                 id: session.user.id,
                 email: session.user.email,
                 username: profile?.username,
                 provider: session.user.app_metadata?.provider || null
-              });
+              };
+              
+              console.log("🔑 useAuthListener: Setting user from auth change:", userData);
+              // Important: Set user state before setting loading to false
+              setUser(userData);
               
               // Now update loading state
               setLoading(false);
