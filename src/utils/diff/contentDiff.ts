@@ -1,4 +1,3 @@
-
 /**
  * Utilities for content diffing
  */
@@ -13,6 +12,8 @@ export interface DiffChange {
   lineNumber?: number;
   startIndex?: number;
   endIndex?: number;
+  originalLineNumber?: number;
+  suggestedLineNumber?: number;
 }
 
 /**
@@ -109,33 +110,43 @@ export function analyzeDeltaDifferences(
   
   // Create change objects for each changed line
   const changes: DiffChange[] = [];
+  let lineOffset = 0; // Track line number changes
   
   changedLineIndices.forEach(lineIndex => {
     const originalLine = lineIndex < originalLines.length ? originalLines[lineIndex] : '';
     const suggestedLine = lineIndex < suggestedLines.length ? suggestedLines[lineIndex] : '';
+    const currentLineNumber = lineIndex + 1;
     
     if (!originalLine && suggestedLine) {
       // Line added
       changes.push({
         type: 'add',
         text: suggestedLine,
-        lineNumber: lineIndex + 1
+        lineNumber: currentLineNumber,
+        originalLineNumber: currentLineNumber,
+        suggestedLineNumber: currentLineNumber + lineOffset
       });
+      lineOffset += 1;
     } else if (originalLine && !suggestedLine) {
       // Line deleted
       changes.push({
         type: 'delete',
         text: '',
         originalText: originalLine,
-        lineNumber: lineIndex + 1
+        lineNumber: currentLineNumber,
+        originalLineNumber: currentLineNumber,
+        suggestedLineNumber: currentLineNumber + lineOffset
       });
+      lineOffset -= 1;
     } else {
       // Line modified
       changes.push({
         type: 'modify',
         text: suggestedLine,
         originalText: originalLine,
-        lineNumber: lineIndex + 1
+        lineNumber: currentLineNumber,
+        originalLineNumber: currentLineNumber,
+        suggestedLineNumber: currentLineNumber + lineOffset
       });
     }
   });
@@ -162,3 +173,4 @@ export function hasContentChanged(original: any, suggested: any): boolean {
   // Compare normalized text
   return originalText !== suggestedText;
 }
+
