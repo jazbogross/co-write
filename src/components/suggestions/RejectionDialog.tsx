@@ -53,7 +53,7 @@ export const RejectionDialog: React.FC<RejectionDialogProps> = ({
         <div className="py-2">
           <label className="text-sm font-medium">Reason for rejection (optional):</label>
           <textarea
-            className="w-full p-2 border rounded-md mt-1"
+            className="w-full p-2 border mt-1"
             rows={4}
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}

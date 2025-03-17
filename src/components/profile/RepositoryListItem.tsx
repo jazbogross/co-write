@@ -23,7 +23,7 @@ export const RepositoryListItem: React.FC<RepositoryListItemProps> = ({
   loading
 }) => {
   return (
-    <div className="flex flex-col md:flex-row md:items-center justify-between w-full p-3 border rounded hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
+    <div className="flex flex-col md:flex-row md:items-center justify-between w-full p-3 border hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
       <div className="flex flex-col mb-2 md:mb-0">
         <div className="flex items-center">
           <Link to={`/scripts/${repository.id}`} className="font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">

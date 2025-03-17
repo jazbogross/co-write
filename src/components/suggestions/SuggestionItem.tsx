@@ -33,7 +33,7 @@ export const SuggestionItem = ({ suggestion, onApprove, onReject }: SuggestionIt
   };
 
   return (
-    <div className={`rounded-lg p-4 ${getStatusColor(suggestion.status)}`}>
+    <div className={`  p-4 ${getStatusColor(suggestion.status)}`}>
       <div className="flex justify-between items-start mb-2">
         <div>
           <span className="font-medium">

@@ -59,7 +59,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ scriptId }) => {
   return (
     <div className="mt-2">
       <h3 className="text-lg font-medium mb-4">Suggestions</h3>
-      <ScrollArea className="h-[300px] rounded-md border">
+      <ScrollArea className="h-[300px] border">
         <div className="p-4 space-y-4">
           {groupedSuggestions.length === 0 ? (
             <p className="text-center text-muted-foreground">No suggestions yet</p>

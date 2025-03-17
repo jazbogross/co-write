@@ -75,16 +75,16 @@ export const SuggestionDetail: React.FC<SuggestionDetailProps> = ({
         )}
       </div>
       
-      <div className="bg-gray-50 p-3 rounded border mb-4">
+      <div className="bg-gray-50 p-3 border mb-4">
         <div className="text-sm font-medium mb-1 text-black">Content:</div>
-        <pre className="whitespace-pre-wrap font-mono text-sm bg-white p-2 rounded border text-black">
+        <pre className="whitespace-pre-wrap font-mono text-sm bg-white p-2 border text-black">
           {displayContent}
         </pre>
       </div>
       
-      <div className="bg-gray-100 p-3 rounded border mb-4">
+      <div className="bg-gray-100 p-3 border mb-4">
         <div className="text-sm font-medium mb-1 text-black">Original Content:</div>
-        <pre className="whitespace-pre-wrap font-mono text-sm bg-white p-2 rounded border text-black">
+        <pre className="whitespace-pre-wrap font-mono text-sm bg-white p-2 border text-black">
           {originalContent}
         </pre>
       </div>
@@ -111,7 +111,7 @@ export const SuggestionDetail: React.FC<SuggestionDetailProps> = ({
       )}
       
       {suggestion.rejection_reason && (
-        <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200">
+        <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 border border-red-200">
           <strong>Rejection reason:</strong> {suggestion.rejection_reason}
         </div>
       )}

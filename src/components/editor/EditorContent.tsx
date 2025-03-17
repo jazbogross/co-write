@@ -29,7 +29,7 @@ export const EditorContent: React.FC<EditorContentProps> = ({
       onChange={handleChange}
       theme="snow"
       modules={modules}
-      className="bg-white h-[50vh] rounded-md"
+      className="bg-white h-[80vh]"
     />
   );
 };

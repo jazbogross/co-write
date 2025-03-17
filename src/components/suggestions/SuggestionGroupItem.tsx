@@ -40,10 +40,10 @@ export const SuggestionGroupItem: React.FC<SuggestionGroupItemProps> = ({ sugges
   };
   
   return (
-    <div className="flex items-start space-x-3 p-3 rounded border bg-gray-50">
+    <div className="flex items-start space-x-3 p-3 border bg-gray-50">
       <div className="flex-1">
         <div className="flex items-center mb-1">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          <span className={`text-xs font-medium px-2 py-0.5   ${
             suggestion.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
             suggestion.status === 'approved' ? 'bg-green-100 text-green-800' :
             'bg-red-100 text-red-800'

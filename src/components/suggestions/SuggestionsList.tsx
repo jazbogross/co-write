@@ -129,7 +129,7 @@ export const ScriptSuggestions: React.FC<ScriptSuggestionsProps> = ({
             <div className="space-y-4">
               {[1, 2].map(i => (
                 <div key={i} className="flex items-start space-x-4">
-                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <Skeleton className="h-10 w-10  " />
                   <div className="space-y-2 flex-1">
                     <Skeleton className="h-4 w-1/4" />
                     <Skeleton className="h-4 w-full" />
@@ -148,7 +148,7 @@ export const ScriptSuggestions: React.FC<ScriptSuggestionsProps> = ({
               {suggestions.map(suggestion => (
                 <div 
                   key={suggestion.id} 
-                  className="border rounded-md p-4 flex flex-col space-y-3"
+                  className="border p-4 flex flex-col space-y-3"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -163,7 +163,7 @@ export const ScriptSuggestions: React.FC<ScriptSuggestionsProps> = ({
                   
                   <div className="flex items-center space-x-2">
                     <span 
-                      className={`text-sm px-2 py-1 rounded-full ${
+                      className={`text-sm px-2 py-1   ${
                         suggestion.status === 'pending' 
                           ? 'bg-yellow-100 text-yellow-800' 
                           : suggestion.status === 'approved' 

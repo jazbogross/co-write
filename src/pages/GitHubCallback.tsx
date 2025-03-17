@@ -117,7 +117,7 @@ export default function GitHubCallback() {
         <h1 className="text-2xl font-bold">GitHub Connection</h1>
         <p>Processing GitHub integration...</p>
         <div className="flex justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <div className="animate-spin   h-8 w-8 border-b-2 border-gray-900"></div>
         </div>
         <p className="text-sm text-muted-foreground">You will be redirected shortly.</p>
       </div>

@@ -39,7 +39,7 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
       </div>
       
       {hasDraft && !isAdmin && (
-        <div className="p-2 bg-yellow-50 text-yellow-600 rounded border border-yellow-200 text-sm">
+        <div className="p-2 bg-yellow-50 text-yellow-600 border border-yellow-200 text-sm">
           You have a draft saved. Submit your suggestion when you're ready to propose these changes to the admin.
         </div>
       )}

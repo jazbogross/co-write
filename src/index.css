@@ -62,6 +62,12 @@
 /* Hide all formatting options by default */
 .ql-toolbar .ql-formats > * {
   display: none !important;
+  color: white !important;
+}
+
+/*toolbar should not have rounded corners*/
+.ql-toolbar {
+   border-radius: 0 !important;  
 }
 
 /* Only show specific formatting buttons */
@@ -71,12 +77,10 @@
 .ql-toolbar .ql-align {
   display: inline-block !important;
   color: white !important;
-}
-
-/* Customize individual buttons */
-.ql-toolbar button svg {
   fill: white !important;
 }
+
+
 
 .ql-toolbar button:hover {
   background-color: #333 !important;

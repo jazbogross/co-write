@@ -45,7 +45,7 @@ export const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({ suggestion, or
   const hasChanges = normalizedOriginal !== normalizedSuggestion;
   
   return (
-    <div className="border rounded-md mt-2">
+    <div className="border mt-2">
       <div className="bg-gray-100 p-2 text-sm font-medium border-b">
         {hasChanges ? 'Changes Found' : 'No Changes'}
       </div>

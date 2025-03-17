@@ -84,7 +84,7 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
           diffChanges={diffData.changes}
         />
       ) : (
-        <div className="bg-gray-50 p-2 rounded border whitespace-pre-wrap">
+        <div className="bg-gray-50 p-2 border whitespace-pre-wrap">
           {diffData.suggested}
         </div>
       )}
@@ -92,7 +92,7 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
       {!showDiff && (
         <div className="mt-2">
           <h4 className="text-sm font-medium mb-1">Original Content</h4>
-          <div className="bg-gray-100 p-2 rounded border whitespace-pre-wrap">
+          <div className="bg-gray-100 p-2 border whitespace-pre-wrap">
             {diffData.original}
           </div>
         </div>
