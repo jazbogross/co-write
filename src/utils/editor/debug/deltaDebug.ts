@@ -1,43 +1,77 @@
 
 /**
- * Utilities for debugging and logging Delta objects
+ * Debug utilities for Delta objects
  */
-import { validateDelta } from '../validation/deltaValidation';
+import { DeltaContent } from '../types';
 import { extractPlainTextFromDelta } from '../content/textExtraction';
+import { validateDelta } from '../validation/deltaValidation';
 
 /**
- * Logs the structure of a Delta object for debugging
+ * Log Delta structure for debugging
  */
-export const logDeltaStructure = (content: any | null): void => {
-  if (!content) {
-    console.log("🔶 logDeltaStructure: Delta content is null or empty");
+export const logDeltaStructure = (delta: any, label = 'Delta'): void => {
+  console.log(`---- ${label} Structure ----`);
+  if (!delta) {
+    console.log('Null or undefined delta');
     return;
   }
   
-  try {
-    const result = validateDelta(content);
+  console.log(`Type: ${typeof delta}`);
+  
+  const validation = validateDelta(delta);
+  console.log(`Is valid Delta: ${validation.valid}`);
+  
+  if (validation.valid && validation.parsed) {
+    const parsed = validation.parsed;
+    console.log(`Operations count: ${parsed.ops.length}`);
+    console.log('First 3 operations:', parsed.ops.slice(0, 3));
     
-    if (result.valid && result.parsed) {
-      console.log("🔶 Delta structure:", {
-        valid: true,
-        opsCount: result.parsed.ops.length,
-        firstOp: result.parsed.ops[0] || null,
-        firstFewOps: result.parsed.ops.slice(0, 3).map(op => 
-          typeof op.insert === 'string' 
-            ? { insert: op.insert.substring(0, 20) + (op.insert.length > 20 ? '...' : ''), attributes: op.attributes }
-            : op
-        )
-      });
-    } else {
-      console.log("🔶 Not a valid delta object:", {
-        originalType: result.originalType,
-        reason: result.reason,
-        preview: typeof content === 'string' 
-          ? content.substring(0, 40) + (content.length > 40 ? '...' : '')
-          : content
-      });
-    }
-  } catch (e) {
-    console.error("🔶 Error parsing delta structure:", e);
+    // Log plain text content
+    const text = extractPlainTextFromDelta(parsed);
+    console.log(`Content (first 100 chars): ${text.substring(0, 100)}`);
+    console.log(`Line count: ${text.split('\n').length}`);
+  } else {
+    console.log('Not a valid Delta:');
+    console.log(delta);
   }
+  
+  console.log('---------------------------');
+};
+
+/**
+ * Create a simple string representation of a Delta for logging
+ */
+export const deltaToString = (delta: DeltaContent): string => {
+  if (!delta || !delta.ops) {
+    return '[Invalid Delta]';
+  }
+  
+  return `Delta: ${delta.ops.length} ops, content: "${extractPlainTextFromDelta(delta).substring(0, 50)}${
+    extractPlainTextFromDelta(delta).length > 50 ? '...' : ''
+  }"`;
+};
+
+/**
+ * Format Delta changes for logging
+ */
+export const formatDeltaChanges = (delta: DeltaContent): string => {
+  if (!delta || !delta.ops) {
+    return '[Invalid Delta]';
+  }
+  
+  return delta.ops.map(op => {
+    if (op.insert) {
+      const content = typeof op.insert === 'string' 
+        ? op.insert.replace(/\n/g, '\\n') 
+        : JSON.stringify(op.insert);
+      return `INSERT: ${content.substring(0, 30)}${content.length > 30 ? '...' : ''}`;
+    }
+    if (op.delete) {
+      return `DELETE: ${op.delete} chars`;
+    }
+    if (op.retain) {
+      return `RETAIN: ${op.retain} chars`;
+    }
+    return '[Unknown op]';
+  }).join(', ');
 };

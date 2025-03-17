@@ -1,100 +1,127 @@
-
 /**
- * Delta validation utilities
+ * Functions for validating Delta content structures
  */
-import { DeltaContent, DeltaOp, DeltaValidationResult } from '../types';
+import { DeltaContent, DeltaValidationResult } from '../types';
 
 /**
- * Validates if content is a Delta object and returns diagnostic information
+ * Validates a value as a Delta object
  */
 export const validateDelta = (content: any): DeltaValidationResult => {
-  console.log('🔶 validateDelta: Validating content of type', typeof content);
-  
-  const result: DeltaValidationResult = {
-    valid: false,
-    originalType: typeof content
-  };
+  const originalType = typeof content;
   
   // Handle null or undefined
-  if (content == null) {
-    console.log('🔶 validateDelta: Content is null or undefined');
-    result.reason = 'Content is null or undefined';
-    return result;
+  if (content === null || content === undefined) {
+    return {
+      valid: false,
+      originalType,
+      reason: 'Content is null or undefined'
+    };
   }
   
-  try {
-    // Case 1: Already a valid Delta object
-    if (typeof content === 'object' && content.ops && Array.isArray(content.ops)) {
-      console.log('🔶 validateDelta: Content is already a Delta object with', content.ops.length, 'ops');
-      
-      // Check if ops are valid
-      const allValid = content.ops.every((op: any) => 
-        op && typeof op === 'object' && 'insert' in op && 
-        (typeof op.insert === 'string' || typeof op.insert === 'object')
-      );
-      
-      if (allValid) {
-        result.valid = true;
-        result.parsed = content as DeltaContent;
-        return result;
+  // Handle string (parse JSON)
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      // Recursively validate the parsed content
+      const parsedValidation = validateDelta(parsed);
+      if (parsedValidation.valid) {
+        return {
+          valid: true,
+          originalType: 'string (parsed JSON)',
+          parsed: parsedValidation.parsed
+        };
       } else {
-        console.log('🔶 validateDelta: Delta object has invalid ops structure');
-        result.reason = 'Delta object has invalid ops structure';
-        return result;
+        return {
+          valid: false,
+          originalType,
+          reason: `Invalid Delta JSON: ${parsedValidation.reason}`
+        };
       }
+    } catch (error) {
+      return {
+        valid: false,
+        originalType,
+        reason: 'Invalid JSON string'
+      };
     }
-    
-    // Case 2: JSON string that might be a Delta
-    if (typeof content === 'string') {
-      // Quick check before parsing
-      if (!content.includes('ops') || !content.startsWith('{')) {
-        console.log('🔶 validateDelta: String content does not match Delta pattern');
-        result.reason = 'String content is not a Delta JSON';
-        return result;
-      }
-      
-      try {
-        const parsed = JSON.parse(content);
-        
-        if (parsed && parsed.ops && Array.isArray(parsed.ops)) {
-          console.log('🔶 validateDelta: Successfully parsed string to Delta with', parsed.ops.length, 'ops');
-          
-          // Check if ops are valid
-          const allValid = parsed.ops.every((op: any) => 
-            op && typeof op === 'object' && 'insert' in op &&
-            (typeof op.insert === 'string' || typeof op.insert === 'object')
-          );
-          
-          if (allValid) {
-            result.valid = true;
-            result.parsed = parsed as DeltaContent;
-            return result;
-          } else {
-            console.log('🔶 validateDelta: Parsed Delta has invalid ops structure');
-            result.reason = 'Parsed Delta has invalid ops structure';
-            return result;
-          }
-        } else {
-          console.log('🔶 validateDelta: Parsed object is not a valid Delta');
-          result.reason = 'Parsed object is not a valid Delta';
-          return result;
-        }
-      } catch (e) {
-        console.log('🔶 validateDelta: Failed to parse string as JSON:', e);
-        result.reason = 'Failed to parse string as JSON';
-        return result;
-      }
-    }
-    
-    // Case 3: Not a Delta
-    console.log('🔶 validateDelta: Content is not a Delta (type: ' + typeof content + ')');
-    result.reason = `Content type ${typeof content} is not a valid Delta`;
-    return result;
-    
-  } catch (e) {
-    // Handle any unexpected errors
-    console.error('🔶 validateDelta: Unexpected error during validation:', e);
-    result.reason = `Validation error: ${e.message}`;
-    return result;
   }
+  
+  // Handle object
+  if (typeof content === 'object') {
+    // Must have 'ops' property
+    if (!('ops' in content)) {
+      return {
+        valid: false,
+        originalType,
+        reason: 'Object missing "ops" property'
+      };
+    }
+    
+    // 'ops' must be an array
+    if (!Array.isArray(content.ops)) {
+      return {
+        valid: false,
+        originalType,
+        reason: '"ops" property is not an array'
+      };
+    }
+    
+    // If object is a proper Delta, allow it through
+    return {
+      valid: true,
+      originalType,
+      parsed: content
+    };
+  }
+  
+  // Other types are invalid
+  return {
+    valid: false,
+    originalType,
+    reason: `Invalid type: ${originalType}`
+  };
+};
+
+/**
+ * Checks if a Delta has valid operations
+ */
+export const hasValidOperations = (delta: DeltaContent): boolean => {
+  // Must have at least one operation
+  if (!delta.ops || delta.ops.length === 0) {
+    return false;
+  }
+  
+  // Check each operation
+  for (const op of delta.ops) {
+    // At least one of insert, delete, or retain must be present
+    if (!('insert' in op) && !('delete' in op) && !('retain' in op)) {
+      return false;
+    }
+    
+    // Insert must be string or object
+    if ('insert' in op && typeof op.insert !== 'string' && typeof op.insert !== 'object') {
+      return false;
+    }
+    
+    // Delete and retain must be numbers
+    if (('delete' in op && typeof op.delete !== 'number') || 
+        ('retain' in op && typeof op.retain !== 'number')) {
+      return false;
+    }
+  }
+  
+  return true;
+};
+
+/**
+ * Checks if a Delta represents plain text (only string inserts)
+ */
+export const isPlainTextDelta = (delta: DeltaContent): boolean => {
+  if (!delta.ops) return false;
+  
+  return delta.ops.every(op => 
+    !op.delete && 
+    !op.retain && 
+    (op.insert === undefined || typeof op.insert === 'string')
+  );
 };
