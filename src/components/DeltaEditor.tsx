@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -22,19 +21,16 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
   const [hasDraft, setHasDraft] = useState(false);
   const quillRef = useRef<ReactQuill>(null);
   
-  // Load content and get user ID on mount
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       
       try {
-        // Get user
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
           setUserId(user.id);
           
-          // Load content
           const result = await loadContent(scriptId, user.id);
           
           setContent(result.contentDelta);
@@ -51,13 +47,9 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     fetchData();
   }, [scriptId]);
   
-  // Handle content changes
   const handleChange = (value: any) => {
-    // Note: We don't update state for every change to avoid performance issues
-    // The content is saved directly when the user clicks "Save"
   };
   
-  // Save content
   const handleSave = async () => {
     if (!quillRef.current || !userId) return;
     
@@ -85,17 +77,14 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     }
   };
   
-  // Create a suggestion (non-admin users)
   const handleSubmitSuggestion = async () => {
     if (!quillRef.current || !userId || isAdmin) return;
     
     setIsSaving(true);
     
     try {
-      // Get current content
       const suggestedContent = quillRef.current.getEditor().getContents();
       
-      // Load original content (not the draft)
       const { data } = await supabase
         .from('script_content')
         .select('content_delta')
@@ -107,27 +96,21 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
         return;
       }
       
-      // Convert the database content_delta to a proper Delta object
       const contentDeltaData = typeof data.content_delta === 'string' 
         ? JSON.parse(data.content_delta) 
         : data.content_delta;
         
-      // Create a proper Delta object using the quill-delta package
       const originalDelta = new Delta(contentDeltaData.ops || []);
       
-      // Convert suggestedContent (DeltaStatic) to Delta format
       const suggestedDelta = new Delta(suggestedContent.ops || []);
       
-      // Calculate diff between original and suggestion using the Delta instance
       const diffDelta = originalDelta.diff(suggestedDelta);
       
-      // Only submit if there are actual changes
       if (diffDelta.ops?.length <= 1) {
         toast.info('No changes detected');
         return;
       }
       
-      // Save the suggestion
       const { error } = await supabase
         .from('script_suggestions')
         .insert({
@@ -139,7 +122,6 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
       
       if (error) throw error;
       
-      // Clear the draft
       await supabase
         .from('script_drafts')
         .delete()
@@ -149,7 +131,6 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
       setHasDraft(false);
       toast.success('Suggestion submitted successfully');
       
-      // Reload content to show original
       const result = await loadContent(scriptId, userId);
       setContent(result.contentDelta);
       
@@ -165,6 +146,14 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     return <div>Loading editor...</div>;
   }
   
+  const modules = {
+    toolbar: [
+      ['bold', 'italic'],
+      [{ 'direction': 'rtl' }],
+      [{ 'align': ['', 'center', 'right'] }]
+    ]
+  };
+  
   return (
     <div className="space-y-4">
       <ReactQuill 
@@ -172,23 +161,7 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
         defaultValue={content}
         onChange={handleChange}
         theme="snow"
-        modules={{
-          toolbar: [
-            ['bold', 'italic', 'underline', 'strike'],
-            ['blockquote', 'code-block'],
-            [{ 'header': 1 }, { 'header': 2 }],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-            [{ 'script': 'sub'}, { 'script': 'super' }],
-            [{ 'indent': '-1'}, { 'indent': '+1' }],
-            [{ 'direction': 'rtl' }],
-            [{ 'size': ['small', false, 'large', 'huge'] }],
-            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'font': [] }],
-            [{ 'align': [] }],
-            ['clean']
-          ]
-        }}
+        modules={modules}
         className="bg-white h-[50vh] rounded-md"
       />
       
