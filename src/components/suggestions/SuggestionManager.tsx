@@ -10,6 +10,7 @@ import { Suggestion } from './types';
 import { fetchSuggestions, fetchUserProfiles, fetchOriginalContent } from '@/services/suggestionService';
 import { DeltaStatic } from 'quill';
 import { safeToDelta } from '@/utils/delta/safeDeltaOperations';
+import { useSession } from '@supabase/auth-helpers-react';
 
 interface SuggestionManagerProps {
   scriptId: string;
@@ -20,6 +21,7 @@ export const SuggestionManager: React.FC<SuggestionManagerProps> = ({
   scriptId, 
   onSuggestionApplied 
 }) => {
+  const session = useSession();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [originalContent, setOriginalContent] = useState<DeltaStatic | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] = useState<Suggestion | null>(null);

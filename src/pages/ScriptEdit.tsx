@@ -11,10 +11,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useSession } from "@supabase/auth-helpers-react";
 
 const ScriptEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const session = useSession();
+  
   const [script, setScript] = useState<{
     title: string;
     admin_id: string;
@@ -34,9 +37,8 @@ const ScriptEdit = () => {
           return;
         }
 
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        // Check if user is authenticated
+        if (!session?.user) {
           navigate("/auth");
           return;
         }
@@ -56,11 +58,11 @@ const ScriptEdit = () => {
         }
 
         // Get GitHub token if admin
-        if (user.id === scriptData.admin_id) {
+        if (session.user.id === scriptData.admin_id) {
           const { data: profileData } = await supabase
             .from("profiles")
             .select("github_access_token")
-            .eq("id", user.id)
+            .eq("id", session.user.id)
             .single();
 
           if (profileData?.github_access_token) {
@@ -69,7 +71,7 @@ const ScriptEdit = () => {
         }
 
         setScript(scriptData);
-        setIsAdmin(user.id === scriptData.admin_id);
+        setIsAdmin(session.user.id === scriptData.admin_id);
         setLoading(false);
       } catch (error) {
         console.error("Error loading script:", error);
@@ -79,7 +81,7 @@ const ScriptEdit = () => {
     };
 
     loadScript();
-  }, [id, navigate]);
+  }, [id, navigate, session]);
 
   const handleCommitToGithub = async (content: string) => {
     if (!script || !id || !githubToken) return;

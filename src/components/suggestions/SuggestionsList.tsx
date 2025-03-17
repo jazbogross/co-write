@@ -1,7 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CalendarIcon, User } from 'lucide-react';
@@ -10,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { SuggestionForm } from './SuggestionForm';
 import { DeltaStatic } from 'quill';
+import { useSession } from '@supabase/auth-helpers-react';
 
 interface Suggestion {
   id: string;
@@ -30,7 +30,8 @@ export const ScriptSuggestions: React.FC<ScriptSuggestionsProps> = ({
   currentContent, 
   isAdmin 
 }) => {
-  const { user } = useAuth();
+  const session = useSession();
+  const user = session?.user;
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);

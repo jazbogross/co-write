@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,6 +7,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { toast } from 'sonner';
 import { DeltaStatic } from 'quill';
 import Delta from 'quill-delta';
+import { useSession } from '@supabase/auth-helpers-react';
 
 interface SuggestionFormProps {
   scriptId: string;
@@ -20,7 +20,8 @@ export const SuggestionForm: React.FC<SuggestionFormProps> = ({
   currentContent,
   onSuggestionSubmitted 
 }) => {
-  const { user } = useAuth();
+  const session = useSession();
+  const user = session?.user;
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   

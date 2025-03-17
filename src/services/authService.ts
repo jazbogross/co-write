@@ -134,7 +134,7 @@ export const signUpWithPassword = async (email: string, password: string, userna
 export const signOut = async () => {
   console.log("🔐 AuthService: signOut: Attempting sign out");
   try {
-    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    const { error } = await supabase.auth.signOut();
     
     if (error) {
       console.error("🔐 AuthService: signOut: Error:", error.message);
