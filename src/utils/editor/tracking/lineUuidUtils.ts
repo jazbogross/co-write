@@ -1,3 +1,4 @@
+
 /**
  * Utilities for managing line UUIDs during editing operations
  */
@@ -53,6 +54,34 @@ export class LineUuidMap {
   get size(): number {
     return this.uuidMap.size;
   }
+  
+  /**
+   * Convert to a standard Map
+   */
+  toMap(): Map<number, string> {
+    return new Map(this.uuidMap);
+  }
+  
+  /**
+   * Get entries
+   */
+  entries(): IterableIterator<[number, string]> {
+    return this.uuidMap.entries();
+  }
+  
+  /**
+   * Delete entry
+   */
+  delete(lineIndex: number): boolean {
+    return this.uuidMap.delete(lineIndex);
+  }
+  
+  /**
+   * ForEach method
+   */
+  forEach(callbackfn: (value: string, key: number, map: Map<number, string>) => void): void {
+    this.uuidMap.forEach(callbackfn);
+  }
 }
 
 /**
@@ -85,7 +114,7 @@ export class LineUuidPreserver {
     const restoredMap = new LineUuidMap();
     
     if (elements.length === 0 || this.preservedUuids.size === 0) {
-      return restoredMap;
+      return restoredMap.toMap(); // Convert to standard Map
     }
     
     // First try exact content matching
@@ -114,7 +143,7 @@ export class LineUuidPreserver {
       }
     });
     
-    return restoredMap;
+    return restoredMap.toMap(); // Convert to standard Map
   }
   
   /**
