@@ -138,7 +138,7 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
                           ? 'bg-red-50 text-red-800 line-through'
                           : line.type === 'added'
                           ? 'bg-green-50 text-green-800'
-                          : 'text-gray-800'
+                          : 'text-white'
                       }`}
                     >
                       {line.text}
