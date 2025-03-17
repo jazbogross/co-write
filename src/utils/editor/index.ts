@@ -4,7 +4,14 @@ import { extractPlainTextFromDelta } from './content/textExtraction';
 import { isDeltaObject, safelyParseDelta } from './operations/deltaOperations';
 import { validateDelta } from './validation/deltaValidation';
 import { LineOperationType, analyzeLineOperation } from './operations/lineOperations';
-import { LineUuidMap, LineUuidPreserver } from './tracking/lineUuidUtils';
+import { LineUuidMap } from './tracking/LineUuidMap';
+import { LineUuidPreserver } from './tracking/LineUuidPreserver';
+import { 
+  ensureAllLinesHaveUuids,
+  generateLineUuid,
+  handleLineSplit,
+  handleLineMerge
+} from './tracking/lineUuidUtils';
 
 /**
  * Check if a value is a Delta object
@@ -51,7 +58,7 @@ export {
   generateLineUuid,
   handleLineSplit,
   handleLineMerge
-} from './tracking/lineUuidUtils';
+};
 
 // Re-export the types
 export * from './types';
