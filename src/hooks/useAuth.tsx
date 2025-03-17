@@ -1,3 +1,4 @@
+
 import { createContext, useContext, ReactNode, useEffect, useRef } from 'react';
 import { useAuthState } from './auth/useAuthState';
 import { useAuthListener } from './auth/useAuthListener';
@@ -66,7 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user, loading, authChecked]);
 
   // Return a stable context value
-  const contextValue = {
+  const contextValue: AuthContextType = {
     user, 
     loading, 
     authChecked,
@@ -80,20 +81,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
 
   if (context === undefined) {
     console.error("🔑 useAuth: Must be used within an AuthProvider");
     throw new Error('useAuth must be used within an AuthProvider');
-  }
-
-  const { authChecked, loading, user } = context;
-
-  // Prevent rendering until authChecked is true
-  if (!authChecked) {
-    console.log("🔑 useAuth: Waiting for auth check to complete");
-    return { user: null, loading: true };
   }
 
   return context;
