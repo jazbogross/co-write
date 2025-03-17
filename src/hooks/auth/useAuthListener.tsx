@@ -132,6 +132,12 @@ export const useAuthListener = (
           try {
             console.log(`🔑 useAuthListener: User ${event} event:`, session.user.id);
             
+            // Skip unnecessary work if we've already initialized with this user
+            if (isInitializedRef.current && event === 'INITIAL_SESSION') {
+              console.log("🔑 useAuthListener: Already initialized, skipping duplicate initialization");
+              return;
+            }
+            
             // Update the loading state to indicate we're fetching profile
             if (isMountedRef.current) {
               setLoading(true);

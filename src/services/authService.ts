@@ -61,7 +61,13 @@ export const getUserProfile = async (userId: string) => {
 export const signInWithPassword = async (email: string, password: string) => {
   console.log("🔐 AuthService: signInWithPassword: Attempting sign in for:", email);
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ 
+      email, 
+      password,
+      options: {
+        persistSession: true // Ensure session is persisted
+      }
+    });
     
     if (error) {
       console.error("🔐 AuthService: signInWithPassword: Error:", error.message);
@@ -82,7 +88,14 @@ export const signInWithPassword = async (email: string, password: string) => {
 export const signUpWithPassword = async (email: string, password: string, username: string) => {
   console.log("🔐 AuthService: signUpWithPassword: Attempting sign up for:", email);
   try {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        data: { username }, // Store username in user metadata
+        persistSession: true // Ensure session is persisted
+      }
+    });
     
     if (error) {
       console.error("🔐 AuthService: signUpWithPassword: Error:", error.message);
@@ -123,7 +136,7 @@ export const signUpWithPassword = async (email: string, password: string, userna
 export const signOut = async () => {
   console.log("🔐 AuthService: signOut: Attempting sign out");
   try {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     
     if (error) {
       console.error("🔐 AuthService: signOut: Error:", error.message);
