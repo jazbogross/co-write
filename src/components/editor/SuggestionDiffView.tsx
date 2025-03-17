@@ -119,11 +119,10 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
     .join('\n');
   
   return (
-    <div className="border rounded-md p-4 space-y-4">
+    <div className="border">
       <div>
-        <h3 className="text-sm font-medium mb-2">Changes with Context</h3>
         <ScrollArea className="h-[400px]">
-          <div className="p-2 font-mono text-sm">
+          <div className="font-mono text-sm">
             {contextWithChanges.map((line, index) => {
               const prevLine = contextWithChanges[index - 1];
               return (
