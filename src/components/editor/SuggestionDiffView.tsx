@@ -128,7 +128,7 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
               return (
                 <React.Fragment key={index}>
                   {index > 0 && (line.lineNumber - prevLine.lineNumber > 1) && (
-                    <div className="my-2 text-center text-gray-500">...</div>
+                    <div className="my-2 text-center text-white">...</div>
                   )}
                   <div className="flex">
                     <div className="w-10 text-white select-none tabular-nums">{line.lineNumber}</div>
