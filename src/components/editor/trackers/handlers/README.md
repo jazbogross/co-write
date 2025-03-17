@@ -131,6 +131,26 @@ Handles line deletion and merge operations:
 - Handles the merging of lines (e.g., when Backspace is pressed at line start)
 - Updates line indices to reflect the new positions
 
+## Line Operations Utilities
+
+Recent refactoring of line operations has improved modularity and maintainability:
+
+- **types.ts**: Defines core types like `LineOperationType` and `LineOperationAnalysis`
+- **structuralDetection.ts**: Contains specialized functions for detecting different types of structural changes
+- **analysis.ts**: Provides analytical functions to determine operation types and affected lines
+- **position.ts**: Handles line position calculations and cursor positioning
+
+## UuidValidator Improvements
+
+The UuidValidator has been refactored to provide more granular utility functions:
+
+- **hasUuid**: Checks if a line has a UUID
+- **getUuid**: Gets the UUID from a line
+- **findDuplicateUuids**: Finds lines with duplicate UUIDs
+- **generateUuid**: Generates a new UUID
+- **applyUuid**: Applies a UUID to a line
+- **fixDuplicateUuids**: Fixes duplicate UUIDs by generating new ones
+
 ## Workflow Examples
 
 ### Example 1: Line Split (Enter in middle of line)

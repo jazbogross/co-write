@@ -79,6 +79,24 @@ LineTrackingModule (entry point)
 - **LinePositionInitializer**: Initializes line position tracking at startup.
 - **LineAttributeUpdater**: Updates line index attributes in the DOM.
 
+### UUID Validation and Management
+
+- **UuidValidator**: Contains utilities for validating and ensuring uniqueness of UUIDs:
+  - Provides functions for checking if lines have UUIDs
+  - Detects and fixes duplicate UUIDs
+  - Generates and applies new UUIDs when needed
+  - Exposes utilities for UUID validation and extraction
+
+### Line Operations
+
+The system includes modular utilities for analyzing and handling line operations:
+
+- **LineOperationType**: Enum defining different types of line operations (split, join, add, delete, etc.)
+- **LineOperationAnalysis**: Interface for analysis results of line operations
+- **structuralDetection.ts**: Functions for detecting structural changes in Delta content
+- **analysis.ts**: Functions for analyzing line operations in delta changes
+- **position.ts**: Utilities for handling line positions and cursor positions
+
 ### Event Handling
 
 - **LineTrackerEventHandler**: The main event handler that coordinates specific operations.
@@ -142,6 +160,7 @@ When making programmatic changes to the content, the system enters a special mod
 3. The `LineContentTracker` tracks content for content-based matching.
 4. During editing operations, the `UuidPreservationService` preserves UUIDs before DOM changes.
 5. After editing, UUIDs are restored or new ones are generated for new lines.
+6. The `UuidValidator` ensures all UUIDs remain unique and valid.
 
 ## Line Matching Strategies
 
