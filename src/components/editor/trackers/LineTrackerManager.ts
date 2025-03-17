@@ -1,3 +1,4 @@
+
 /**
  * LineTrackerManager.ts - Main class for line tracking management
  */
