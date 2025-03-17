@@ -61,12 +61,10 @@ export const getUserProfile = async (userId: string) => {
 export const signInWithPassword = async (email: string, password: string) => {
   console.log("🔐 AuthService: signInWithPassword: Attempting sign in for:", email);
   try {
+    // The proper structure for Supabase signInWithPassword
     const { data, error } = await supabase.auth.signInWithPassword({ 
       email, 
-      password,
-      options: {
-        persistSession: true // Ensure session is persisted
-      }
+      password
     });
     
     if (error) {
@@ -88,12 +86,12 @@ export const signInWithPassword = async (email: string, password: string) => {
 export const signUpWithPassword = async (email: string, password: string, username: string) => {
   console.log("🔐 AuthService: signUpWithPassword: Attempting sign up for:", email);
   try {
+    // Correctly structure the options for signUp
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
       options: {
-        data: { username }, // Store username in user metadata
-        persistSession: true // Ensure session is persisted
+        data: { username } // Store username in user metadata
       }
     });
     
