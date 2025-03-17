@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import ReactQuill from 'react-quill';
+
+import React from 'react';
 import 'react-quill/dist/quill.snow.css';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { DeltaStatic } from 'quill';
-import { saveContent, loadContent } from '@/utils/deltaUtils';
+import { supabase } from '@/integrations/supabase/client';
+import { saveContent } from '@/utils/deltaUtils';
 import Delta from 'quill-delta';
+import { useEditorContent } from '@/hooks/useEditorContent';
+import { EditorContent } from '@/components/editor/EditorContent';
+import { EditorActions } from '@/components/editor/EditorActions';
 
 interface DeltaEditorProps {
   scriptId: string;
@@ -14,40 +15,19 @@ interface DeltaEditorProps {
 }
 
 export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) => {
-  const [content, setContent] = useState<DeltaStatic>({ ops: [{ insert: '\n' }] } as unknown as DeltaStatic);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [hasDraft, setHasDraft] = useState(false);
-  const quillRef = useRef<ReactQuill>(null);
-  
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          setUserId(user.id);
-          
-          const result = await loadContent(scriptId, user.id);
-          
-          setContent(result.contentDelta);
-          setHasDraft(result.hasDraft);
-        }
-      } catch (error) {
-        console.error('Error loading editor content:', error);
-        toast.error('Failed to load content');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, [scriptId]);
+  const {
+    content,
+    userId,
+    isLoading,
+    hasDraft,
+    setHasDraft,
+    isSaving,
+    setIsSaving,
+    quillRef
+  } = useEditorContent(scriptId, isAdmin);
   
   const handleChange = (value: any) => {
+    // This is intentionally empty as changes are captured by the quill reference
   };
   
   const handleSave = async () => {
@@ -146,49 +126,21 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     return <div>Loading editor...</div>;
   }
   
-  const modules = {
-    toolbar: [
-      ['bold', 'italic'],
-      [{ 'direction': 'rtl' }],
-      [{ 'align': ['', 'center', 'right'] }]
-    ]
-  };
-  
   return (
     <div className="space-y-4">
-      <ReactQuill 
-        ref={quillRef}
-        defaultValue={content}
-        onChange={handleChange}
-        theme="snow"
-        modules={modules}
-        className="bg-white h-[50vh] rounded-md"
+      <EditorContent 
+        content={content} 
+        quillRef={quillRef} 
+        handleChange={handleChange} 
       />
       
-      <div className="flex justify-end space-x-2">
-        <Button
-          onClick={handleSave}
-          disabled={isSaving}
-        >
-          {isAdmin ? 'Save Changes' : 'Save Draft'}
-        </Button>
-        
-        {!isAdmin && (
-          <Button
-            variant="secondary"
-            onClick={handleSubmitSuggestion}
-            disabled={isSaving}
-          >
-            Submit Suggestion
-          </Button>
-        )}
-      </div>
-      
-      {hasDraft && !isAdmin && (
-        <div className="p-2 bg-yellow-50 text-yellow-600 rounded border border-yellow-200 text-sm">
-          You have a draft saved. Submit your suggestion when you're ready to propose these changes to the admin.
-        </div>
-      )}
+      <EditorActions 
+        isAdmin={isAdmin}
+        isSaving={isSaving}
+        hasDraft={hasDraft}
+        handleSave={handleSave}
+        handleSubmitSuggestion={handleSubmitSuggestion}
+      />
     </div>
   );
 };

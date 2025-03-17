@@ -1,44 +1,35 @@
 
 import React from 'react';
 import ReactQuill from 'react-quill';
-import { LineNumbers } from './LineNumbers';
+import { DeltaStatic } from 'quill';
 
 interface EditorContentProps {
-  content: string;
-  lineCount: number;
+  content: DeltaStatic;
   quillRef: React.RefObject<ReactQuill>;
-  modules: any;
-  formats: string[];
-  onChange: (value: string) => void;
+  handleChange: (value: any) => void;
 }
 
-export const EditorContent: React.FC<EditorContentProps> = ({
-  content,
-  lineCount,
-  quillRef,
-  modules,
-  formats,
-  onChange,
+export const EditorContent: React.FC<EditorContentProps> = ({ 
+  content, 
+  quillRef, 
+  handleChange 
 }) => {
+  const modules = {
+    toolbar: [
+      ['bold', 'italic'],
+      [{ 'direction': 'rtl' }],
+      [{ 'align': ['', 'center', 'right'] }]
+    ]
+  };
+
   return (
-    <div className="flex min-h-screen text-black">
-      <div className="flex-1 overflow-auto">
-        <div className="mx-auto">          
-          <div className="bg-editor-page p-8 min-h-a4-page flex ml-16">
-            <LineNumbers count={lineCount} />
-            <div className="flex-1">
-              <ReactQuill
-                ref={quillRef}
-                value={content}
-                onChange={onChange}
-                modules={modules}
-                formats={formats}
-                theme="snow"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ReactQuill 
+      ref={quillRef}
+      defaultValue={content}
+      onChange={handleChange}
+      theme="snow"
+      modules={modules}
+      className="bg-white h-[50vh] rounded-md"
+    />
   );
 };
