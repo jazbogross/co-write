@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { DiffChange } from '@/utils/diff';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -78,7 +77,6 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
       
       // Avoid duplicating lines that are already in the result
       contextForChange.forEach(line => {
-        // Only add if this line number doesn't already exist
         if (!allContextLines.some(existing => existing.lineNumber === line.lineNumber && existing.type === line.type)) {
           allContextLines.push(line);
         }
@@ -87,7 +85,6 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
     
     // Sort lines by line number
     allContextLines.sort((a, b) => {
-      // First sort by line number
       if (a.lineNumber !== b.lineNumber) {
         return a.lineNumber - b.lineNumber;
       }
@@ -125,35 +122,34 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
     <div className="border rounded-md p-4 space-y-4">
       <div>
         <h3 className="text-sm font-medium mb-2">Changes with Context</h3>
-        <ScrollArea className="h-[200px] rounded border">
+        <ScrollArea className="h-[400px]">
           <div className="p-2 font-mono text-sm">
-            {contextWithChanges.map((line, index) => (
-              <div key={index} className="flex">
-                <div className="w-10 text-gray-500 select-none tabular-nums">{line.lineNumber}</div>
-                <div 
-                  className={`whitespace-pre-wrap flex-1 ${
-                    line.type === 'deleted' ? 'bg-red-50 text-red-800 line-through' : 
-                    line.type === 'added' ? 'bg-green-50 text-green-800' : 
-                    'text-gray-800'
-                  }`}
-                >
-                  {line.text}
-                </div>
-              </div>
-            ))}
+            {contextWithChanges.map((line, index) => {
+              const prevLine = contextWithChanges[index - 1];
+              return (
+                <React.Fragment key={index}>
+                  {index > 0 && (line.lineNumber - prevLine.lineNumber > 1) && (
+                    <div className="my-2 text-center text-gray-500">...</div>
+                  )}
+                  <div className="flex">
+                    <div className="w-10 text-white select-none tabular-nums">{line.lineNumber}</div>
+                    <div 
+                      className={`whitespace-pre-wrap flex-1 ${
+                        line.type === 'deleted'
+                          ? 'bg-red-50 text-red-800 line-through'
+                          : line.type === 'added'
+                          ? 'bg-green-50 text-green-800'
+                          : 'text-gray-800'
+                      }`}
+                    >
+                      {line.text}
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            })}
           </div>
         </ScrollArea>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-red-50 p-3 rounded border">
-          <div className="text-sm font-medium text-red-700">Removed:</div>
-          <div className="text-red-800 line-through whitespace-pre-wrap">{removedContent || 'No removals'}</div>
-        </div>
-        <div className="bg-green-50 p-3 rounded border">
-          <div className="text-sm font-medium text-green-700">Added:</div>
-          <div className="text-green-800 whitespace-pre-wrap">{addedContent || 'No additions'}</div>
-        </div>
       </div>
     </div>
   );
