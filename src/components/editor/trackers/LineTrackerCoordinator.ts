@@ -1,6 +1,7 @@
 
 /**
  * LineTrackerCoordinator.ts - Coordinates the various line tracking components
+ * Refactored to delegate responsibilities to smaller, focused components
  */
 
 import { LinePosition } from './LinePosition';
@@ -8,6 +9,11 @@ import { UuidPreservationService } from './UuidPreservationService';
 import { LineTrackerEventHandler } from './LineTrackerEventHandler';
 import { LineTrackerInitializer } from './LineTrackerInitializer';
 import { LineTrackerState } from './LineTrackerTypes';
+import { 
+  EventCoordinator,
+  LineTrackerInitializationService,
+  UuidOperationsCoordinator
+} from './coordinators';
 
 export class LineTrackerCoordinator {
   private quill: any;
@@ -18,6 +24,11 @@ export class LineTrackerCoordinator {
   private cursorManager: any;
   private historyManager: any;
   private state: LineTrackerState;
+
+  // Specialized coordinators
+  private eventCoordinator: EventCoordinator;
+  private initService: LineTrackerInitializationService;
+  private uuidOperations: UuidOperationsCoordinator;
 
   constructor(
     quill: any,
@@ -45,107 +56,62 @@ export class LineTrackerCoordinator {
       this.uuidPreservation
     );
     
-    this.setupEventListeners();
-  }
-
-  private setupEventListeners(): void {
-    // Handle cursor position changes
-    this.quill.on('selection-change', (range: any) => {
-      this.eventHandler.handleSelectionChange(range, this.state);
-    });
-
-    // Handle text changes
-    this.quill.on('text-change', (delta: any, oldDelta: any, source: string) => {
-      this.state.isUpdating = true;
-      try {
-        console.log('LineTrackerCoordinator - text-change delta', delta);
-        this.eventHandler.handleTextChange(
-          delta, 
-          oldDelta, 
-          source, 
-          this.state,
-          (index) => this.getLineUuid(index)
-        );
-      } finally {
-        this.state.isUpdating = false;
-      }
-    });
-
-    // Listen for editor-change to detect when Quill is truly ready
-    this.quill.on('editor-change', (eventName: string) => {
-      if (!this.state.isInitialized && eventName === 'text-change') {
-        this.delayedInitialize();
-      }
-    });
-
-    // Initialize after a small delay
-    setTimeout(() => this.delayedInitialize(), 300);
-  }
-
-  public initialize(): void {
-    this.delayedInitialize();
-  }
-
-  private delayedInitialize(): void {
-    const newState = this.initializer.initialize(
-      this.state,
+    // Create specialized coordinators
+    this.eventCoordinator = new EventCoordinator(
+      quill,
+      this.eventHandler,
+      state,
       (index) => this.getLineUuid(index)
     );
     
-    // Update state
-    this.state.isInitialized = newState.isInitialized;
-    this.state.initAttempts = newState.initAttempts;
+    this.initService = new LineTrackerInitializationService(
+      quill,
+      this.initializer,
+      state,
+      (index) => this.getLineUuid(index)
+    );
     
-    // If not initialized yet and under max attempts, schedule another try
-    if (!this.state.isInitialized && this.state.initAttempts < 5) {
-      this.initializer.scheduleInitialization(
-        () => this.delayedInitialize(),
-        this.state.initAttempts
-      );
-    }
+    this.uuidOperations = new UuidOperationsCoordinator(
+      quill,
+      this.linePosition,
+      this.eventHandler
+    );
+    
+    // Set up event listeners
+    this.eventCoordinator.setupEventListeners();
+    
+    // Initialize with a slight delay
+    setTimeout(() => this.initialize(), 300);
+  }
+
+  public initialize(): void {
+    this.initService.initialize();
   }
 
   public handleProgrammaticUpdate(value: boolean): void {
-    this.eventHandler.handleProgrammaticUpdate(
+    this.uuidOperations.handleProgrammaticUpdate(
       value,
       (index) => this.getLineUuid(index)
     );
   }
 
   public getLineUuid(oneBasedIndex: number): string | undefined {
-    return this.linePosition.getLineUuid(oneBasedIndex);
+    return this.uuidOperations.getLineUuid(oneBasedIndex);
   }
 
   public setLineUuid(oneBasedIndex: number, uuid: string): void {
-    this.linePosition.setLineUuid(oneBasedIndex, uuid, this.quill);
+    this.uuidOperations.setLineUuid(oneBasedIndex, uuid);
   }
 
   public getDomUuidMap(): Map<number, string> {
-    return this.linePosition.getDomUuidMap(this.quill);
+    return this.uuidOperations.getDomUuidMap();
   }
 
   public refreshLineUuids(lineData: any[]): void {
-    this.eventHandler.refreshLineUuids(lineData);
-    
-    // Update our linePosition tracking and assign new UUIDs if missing
-    for (let i = 0; i < lineData.length; i++) {
-      if (lineData[i]) {
-        if (!lineData[i].uuid) {
-          const newUuid = crypto.randomUUID();
-          lineData[i].uuid = newUuid;
-          console.log(`LineTrackerCoordinator - Assigned new UUID for line ${i + 1}: ${newUuid}`);
-        }
-        this.setLineUuid(i + 1, lineData[i].uuid);
-      }
-    }
-    
-    // If there is content, try refreshing again after a delay to catch late updates
-    if (lineData.length > 0) {
-      setTimeout(() => this.eventHandler.refreshLineUuids(lineData), 200);
-    }
+    this.uuidOperations.refreshLineUuids(lineData);
   }
 
   public forceRefreshUuids(): void {
-    this.initializer.forceRefreshUuids((index) => this.getLineUuid(index));
+    this.initService.forceRefreshUuids();
   }
 }
