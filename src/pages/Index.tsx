@@ -3,18 +3,18 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
 import { ScriptCardGrid } from '@/components/scripts/ScriptCardGrid';
 import { LoadingScriptCards } from '@/components/scripts/LoadingScriptCards';
 import { NoScriptsFound } from '@/components/scripts/NoScriptsFound';
 import { useScripts } from '@/hooks/useScripts';
+import { useSession } from '@supabase/auth-helpers-react';
 
 export const Index: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
+  const session = useSession();
+  const user = session?.user;
   
   // Debug logging
   console.log("🏠 INDEX: Component rendering", { 
-    authLoading, 
     userExists: !!user, 
     userId: user?.id 
   });
@@ -25,7 +25,7 @@ export const Index: React.FC = () => {
     isLoading,
     fetchError,
     fetchScripts
-  } = useScripts(authLoading ? undefined : user?.id || null);
+  } = useScripts(user?.id || null);
 
   return (
     <div className="container mx-auto py-8">

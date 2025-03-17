@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -154,9 +153,12 @@ export const useScripts = (userId: string | null) => {
     }
   };
 
+  // Initial data fetch
   useEffect(() => {
+    console.log("SCRIPTS: Initial fetch with userId:", userId);
+    
+    // Only fetch if we have a definite value for userId (either a string or null)
     if (userId !== undefined) {
-      console.log("🏠 useScripts: Auth status known, fetching scripts");
       fetchScripts();
     }
   }, [userId]);
