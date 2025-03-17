@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Script } from "@/types/repository";
-import { useAuth } from "@/hooks/useAuth";
+import { useSession } from '@supabase/auth-helpers-react';
 
 interface ProfileDataLoaderProps {
   children: (data: {
@@ -16,12 +16,12 @@ interface ProfileDataLoaderProps {
 
 export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
   console.log("📋 PROFILE-DATA: Component initializing");
-  const { user } = useAuth();
+  const session = useSession();
   const isMounted = useRef(true);
   
   const [profile, setProfile] = useState<{ email: string; username: string }>({
-    email: user?.email || "",
-    username: user?.username || "",
+    email: session?.user?.email || "",
+    username: "",
   });
   const [scripts, setScripts] = useState<Script[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,8 +38,8 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
 
   // Reset fetch state when user changes or becomes available
   useEffect(() => {
-    if (!user) {
-      console.log("📋 PROFILE-DATA: User is null, resetting hasFetched");
+    if (!session) {
+      console.log("📋 PROFILE-DATA: User session is null, resetting hasFetched");
       if (isMounted.current) {
         setHasFetched(false);
         // Reset profile when user is null
@@ -49,8 +49,8 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
       // When user exists, update profile with basic data immediately
       if (isMounted.current) {
         setProfile({
-          email: user.email || "",
-          username: user.username || "",
+          email: session.user.email || "",
+          username: "",
         });
         
         // Trigger fetch if we haven't already
@@ -59,23 +59,45 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
         }
       }
     }
-  }, [user, hasFetched]);
+  }, [session, hasFetched]);
 
   // Function to fetch profile data
   const fetchProfileData = async () => {
-    if (!user?.id || !isMounted.current) return;
+    if (!session?.user?.id || !isMounted.current) return;
     
-    console.log("📋 PROFILE-DATA: Fetching profile data for user:", user.id);
+    const userId = session.user.id;
+    console.log("📋 PROFILE-DATA: Fetching profile data for user:", userId);
     try {
       setLoading(true);
       setFetchError(null);
 
+      // Fetch user profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('username, email')
+        .eq('id', userId)
+        .single();
+
+      if (!isMounted.current) {
+        console.log("📋 PROFILE-DATA: Component unmounted during fetch, aborting");
+        return;
+      }
+
+      if (profileError) {
+        console.error("📋 PROFILE-DATA: Error fetching profile:", profileError);
+      } else if (profileData) {
+        setProfile({
+          email: profileData.email || session.user.email || "",
+          username: profileData.username || "",
+        });
+      }
+
       // Fetch user scripts
-      console.log("📋 PROFILE-DATA: Fetching scripts for user:", user.id);
+      console.log("📋 PROFILE-DATA: Fetching scripts for user:", userId);
       const { data: scriptsData, error: scriptsError } = await supabase
         .from('scripts')
         .select('id, title, created_at, is_private, admin_id')
-        .eq('admin_id', user.id);
+        .eq('admin_id', userId);
 
       if (!isMounted.current) {
         console.log("📋 PROFILE-DATA: Component unmounted during fetch, aborting");
@@ -95,7 +117,7 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
           admin_id: script.admin_id,
           created_at: script.created_at,
           is_private: script.is_private,
-          profiles: { username: "" } // Add a default profiles property
+          profiles: { username: profile.username } // Add a default profiles property
         }));
 
         if (isMounted.current) {

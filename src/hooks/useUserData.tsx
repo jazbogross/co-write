@@ -1,25 +1,28 @@
 
-import { useAuth } from './useAuth';
+import { useSession } from '@supabase/auth-helpers-react';
 
 /**
- * Hook for accessing user data by leveraging the main auth system
+ * Hook for accessing user data by leveraging Supabase's session context
  * @returns Object containing user authentication data and status
  */
 export const useUserData = () => {
-  console.log("👤 useUserData: Using centralized auth system");
+  console.log("👤 useUserData: Using session context from auth-helpers-react");
   
-  // Use the main auth system instead of separate state
-  const { user, loading: isLoading, authChecked: authCheckedOnce } = useAuth();
+  // Use the session context
+  const session = useSession();
+  
+  // Get user id from the session
+  const userId = session?.user?.id || null;
   
   // Determine auth provider from user metadata if available
-  const authProvider = user?.provider || null;
+  const authProvider = session?.user?.app_metadata?.provider || null;
   
   // Format the return value to match existing interface
   return { 
-    userId: user?.id || null, 
-    isLoading,
+    userId, 
+    isLoading: false,
     error: null, 
     authProvider, 
-    authCheckedOnce
+    authCheckedOnce: true
   };
 };

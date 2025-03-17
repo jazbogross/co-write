@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Github } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface GitHubAuthButtonProps {
   disabled?: boolean;
@@ -11,13 +11,12 @@ interface GitHubAuthButtonProps {
 
 export const GitHubAuthButton = ({ disabled = false }: GitHubAuthButtonProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   const handleGitHubAuth = async () => {
     try {
       setIsLoading(true);
       console.log("Auth: Initiating GitHub OAuth");
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
           scopes: 'repo',
@@ -27,21 +26,13 @@ export const GitHubAuthButton = ({ disabled = false }: GitHubAuthButtonProps) =>
 
       if (error) {
         console.error("Auth: GitHub OAuth error:", error);
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
+        toast.error(error.message);
       } else {
         console.log("Auth: GitHub OAuth initiated successfully");
       }
     } catch (error) {
       console.error('GitHub auth error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to authenticate with GitHub",
-        variant: "destructive",
-      });
+      toast.error("Failed to authenticate with GitHub");
     } finally {
       setIsLoading(false);
     }

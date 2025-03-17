@@ -2,37 +2,37 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
 import { ProfileContent } from "@/components/profile/ProfileContent";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ProfileLoading } from "@/components/profile/ProfileLoading";
 import { ProfileError } from "@/components/profile/ProfileError";
 import { ProfileDataLoader } from "@/components/profile/ProfileDataLoader";
+import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 
 export default function Profile() {
   console.log("📋 PROFILE: Component rendering");
   const navigate = useNavigate();
-  const { user, loading: authLoading, signOut, authChecked } = useAuth();
+  const session = useSession();
+  const supabase = useSupabaseClient();
 
   console.log("📋 PROFILE: Current states -", {
-    authLoading,
-    userExists: !!user,
-    userId: user?.id,
-    authChecked
+    userExists: !!session,
+    userId: session?.user?.id
   });
 
   // Redirect to auth page if not authenticated
   useEffect(() => {
-    if (!authLoading && !user && authChecked) {
-      console.log("📋 PROFILE: No authenticated user and auth checked, redirecting to auth page");
+    if (!session) {
+      console.log("📋 PROFILE: No authenticated user, redirecting to auth page");
       navigate("/auth");
     }
-  }, [user, authLoading, navigate, authChecked]);
+  }, [session, navigate]);
 
   const handleSignOut = async () => {
     try {
       console.log("📋 PROFILE: Signing out");
-      await signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       navigate("/auth");
     } catch (error) {
       console.error("📋 PROFILE: Error signing out:", error);
@@ -40,18 +40,14 @@ export default function Profile() {
     }
   };
 
-  // Handle the case where authentication check is still in progress
-  if (authLoading || !authChecked) {
-    console.log("📋 PROFILE: Rendering loading state - auth state is loading or not checked yet");
+  // Handle the case where the user is not authenticated
+  if (!session) {
+    console.log("📋 PROFILE: User not authenticated, showing error or redirecting");
     return <ProfileLoading isAuthLoading={true} />;
   }
 
-  // Handle the case where the user is not authenticated
-  if (!user) {
-    console.log("📋 PROFILE: User not authenticated, showing error or redirecting");
-    return <ProfileError />;
-  }
-
+  const user = session.user;
+  
   console.log("📋 PROFILE: Auth check complete, user authenticated, rendering profile content for user:", user.id);
   return (
     <>

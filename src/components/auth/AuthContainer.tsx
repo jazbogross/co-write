@@ -6,22 +6,28 @@ import { Separator } from '@/components/ui/separator';
 import { LoginForm } from './LoginForm';
 import { SignupForm } from './SignupForm';
 import { GitHubAuthButton } from './GitHubAuthButton';
-import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export const AuthContainer = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { signIn, signUp } = useAuth();
 
   const handleLogin = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const success = await signIn(email, password);
-      if (success) {
-        navigate('/profile');
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) {
+        toast.error(error.message);
+        return;
       }
+      
+      navigate('/profile');
     } catch (error) {
       console.error('Login error:', error);
       toast.error("An unexpected error occurred during login");
@@ -35,7 +41,20 @@ export const AuthContainer = () => {
       setLoading(true);
       // Use username as email username part by default
       const username = email.split('@')[0];
-      await signUp(email, password, username);
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { username }
+        }
+      });
+      
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      
+      toast.success('Account created successfully!');
     } catch (error) {
       console.error('Signup error:', error);
       toast.error("An unexpected error occurred during signup");

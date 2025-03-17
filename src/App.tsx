@@ -7,12 +7,14 @@ import ScriptEdit from "@/pages/ScriptEdit";
 import NotFound from "@/pages/NotFound";
 import GitHubCallback from "@/pages/GitHubCallback";
 import { Toaster } from "@/components/ui/toaster";
-import { AuthProvider } from "./hooks/useAuth";
+import { Toaster as Sonner } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { SessionContextProvider } from '@supabase/auth-helpers-react';
 
 export default function App() {
   return (
-    <Router>
-      <AuthProvider>
+    <SessionContextProvider supabaseClient={supabase}>
+      <Router>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
@@ -22,7 +24,8 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
         <Toaster />
-      </AuthProvider>
-    </Router>
+        <Sonner />
+      </Router>
+    </SessionContextProvider>
   );
 }
