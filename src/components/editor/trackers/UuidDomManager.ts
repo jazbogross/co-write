@@ -26,8 +26,20 @@ export class UuidDomManager {
         
         if (!currentUuid || currentUuid !== uuid) {
           lines[index].domNode.setAttribute('data-line-uuid', uuid);
+          lines[index].domNode.setAttribute('line-uuid', uuid);
           lines[index].domNode.setAttribute('data-line-index', String(index + 1));
+          lines[index].domNode.setAttribute('line-number', String(index + 1));
           appliedCount++;
+        } else {
+          // Ensure line-uuid attribute is also set
+          if (!lines[index].domNode.hasAttribute('line-uuid')) {
+            lines[index].domNode.setAttribute('line-uuid', uuid);
+          }
+          
+          // Ensure line-number attribute is set
+          if (!lines[index].domNode.hasAttribute('line-number')) {
+            lines[index].domNode.setAttribute('line-number', String(index + 1));
+          }
         }
       }
     }
@@ -70,7 +82,9 @@ export class UuidDomManager {
       const lines = quill.getLines(0);
       if (lines[index] && lines[index].domNode) {
         lines[index].domNode.setAttribute('data-line-uuid', uuid);
+        lines[index].domNode.setAttribute('line-uuid', uuid);
         lines[index].domNode.setAttribute('data-line-index', String(index + 1));
+        lines[index].domNode.setAttribute('line-number', String(index + 1));
         return true;
       }
     } catch (e) {

@@ -1,3 +1,4 @@
+
 // CustomLineBlot.ts
 import Quill from 'quill';
 const Block = Quill.import('blots/block');
@@ -11,6 +12,7 @@ class LineBlot extends Block {
     const node = super.create();
     if (value) {
       node.setAttribute('data-line-uuid', value);
+      node.setAttribute('line-uuid', value);
     }
     return node;
   }
@@ -25,8 +27,10 @@ class LineBlot extends Block {
     if (name === 'line-uuid') {
       if (value) {
         this.domNode.setAttribute('data-line-uuid', value);
+        this.domNode.setAttribute('line-uuid', value);
       } else {
         this.domNode.removeAttribute('data-line-uuid');
+        this.domNode.removeAttribute('line-uuid');
       }
     } else {
       super.format(name, value);

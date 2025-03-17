@@ -30,12 +30,23 @@ export const LineNumbers: React.FC<LineNumbersProps> = ({ count }) => {
         console.log(`🔢 LineNumbers: ⚠️ MISMATCH - DOM has ${paragraphs.length} paragraphs but count prop is ${count}`);
       }
       
-      const newOffsets = Array.from(paragraphs).map(p => {
+      const newOffsets = Array.from(paragraphs).map((p, index) => {
         // Log data-line-uuid for debugging
         const uuid = p.getAttribute('data-line-uuid');
         if (!uuid) {
           console.log('🔢 LineNumbers: ⚠️ Found paragraph without UUID', p.textContent?.substring(0, 30));
         }
+        
+        // Make sure line number attribute is set for debugging
+        if (!p.hasAttribute('line-number')) {
+          p.setAttribute('line-number', String(index + 1));
+        }
+        
+        // Make sure line UUID is set as an attribute for debugging
+        if (uuid && !p.hasAttribute('line-uuid')) {
+          p.setAttribute('line-uuid', uuid);
+        }
+        
         return p.offsetTop;
       });
       
@@ -77,12 +88,12 @@ export const LineNumbers: React.FC<LineNumbersProps> = ({ count }) => {
   return (
     <div
       className="pr-4 select-none mr-5 bg-background h-full text-right border-gray-200 relative"
-      style={{ minWidth: '30px', left: '-90px' }}
+      style={{ minWidth: '30px', left: '-50px' }}
     >
       {offsets.map((offset, i) => (
         <div
           key={i}
-          className="text-gray-400 text-s text-right line-number absolute"
+          className="text-gray-400 text-sm text-right line-number absolute"
           style={{ top: offset, height: '18px', lineHeight: '18px' }}
           data-line-index={i}
         >

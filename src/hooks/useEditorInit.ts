@@ -122,11 +122,13 @@ export const useEditorInit = (lineData: LineData[], isDataReady: boolean) => {
         const currentUuid = lines[index].domNode.getAttribute('data-line-uuid');
         if (!currentUuid || currentUuid !== uuid) {
           lines[index].domNode.setAttribute('data-line-uuid', uuid);
+          lines[index].domNode.setAttribute('line-uuid', uuid);
           appliedCount++;
         }
         
-        // Always set the line index attribute
+        // Always set the line index and number attributes
         lines[index].domNode.setAttribute('data-line-index', String(index + 1));
+        lines[index].domNode.setAttribute('line-number', String(index + 1));
         
         // Ensure our tracking maps are updated
         if (editor.lineTracking && typeof editor.lineTracking.setLineUuid === 'function') {

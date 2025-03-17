@@ -45,6 +45,20 @@ export class DomUtils {
       
       if (currentIndex !== String(oneBasedIndex)) {
         line.domNode.setAttribute('data-line-index', String(oneBasedIndex));
+        line.domNode.setAttribute('line-number', String(oneBasedIndex));
+        updatedCount++;
+      }
+      
+      // Make sure line-number is set even if data-line-index is correct
+      if (!line.domNode.hasAttribute('line-number')) {
+        line.domNode.setAttribute('line-number', String(oneBasedIndex));
+        updatedCount++;
+      }
+      
+      // Make sure line-uuid is set if data-line-uuid exists
+      const uuid = line.domNode.getAttribute('data-line-uuid');
+      if (uuid && !line.domNode.hasAttribute('line-uuid')) {
+        line.domNode.setAttribute('line-uuid', uuid);
         updatedCount++;
       }
     });

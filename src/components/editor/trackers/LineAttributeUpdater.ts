@@ -56,8 +56,20 @@ export class LineAttributeUpdater {
         // Apply the UUID if we found one
         if (uuid) {
           line.domNode.setAttribute('data-line-uuid', uuid);
+          line.domNode.setAttribute('line-uuid', uuid);
           line.domNode.setAttribute('data-line-index', String(index + 1));
+          line.domNode.setAttribute('line-number', String(index + 1));
           console.log(`**** LineAttributeUpdater **** Applied missing UUID ${uuid} to line ${index + 1}`);
+        }
+      } else {
+        // Ensure line-uuid attribute is also set
+        if (!line.domNode.hasAttribute('line-uuid')) {
+          line.domNode.setAttribute('line-uuid', uuid);
+        }
+        
+        // Ensure line-number attribute is set
+        if (!line.domNode.hasAttribute('line-number')) {
+          line.domNode.setAttribute('line-number', String(index + 1));
         }
       }
       
