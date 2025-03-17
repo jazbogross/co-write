@@ -34,9 +34,9 @@ export const useAuthListener = (
           if (isMountedRef.current) {
             setUser(null);
             setLoading(false);
-            setAuthChecked(true); // Ensure authChecked is set even on error
+            setAuthChecked(true);
+            return;
           }
-          return;
         }
 
         if (!sessionData.session) {
@@ -44,42 +44,48 @@ export const useAuthListener = (
           if (isMountedRef.current) {
             setUser(null);
             setLoading(false);
-            setAuthChecked(true); // Ensure authChecked is set even if no session
+            setAuthChecked(true);
+            return;
           }
-          return;
         }
 
-        const userId = sessionData.session.user.id;
-        console.log("🔑 useAuthListener: Active session found for user:", userId);
+        // If we have a session, load the user profile
+        if (sessionData.session) {
+          const userId = sessionData.session.user.id;
+          console.log("🔑 useAuthListener: Active session found for user:", userId);
 
-        try {
-          const { profile, error: profileError } = await getUserProfile(userId);
+          try {
+            // Mark that we're checking auth immediately
+            if (isMountedRef.current) {
+              setAuthChecked(true);
+            }
+            
+            const { profile, error: profileError } = await getUserProfile(userId);
 
-          if (profileError) {
-            console.error("🔑 useAuthListener: Error fetching user profile:", profileError);
-          }
+            if (profileError) {
+              console.error("🔑 useAuthListener: Error fetching user profile:", profileError);
+            }
 
-          if (isMountedRef.current) {
-            setUser({
-              id: userId,
-              email: sessionData.session.user.email,
-              username: profile?.username
-            });
-            setLoading(false);
-            setAuthChecked(true); // Ensure authChecked is set after user is loaded
-            isInitializedRef.current = true;
-            console.log("🔑 useAuthListener: User set from session:", userId);
-          }
-        } catch (profileError) {
-          console.error("🔑 useAuthListener: Exception fetching profile:", profileError);
-          if (isMountedRef.current) {
-            setUser({
-              id: userId,
-              email: sessionData.session.user.email
-            });
-            setLoading(false);
-            setAuthChecked(true); // Ensure authChecked is set even if profile fetch fails
-            isInitializedRef.current = true;
+            if (isMountedRef.current) {
+              setUser({
+                id: userId,
+                email: sessionData.session.user.email,
+                username: profile?.username
+              });
+              setLoading(false);
+              isInitializedRef.current = true;
+              console.log("🔑 useAuthListener: User set from session:", userId);
+            }
+          } catch (profileError) {
+            console.error("🔑 useAuthListener: Exception fetching profile:", profileError);
+            if (isMountedRef.current) {
+              setUser({
+                id: userId,
+                email: sessionData.session.user.email
+              });
+              setLoading(false);
+              isInitializedRef.current = true;
+            }
           }
         }
       } catch (error) {
@@ -87,7 +93,7 @@ export const useAuthListener = (
         if (isMountedRef.current) {
           setUser(null);
           setLoading(false);
-          setAuthChecked(true); // Ensure authChecked is set even on exception
+          setAuthChecked(true);
         }
       }
     };
@@ -95,7 +101,7 @@ export const useAuthListener = (
     // Check for session immediately
     checkSession();
     
-    // Set up auth listener with retry mechanism
+    // Set up auth listener with better error handling
     try {
       console.log("🔑 useAuthListener: Setting up Supabase auth state change listener");
       
@@ -112,7 +118,6 @@ export const useAuthListener = (
         }
 
         // Always ensure authChecked gets set to true for any auth event
-        // This ensures we don't get stuck in loading state
         if (isMountedRef.current && !event.includes('INITIAL')) {
           setAuthChecked(true);
           console.log(`🔑 useAuthListener: Auth checked explicitly set to true for event: ${event}`);
@@ -122,7 +127,7 @@ export const useAuthListener = (
           try {
             console.log(`🔑 useAuthListener: User ${event === 'SIGNED_IN' ? 'signed in' : 'token refreshed'}:`, session.user.id);
             
-            // First, update the loading state to indicate we're fetching profile
+            // Update the loading state to indicate we're fetching profile
             if (isMountedRef.current) {
               setLoading(true);
             }
@@ -130,12 +135,16 @@ export const useAuthListener = (
             const { profile } = await getUserProfile(session.user.id);
             
             if (isMountedRef.current) {
+              // Important: Set user state before setting loading to false
               setUser({
                 id: session.user.id,
                 email: session.user.email,
                 username: profile?.username
               });
+              
+              // Now update loading state
               setLoading(false);
+              
               // Mark initialization as complete
               isInitializedRef.current = true;
               console.log("🔑 useAuthListener: User state updated after auth change:", session.user.id);
@@ -201,7 +210,6 @@ export const useAuthListener = (
         setUser(null);
         setLoading(false);
         setAuthChecked(true);
-        console.log("🔑 useAuthListener: Auth checked set to true after listener setup error");
       }
     }
     
@@ -212,5 +220,5 @@ export const useAuthListener = (
         authListenerCleanupRef.current = null;
       }
     };
-  }, []); // Only run once on mount
+  }, []);
 };
