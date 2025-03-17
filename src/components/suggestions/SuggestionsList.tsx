@@ -40,15 +40,14 @@ export const ScriptSuggestions: React.FC<ScriptSuggestionsProps> = ({
       setLoading(true);
       
       try {
-        // Create the base query
+        // First, get the basic suggestions data
         let query = supabase
           .from('script_suggestions')
           .select(`
             id,
             user_id,
             status,
-            created_at,
-            profiles(username)
+            created_at
           `)
           .eq('script_id', scriptId)
           .order('created_at', { ascending: false });
@@ -58,20 +57,42 @@ export const ScriptSuggestions: React.FC<ScriptSuggestionsProps> = ({
           query = query.eq('user_id', user.id);
         }
         
-        const { data, error } = await query;
+        const { data: suggestionsData, error } = await query;
         
         if (error) throw error;
         
-        if (data) {
-          const formattedSuggestions: Suggestion[] = data.map((item: any) => ({
+        if (suggestionsData && suggestionsData.length > 0) {
+          // Get unique user IDs from suggestions
+          const userIds = [...new Set(suggestionsData.map(item => item.user_id))];
+          
+          // Now fetch usernames in a separate query
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .in('id', userIds);
+            
+          if (profilesError) throw profilesError;
+          
+          // Create a map of user IDs to usernames
+          const usernameMap: Record<string, string> = {};
+          if (profilesData) {
+            profilesData.forEach(profile => {
+              usernameMap[profile.id] = profile.username || 'Unknown user';
+            });
+          }
+          
+          // Combine the data
+          const formattedSuggestions: Suggestion[] = suggestionsData.map(item => ({
             id: item.id,
             user_id: item.user_id,
-            username: item.profiles?.username || 'Unknown user',
+            username: usernameMap[item.user_id] || 'Unknown user',
             created_at: item.created_at,
             status: item.status as 'pending' | 'approved' | 'rejected'
           }));
           
           setSuggestions(formattedSuggestions);
+        } else {
+          setSuggestions([]);
         }
       } catch (error) {
         console.error('Error fetching suggestions:', error);
