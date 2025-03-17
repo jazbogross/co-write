@@ -3,7 +3,6 @@ export interface DiffChange {
   type: 'add' | 'delete' | 'equal' | 'modify';
   text: string;
   index: number;
-  lineNumber?: number;
   originalText?: string;
 }
 
