@@ -4,13 +4,12 @@
  * Refactored into smaller, focused components
  */
 
-import { LineOperationType, DeltaAnalyzer } from './utils/DeltaAnalyzer';
+import { LineOperationType } from './utils/DeltaAnalyzer';
 import { LineContentCache } from './utils/LineContentCache';
 import { UuidValidator } from './utils/UuidValidator';
-import { LineSplitHandler } from './handlers/LineSplitHandler';
-import { NewLineHandler } from './handlers/NewLineHandler';
-import { EnterAtZeroHandler } from './handlers/EnterAtZeroHandler';
-import { DeleteMergeHandler } from './handlers/DeleteMergeHandler';
+import { StructuralChangeAnalyzer } from './operations/StructuralChangeAnalyzer';
+import { HandlerDispatcher } from './operations/HandlerDispatcher';
+import { EventPreProcessor } from './operations/EventPreProcessor';
 import { LineTrackerState } from './LineTrackerTypes';
 
 export class LineTrackerEventHandler {
@@ -23,7 +22,6 @@ export class LineTrackerEventHandler {
   private contentCache: LineContentCache = new LineContentCache();
   private lastOperationType: string | null = null;
   private lastAffectedIndex: number = -1;
-  private preventUuidRegenerationOnDelete: boolean = true;
 
   constructor(
     quill: any,
@@ -73,83 +71,65 @@ export class LineTrackerEventHandler {
     if (!state.isProgrammaticUpdate) {
       const lines = this.quill.getLines(0);
       const currentLineCount = lines.length;
-      const isStructuralChange = DeltaAnalyzer.detectStructuralChange(delta) || 
-                                 currentLineCount !== this.lastLineCount;
+      
+      // Determine if this change affects the document structure
+      const isStructuralChange = StructuralChangeAnalyzer.needsStructuralHandling(
+        delta, currentLineCount, this.lastLineCount
+      );
       
       if (isStructuralChange) {
         console.log('**** LineTrackerEventHandler **** Detected structural change, handling line operations');
         
-        // Save cursor position before making changes
-        this.cursorTracker.saveCursorPosition(this.quill);
+        // Prepare for changes (save cursor, preserve UUIDs)
+        EventPreProcessor.prepareForChanges(
+          this.cursorTracker, 
+          this.uuidPreservation,
+          this.quill
+        );
         
-        // Determine the type of structural change and where it occurred
-        const { operationType, affectedLineIndex } = DeltaAnalyzer.analyzeStructuralChangeDetailed(
+        // Analyze the type of structural change
+        const { operationType, affectedLineIndex } = StructuralChangeAnalyzer.analyzeChange(
           delta, 
           currentLineCount, 
           this.lastLineCount,
           this.quill
         );
         
-        console.log(`**** LineTrackerEventHandler **** Operation type detected: ${operationType} at line ${affectedLineIndex + 1}`);
-        
         // Store last operation for debugging
         this.lastOperationType = operationType;
         this.lastAffectedIndex = affectedLineIndex;
         
-        // Preserve existing UUIDs before any DOM manipulations
-        this.uuidPreservation.preserveLineUuids();
-        
-        // Handle different types of line operations
-        switch(operationType) {
-          case LineOperationType.SPLIT:
-            LineSplitHandler.handleLineSplit(this.quill, affectedLineIndex, this.linePosition);
-            break;
-            
-          case LineOperationType.NEW:
-            NewLineHandler.handleNewLines(
-              this.quill, 
-              affectedLineIndex, 
-              this.lastLineCount, 
-              this.linePosition,
-              this.contentCache
-            );
-            break;
-            
-          case LineOperationType.ENTER_AT_ZERO:
-            EnterAtZeroHandler.handleEnterAtZero(this.quill, this.linePosition);
-            break;
-            
-          case LineOperationType.DELETE:
-          case LineOperationType.MERGE:
-            DeleteMergeHandler.handleDeleteOrMerge(this.quill, this.linePosition);
-            break;
-            
-          default:
-            this.cursorTracker.analyzeTextChange(delta, this.quill);
-            this.linePosition.updateLineIndexAttributes(this.quill, false);
-            break;
-        }
+        // Dispatch to appropriate handler
+        HandlerDispatcher.dispatchOperation(
+          operationType,
+          affectedLineIndex,
+          this.quill,
+          this.linePosition,
+          this.lastLineCount,
+          this.contentCache
+        );
         
         // Detect line count changes and update line indices
         this.linePosition.detectLineCountChanges(this.quill, false);
         
-        // Restore UUIDs for existing lines
-        this.uuidPreservation.restoreLineUuids();
-        
-        // Ensure that every line has a UUID (generate if missing)
-        this.uuidPreservation.ensureAllLinesHaveUuids(getLineUuid);
-        
-        // Final check: Make sure all lines have different UUIDs
-        UuidValidator.ensureUniqueUuids(lines);
+        // Finalize changes (restore UUIDs, cursor position)
+        EventPreProcessor.finalizeChanges(
+          this.uuidPreservation,
+          getLineUuid,
+          this.cursorTracker,
+          this.quill,
+          lines
+        );
         
         // Update content cache for future change detection
         this.contentCache.cacheLineContents(this.quill.getLines(0));
         
-        // Restore cursor position after changes
-        this.cursorTracker.restoreCursorPosition(this.quill);
-        
         // Update the last known line count
         this.lastLineCount = currentLineCount;
+      } else {
+        // For non-structural changes, just analyze cursor position and update line indices
+        this.cursorTracker.analyzeTextChange(delta, this.quill);
+        this.linePosition.updateLineIndexAttributes(this.quill, false);
       }
     } else {
       this.linePosition.updateLineIndexAttributes(this.quill, true);
