@@ -60,6 +60,7 @@ export const AuthContainer = ({ redirectPath = '/' }: AuthContainerProps) => {
       }
       
       toast.success('Account created successfully!');
+      // Don't navigate after signup as we usually require email confirmation
     } catch (error) {
       console.error('Signup error:', error);
       toast.error("An unexpected error occurred during signup");

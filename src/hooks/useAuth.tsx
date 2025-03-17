@@ -1,8 +1,8 @@
 
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { toast } from 'sonner';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, createContext, useContext, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { createContext, useContext, ReactNode } from 'react';
 
 export type AuthUser = {
   id: string;
@@ -30,7 +30,6 @@ function useAuthState() {
   const session = useSession();
   const supabase = useSupabaseClient();
   const navigate = useNavigate();
-  const location = useLocation();
   
   // Transform the Supabase user into our AuthUser type
   const user = session?.user ? {
@@ -42,18 +41,6 @@ function useAuthState() {
 
   const loading = false;
   const authChecked = true;
-  
-  // Handle redirects for protected routes
-  useEffect(() => {
-    if (authChecked && !user && location.pathname !== '/auth') {
-      // Don't automatically redirect from public pages
-      const publicPages = ['/', '/scripts'];
-      if (!publicPages.some(page => location.pathname.startsWith(page))) {
-        console.log('🔑 useAuth: User not authenticated, redirecting to auth page from', location.pathname);
-        navigate('/auth', { state: { from: location.pathname } });
-      }
-    }
-  }, [user, authChecked, navigate, location.pathname]);
   
   const signIn = async (email: string, password: string) => {
     try {
@@ -110,7 +97,7 @@ function useAuthState() {
       }
       
       toast.success('Signed out successfully');
-      // No automatic redirect after sign out
+      navigate('/');
     } catch (error) {
       console.error('Sign out error:', error);
       toast.error('Failed to sign out');

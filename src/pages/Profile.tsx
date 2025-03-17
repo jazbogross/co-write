@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { ProfileContent } from "@/components/profile/ProfileContent";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ProfileLoading } from "@/components/profile/ProfileLoading";
-import { ProfileError } from "@/components/profile/ProfileError";
 import { ProfileDataLoader } from "@/components/profile/ProfileDataLoader";
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 
@@ -43,7 +42,7 @@ export default function Profile() {
 
   // Handle the case where the user is not authenticated
   if (!session) {
-    console.log("📋 PROFILE: User not authenticated, showing error or redirecting");
+    console.log("📋 PROFILE: User not authenticated, showing loading state");
     return <ProfileLoading isAuthLoading={true} />;
   }
 
@@ -71,4 +70,4 @@ export default function Profile() {
       </ProfileDataLoader>
     </>
   );
-}
+};

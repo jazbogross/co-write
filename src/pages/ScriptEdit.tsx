@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { DeltaTextEditor } from "@/components/DeltaTextEditor";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { useSession } from "@supabase/auth-helpers-react";
 const ScriptEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const session = useSession();
   
   const [script, setScript] = useState<{
@@ -39,7 +40,8 @@ const ScriptEdit = () => {
 
         // Check if user is authenticated
         if (!session?.user) {
-          navigate("/auth");
+          // Save current script path for redirecting back after login
+          navigate("/auth", { state: { from: location.pathname } });
           return;
         }
 
@@ -81,7 +83,7 @@ const ScriptEdit = () => {
     };
 
     loadScript();
-  }, [id, navigate, session]);
+  }, [id, navigate, session, location.pathname]);
 
   const handleCommitToGithub = async (content: string) => {
     if (!script || !id || !githubToken) return;
