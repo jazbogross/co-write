@@ -7,6 +7,12 @@ import { LineTrackerState } from '../LineTrackerTypes';
 import { StructuralChangeAnalyzer } from '../operations/StructuralChangeAnalyzer';
 import { EventPreProcessor } from '../operations/EventPreProcessor';
 import { HandlerDispatcher } from '../operations/HandlerDispatcher';
+import { LineOperationType } from '../utils/DeltaAnalyzer';
+
+export interface TextChangeResult {
+  lastOperationType: LineOperationType | string;
+  lastAffectedIndex: number;
+}
 
 export class TextChangeHandler {
   /**
@@ -23,8 +29,8 @@ export class TextChangeHandler {
     uuidPreservation: any,
     contentCache: any, 
     getLineUuid: (index: number) => string | undefined
-  ): void {
-    if (state.isUpdating) return;
+  ): TextChangeResult {
+    if (state.isUpdating) return { lastOperationType: 'skipped', lastAffectedIndex: -1 };
     
     const lines = quill.getLines(0);
     const currentLineCount = lines.length;

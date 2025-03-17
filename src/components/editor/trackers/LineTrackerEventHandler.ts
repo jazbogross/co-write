@@ -4,7 +4,7 @@
  * Refactored into smaller, focused components
  */
 
-import { TextChangeHandler } from './handlers/TextChangeHandler';
+import { TextChangeHandler, TextChangeResult } from './handlers/TextChangeHandler';
 import { ProgrammaticUpdateHandler } from './handlers/ProgrammaticUpdateHandler';
 import { UuidRefreshHandler } from './handlers/UuidRefreshHandler';
 import { SelectionChangeHandler } from './handlers/SelectionChangeHandler';
@@ -72,7 +72,7 @@ export class LineTrackerEventHandler {
     this.isTextChange = true;
 
     if (!state.isProgrammaticUpdate) {
-      const result = TextChangeHandler.handleTextChange(
+      const result: TextChangeResult = TextChangeHandler.handleTextChange(
         delta,
         oldDelta,
         source,
