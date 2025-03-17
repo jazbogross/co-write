@@ -85,8 +85,13 @@ export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
 
   if (context === undefined) {
-    console.error("🔑 useAuth: Must be used within an AuthProvider");
+    console.log("🔑 useAuth: Must be used within an AuthProvider");
     throw new Error('useAuth must be used within an AuthProvider');
+  }
+
+  // Early detection of waiting state
+  if (!context.authChecked) {
+    console.log("🔑 useAuth: Waiting for auth check to complete");
   }
 
   return context;

@@ -1,32 +1,25 @@
 
-import { useEffect } from 'react';
-import { useAuthStateManager } from './user/useAuthStateManager';
-import { useSessionManager } from './user/useSessionManager';
-import { useAuthCleanup } from './user/lifecycle/useAuthCleanup';
-import { useAuthStateTracking } from './user/lifecycle/useAuthStateTracking';
+import { useAuth } from './useAuth';
 
 /**
- * Hook for managing user data and authentication state
+ * Hook for accessing user data by leveraging the main auth system
  * @returns Object containing user authentication data and status
  */
 export const useUserData = () => {
-  console.log("👤 useUserData: Initializing user data check...");
+  console.log("👤 useUserData: Using centralized auth system");
   
-  // Get state management from our auth state manager
-  const { state, setters, refs } = useAuthStateManager();
+  // Use the main auth system instead of separate state
+  const { user, loading: isLoading, authChecked: authCheckedOnce } = useAuth();
   
-  // Set up session management and auth listener
-  useSessionManager(state, setters, refs);
+  // Determine auth provider from user metadata if available
+  const authProvider = user?.provider || null;
   
-  // Set up hooks for cleanup and state tracking
-  useAuthCleanup(refs.isMounted, refs.authListenerCleanup);
-  useAuthStateTracking(state);
-
+  // Format the return value to match existing interface
   return { 
-    userId: state.userId, 
-    isLoading: state.isLoading, 
-    error: state.error, 
-    authProvider: state.authProvider, 
-    authCheckedOnce: state.authCheckedOnce 
+    userId: user?.id || null, 
+    isLoading,
+    error: null, 
+    authProvider, 
+    authCheckedOnce
   };
 };

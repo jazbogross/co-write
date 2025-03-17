@@ -23,6 +23,11 @@ export const useAuthListener = (
 
         console.log("🔑 useAuthListener: Checking for existing session");
 
+        // Mark that we're checking auth immediately to prevent flashes
+        if (isMountedRef.current) {
+          setAuthChecked(true);
+        }
+
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         console.log("🔑 useAuthListener: Session check result:", { 
           hasSession: !!sessionData?.session, 
@@ -34,7 +39,6 @@ export const useAuthListener = (
           if (isMountedRef.current) {
             setUser(null);
             setLoading(false);
-            setAuthChecked(true);
             return;
           }
         }
@@ -44,7 +48,6 @@ export const useAuthListener = (
           if (isMountedRef.current) {
             setUser(null);
             setLoading(false);
-            setAuthChecked(true);
             return;
           }
         }
@@ -55,11 +58,6 @@ export const useAuthListener = (
           console.log("🔑 useAuthListener: Active session found for user:", userId);
 
           try {
-            // Mark that we're checking auth immediately
-            if (isMountedRef.current) {
-              setAuthChecked(true);
-            }
-            
             const { profile, error: profileError } = await getUserProfile(userId);
 
             if (profileError) {
@@ -70,7 +68,8 @@ export const useAuthListener = (
               setUser({
                 id: userId,
                 email: sessionData.session.user.email,
-                username: profile?.username
+                username: profile?.username,
+                provider: sessionData.session.user.app_metadata?.provider || null
               });
               setLoading(false);
               isInitializedRef.current = true;
@@ -81,7 +80,8 @@ export const useAuthListener = (
             if (isMountedRef.current) {
               setUser({
                 id: userId,
-                email: sessionData.session.user.email
+                email: sessionData.session.user.email,
+                provider: sessionData.session.user.app_metadata?.provider || null
               });
               setLoading(false);
               isInitializedRef.current = true;
@@ -93,7 +93,6 @@ export const useAuthListener = (
         if (isMountedRef.current) {
           setUser(null);
           setLoading(false);
-          setAuthChecked(true);
         }
       }
     };
@@ -139,7 +138,8 @@ export const useAuthListener = (
               setUser({
                 id: session.user.id,
                 email: session.user.email,
-                username: profile?.username
+                username: profile?.username,
+                provider: session.user.app_metadata?.provider || null
               });
               
               // Now update loading state
@@ -155,7 +155,8 @@ export const useAuthListener = (
               // Still set basic user info even if profile fetch fails
               setUser({
                 id: session.user.id,
-                email: session.user.email
+                email: session.user.email,
+                provider: session.user.app_metadata?.provider || null
               });
               setLoading(false);
               // Mark initialization as complete even if there was an error
@@ -179,7 +180,8 @@ export const useAuthListener = (
               setUser({
                 id: session.user.id,
                 email: session.user.email,
-                username: profile?.username
+                username: profile?.username,
+                provider: session.user.app_metadata?.provider || null
               });
               setLoading(false);
               // Mark initialization as complete
@@ -190,7 +192,8 @@ export const useAuthListener = (
             if (isMountedRef.current) {
               setUser({
                 id: session.user.id,
-                email: session.user.email
+                email: session.user.email,
+                provider: session.user.app_metadata?.provider || null
               });
               setLoading(false);
             }
@@ -209,7 +212,6 @@ export const useAuthListener = (
       if (isMountedRef.current) {
         setUser(null);
         setLoading(false);
-        setAuthChecked(true);
       }
     }
     

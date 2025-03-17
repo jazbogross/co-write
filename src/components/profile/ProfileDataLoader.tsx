@@ -20,8 +20,8 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
   const isMounted = useRef(true);
   
   const [profile, setProfile] = useState<{ email: string; username: string }>({
-    email: "",
-    username: "",
+    email: user?.email || "",
+    username: user?.username || "",
   });
   const [scripts, setScripts] = useState<Script[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,16 +36,28 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
     };
   }, []);
 
-  // Reset fetch state when user changes
+  // Reset fetch state when user changes or becomes available
   useEffect(() => {
     if (!user) {
       console.log("📋 PROFILE-DATA: User is null, resetting hasFetched");
       if (isMounted.current) {
         setHasFetched(false);
+        // Reset profile when user is null
+        setProfile({ email: "", username: "" });
       }
-    } else if (user && !hasFetched) {
-      // Trigger fetch when user becomes available
-      fetchProfileData();
+    } else {
+      // When user exists, update profile with basic data immediately
+      if (isMounted.current) {
+        setProfile({
+          email: user.email || "",
+          username: user.username || "",
+        });
+        
+        // Trigger fetch if we haven't already
+        if (!hasFetched) {
+          fetchProfileData();
+        }
+      }
     }
   }, [user]);
 
@@ -57,14 +69,6 @@ export function ProfileDataLoader({ children }: ProfileDataLoaderProps) {
     try {
       setLoading(true);
       setFetchError(null);
-      
-      // Set basic profile data from auth user
-      if (isMounted.current && user.email) {
-        setProfile({
-          email: user.email || "",
-          username: user.username || "",
-        });
-      }
 
       // Fetch user scripts
       console.log("📋 PROFILE-DATA: Fetching scripts for user:", user.id);

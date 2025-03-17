@@ -6,6 +6,7 @@ export interface AuthUser {
   id: string;
   email?: string;
   username?: string;
+  provider?: string | null;
 }
 
 export const getUser = async () => {
@@ -38,7 +39,6 @@ export const getUserProfile = async (userId: string) => {
     const { data: sessionData } = await supabase.auth.getSession();
     console.log("🔐 AuthService: Current session:", { session: sessionData?.session ? 'exists' : 'none' });
     
-    // Fixed the typo in the query: changed 'emai' to 'email'
     const { data, error } = await supabase
       .from('profiles')
       .select('username, email')
