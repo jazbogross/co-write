@@ -12,10 +12,10 @@ const Auth = () => {
   // Handle OAuth redirect with code
   useOAuthRedirect();
 
-  // If user is already logged in, redirect to profile
+  // If user is already logged in, redirect to home instead of profile
   useEffect(() => {
     if (session) {
-      navigate('/profile');
+      navigate('/');
     }
   }, [session, navigate]);
 

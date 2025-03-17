@@ -20,7 +20,7 @@ export default function Profile() {
     userId: session?.user?.id
   });
 
-  // Redirect to auth page if not authenticated
+  // Redirect to auth page if not authenticated - only on this page
   useEffect(() => {
     if (!session) {
       console.log("📋 PROFILE: No authenticated user, redirecting to auth page");
@@ -33,7 +33,7 @@ export default function Profile() {
       console.log("📋 PROFILE: Signing out");
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      navigate("/auth");
+      navigate("/");
     } catch (error) {
       console.error("📋 PROFILE: Error signing out:", error);
       toast.error("Failed to sign out");

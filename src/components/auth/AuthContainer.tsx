@@ -27,7 +27,8 @@ export const AuthContainer = () => {
         return;
       }
       
-      navigate('/profile');
+      // Redirect to home page instead of profile
+      navigate('/');
     } catch (error) {
       console.error('Login error:', error);
       toast.error("An unexpected error occurred during login");
