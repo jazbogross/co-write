@@ -1,3 +1,4 @@
+
 /**
  * Utilities for content diffing
  */
@@ -10,6 +11,7 @@ export interface DiffChange {
   text: string;
   originalText?: string;
   lineNumber?: number;
+  index: number; // Required for tracking in diff processing
   startIndex?: number;
   endIndex?: number;
   originalLineNumber?: number;
@@ -110,12 +112,16 @@ export function analyzeDeltaDifferences(
   
   // Create change objects for each changed line
   const changes: DiffChange[] = [];
-  let lineOffset = 0; // Track line number changes
+  let lineOffset = 0; // Track line number adjustments as we go
   
-  changedLineIndices.forEach(lineIndex => {
+  changedLineIndices.forEach((lineIndex, index) => {
     const originalLine = lineIndex < originalLines.length ? originalLines[lineIndex] : '';
     const suggestedLine = lineIndex < suggestedLines.length ? suggestedLines[lineIndex] : '';
     const currentLineNumber = lineIndex + 1;
+    
+    // Apply current line offset when calculating line numbers
+    const adjustedOriginalLineNumber = currentLineNumber;
+    const adjustedSuggestedLineNumber = currentLineNumber + lineOffset;
     
     if (!originalLine && suggestedLine) {
       // Line added
@@ -123,10 +129,11 @@ export function analyzeDeltaDifferences(
         type: 'add',
         text: suggestedLine,
         lineNumber: currentLineNumber,
-        originalLineNumber: currentLineNumber,
-        suggestedLineNumber: currentLineNumber + lineOffset
+        index: index, // Store index for tracking in diff viewer
+        originalLineNumber: adjustedOriginalLineNumber,
+        suggestedLineNumber: adjustedSuggestedLineNumber
       });
-      lineOffset += 1;
+      lineOffset += 1; // Increment offset when a line is added
     } else if (originalLine && !suggestedLine) {
       // Line deleted
       changes.push({
@@ -134,10 +141,11 @@ export function analyzeDeltaDifferences(
         text: '',
         originalText: originalLine,
         lineNumber: currentLineNumber,
-        originalLineNumber: currentLineNumber,
-        suggestedLineNumber: currentLineNumber + lineOffset
+        index: index, // Store index for tracking in diff viewer
+        originalLineNumber: adjustedOriginalLineNumber,
+        suggestedLineNumber: adjustedSuggestedLineNumber
       });
-      lineOffset -= 1;
+      lineOffset -= 1; // Decrement offset when a line is deleted
     } else {
       // Line modified
       changes.push({
@@ -145,8 +153,9 @@ export function analyzeDeltaDifferences(
         text: suggestedLine,
         originalText: originalLine,
         lineNumber: currentLineNumber,
-        originalLineNumber: currentLineNumber,
-        suggestedLineNumber: currentLineNumber + lineOffset
+        index: index, // Store index for tracking in diff viewer
+        originalLineNumber: adjustedOriginalLineNumber,
+        suggestedLineNumber: adjustedSuggestedLineNumber
       });
     }
   });

@@ -6,6 +6,7 @@ interface SuggestionDiffViewProps {
   originalContent: string;
   suggestedContent: string;
   diffChanges: DiffChange[];
+  lineNumber?: number;
 }
 
 interface ContextLine {
@@ -22,38 +23,47 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
   suggestedContent,
   diffChanges,
 }) => {
-  // Step 1: Adjust diff changes by assigning explicit line numbers using separate counters.
+  // Step 1: Process diff changes and ensure they have proper line numbers
   const getAdjustedDiffChanges = () => {
-    let originalCounter = 1;
-    let suggestedCounter = 1;
-    return diffChanges.map(change => {
+    // Sort changes by original line number to ensure proper processing order
+    const sortedChanges = [...diffChanges].sort((a, b) => {
+      return (a.originalLineNumber || 0) - (b.originalLineNumber || 0);
+    });
+
+    let lineOffset = 0; // Track cumulative line number changes
+    
+    return sortedChanges.map((change, idx) => {
+      // For each change, calculate the correct line numbers with running offset
       if (change.type === 'add') {
-        const adjusted = { ...change, suggestedLineNumber: suggestedCounter };
-        suggestedCounter++;
-        return adjusted;
+        // Added lines increase line count
+        const adjustedChange = {
+          ...change,
+          suggestedLineNumber: (change.originalLineNumber || 0) + lineOffset
+        };
+        lineOffset += 1;
+        return adjustedChange;
       } else if (change.type === 'delete') {
-        const adjusted = { ...change, originalLineNumber: originalCounter };
-        originalCounter++;
-        return adjusted;
+        // Deleted lines decrease line count
+        const adjustedChange = {
+          ...change,
+          suggestedLineNumber: (change.originalLineNumber || 0) + lineOffset
+        };
+        lineOffset -= 1;
+        return adjustedChange;
       } else if (change.type === 'modify') {
-        const adjusted = {
+        // Modified lines keep the same count
+        return {
           ...change,
-          originalLineNumber: originalCounter,
-          suggestedLineNumber: suggestedCounter,
+          originalLineNumber: change.originalLineNumber,
+          suggestedLineNumber: (change.originalLineNumber || 0) + lineOffset
         };
-        originalCounter++;
-        suggestedCounter++;
-        return adjusted;
       } else {
-        // For 'equal' or other types, assign both
-        const adjusted = {
+        // Equal lines maintain the offset
+        return {
           ...change,
-          originalLineNumber: originalCounter,
-          suggestedLineNumber: suggestedCounter,
+          originalLineNumber: change.originalLineNumber,
+          suggestedLineNumber: (change.originalLineNumber || 0) + lineOffset
         };
-        originalCounter++;
-        suggestedCounter++;
-        return adjusted;
       }
     });
   };
@@ -67,20 +77,26 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
     originalLines: string[],
     suggestedLines: string[]
   ): ContextLine[] => {
+    // Determine which content and line number to use as reference
     let refIndex: number;
     let source: string[];
+    
     if (change.type === 'add') {
-      refIndex = change.suggestedLineNumber! - 1;
+      // For additions, reference the suggested line number in suggested content
+      refIndex = (change.suggestedLineNumber || 0) - 1;
       source = suggestedLines;
     } else {
-      refIndex = change.originalLineNumber! - 1;
+      // For deletions/modifications, reference the original line number in original content
+      refIndex = (change.originalLineNumber || 0) - 1;
       source = originalLines;
     }
+    
+    // Ensure we stay within bounds when getting context
     const startIndex = Math.max(0, refIndex - 1);
     const endIndex = Math.min(source.length - 1, refIndex + 1);
     const contextLines: ContextLine[] = [];
 
-    // Before-context
+    // Add line before (context)
     if (refIndex > 0) {
       contextLines.push({
         lineNumber: startIndex + 1,
@@ -91,25 +107,26 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
       });
     }
 
-    // Changed line(s)
+    // Add the actual change
     if (change.type === 'delete' || change.type === 'modify') {
       contextLines.push({
-        lineNumber: change.originalLineNumber!,
+        lineNumber: change.originalLineNumber || 0,
         text: change.originalText || '',
         type: 'deleted',
         originalLineNumber: change.originalLineNumber,
       });
     }
+    
     if (change.type === 'add' || change.type === 'modify') {
       contextLines.push({
-        lineNumber: change.suggestedLineNumber!,
+        lineNumber: change.suggestedLineNumber || 0,
         text: change.text,
         type: 'added',
         suggestedLineNumber: change.suggestedLineNumber,
       });
     }
 
-    // After-context
+    // Add line after (context)
     if (refIndex < source.length - 1) {
       contextLines.push({
         lineNumber: endIndex + 1,
@@ -129,46 +146,56 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
     const suggestedLines = suggestedContent.split('\n');
     let allContextLines: ContextLine[] = [];
 
+    // Process each change to get context lines
     adjustedChanges.forEach(change => {
       const contextForChange = getContextLinesForChange(change, originalLines, suggestedLines);
+      
+      // Add context lines, avoiding duplicates
       contextForChange.forEach(line => {
-        // Avoid duplicates based on line numbers and type
+        // Check if this line is already in our collection to avoid duplicates
         const exists = allContextLines.some(existing => {
           if (line.type === 'deleted') {
-            return existing.originalLineNumber === line.originalLineNumber;
+            return existing.originalLineNumber === line.originalLineNumber && existing.type === 'deleted';
           } else if (line.type === 'added') {
-            return existing.suggestedLineNumber === line.suggestedLineNumber;
+            return existing.suggestedLineNumber === line.suggestedLineNumber && existing.type === 'added';
           }
-          return existing.lineNumber === line.lineNumber;
+          // For context lines, check both number and content to avoid duplicating context
+          return (existing.lineNumber === line.lineNumber && 
+                 existing.type === line.type && 
+                 existing.text === line.text);
         });
+        
         if (!exists) {
           allContextLines.push(line);
         }
       });
     });
 
-    // Sort unified by display number
+    // Sort all lines for display
     allContextLines.sort((a, b) => {
+      // Determine display numbers for sorting
       const aNum =
         a.type === 'deleted'
-          ? a.originalLineNumber!
+          ? a.originalLineNumber || 0
           : a.type === 'added'
-          ? a.suggestedLineNumber!
+          ? a.suggestedLineNumber || 0
           : a.lineNumber;
       const bNum =
         b.type === 'deleted'
-          ? b.originalLineNumber!
+          ? b.originalLineNumber || 0
           : b.type === 'added'
-          ? b.suggestedLineNumber!
+          ? b.suggestedLineNumber || 0
           : b.lineNumber;
+      
       return aNum - bNum;
     });
+    
     return allContextLines;
   };
 
   const contextWithChanges = getAllContextWithChanges();
 
-  // Step 4: Render the diff, inserting a spacer if there’s a gap in line numbers.
+  // Step 4: Render the diff with proper line numbers and visual separators
   return (
     <div className="border">
       <ScrollArea className="h-[400px]">
@@ -177,26 +204,34 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
             // Determine display number based on type
             let displayNumber: number;
             if (line.type === 'deleted') {
-              displayNumber = line.originalLineNumber!;
+              displayNumber = line.originalLineNumber || 0;
             } else if (line.type === 'added') {
-              displayNumber = line.suggestedLineNumber!;
+              displayNumber = line.suggestedLineNumber || 0;
             } else {
               displayNumber = line.lineNumber;
             }
-            // Check for a gap relative to the previous line
+            
+            // Check for gaps in line numbers to insert a visual separator
             const prev = contextWithChanges[index - 1];
             let hasGap = false;
+            
             if (prev) {
               const prevNumber =
                 prev.type === 'deleted'
-                  ? prev.originalLineNumber!
+                  ? prev.originalLineNumber || 0
                   : prev.type === 'added'
-                  ? prev.suggestedLineNumber!
+                  ? prev.suggestedLineNumber || 0
                   : prev.lineNumber;
-              if (Math.abs(displayNumber - prevNumber) > 1) {
+                  
+              // Consider a gap if line numbers aren't sequential
+              // but account for add/delete pairs that may have same number
+              const isPrevDeleteCurrentAdd = prev.type === 'deleted' && line.type === 'added';
+              
+              if (!isPrevDeleteCurrentAdd && Math.abs(displayNumber - prevNumber) > 1) {
                 hasGap = true;
               }
             }
+            
             return (
               <React.Fragment key={index}>
                 {hasGap && <div className="my-2 text-center text-white">...</div>}

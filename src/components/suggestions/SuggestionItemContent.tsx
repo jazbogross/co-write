@@ -82,7 +82,6 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
           originalContent={diffData.original}
           suggestedContent={diffData.suggested}
           diffChanges={diffData.changes}
-          lineNumber={diffData.lineNumbers[0]}
         />
       ) : (
         <div className="bg-gray-50 p-2 rounded border whitespace-pre-wrap">

@@ -5,7 +5,7 @@ export interface DiffChange {
   index: number;
   lineNumber?: number;
   originalText?: string;
-  // New properties to help with line number tracking
+  // Properties to help with line number tracking
   originalLineNumber?: number; 
   suggestedLineNumber?: number;
 }
