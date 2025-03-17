@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getUserProfile } from '@/services/authService';
@@ -16,54 +15,49 @@ export const useAuthListener = (
     
     const checkSession = async () => {
       try {
-        // Skip if initialization was already completed
         if (isInitializedRef.current) {
           console.log("🔑 useAuthListener: Authentication already initialized, skipping session check");
           return;
         }
 
         console.log("🔑 useAuthListener: Checking for existing session");
-        
-        // Check for existing session and refresh token if needed
+
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         console.log("🔑 useAuthListener: Session check result:", { 
           hasSession: !!sessionData?.session, 
           hasError: !!sessionError 
         });
-        
+
         if (sessionError) {
           console.error("🔑 useAuthListener: Session error:", sessionError);
           if (isMountedRef.current) {
             setUser(null);
             setLoading(false);
-            setAuthChecked(true);
-            console.log("🔑 useAuthListener: Auth checked set to true after session error");
+            setAuthChecked(true); // Ensure authChecked is set even on error
           }
           return;
         }
-        
+
         if (!sessionData.session) {
           console.log("🔑 useAuthListener: No active session");
           if (isMountedRef.current) {
             setUser(null);
             setLoading(false);
-            setAuthChecked(true);
-            console.log("🔑 useAuthListener: Auth checked set to true after no session found");
+            setAuthChecked(true); // Ensure authChecked is set even if no session
           }
           return;
         }
-        
-        // Session exists, get user data including profile
+
         const userId = sessionData.session.user.id;
         console.log("🔑 useAuthListener: Active session found for user:", userId);
-        
+
         try {
           const { profile, error: profileError } = await getUserProfile(userId);
-          
+
           if (profileError) {
             console.error("🔑 useAuthListener: Error fetching user profile:", profileError);
           }
-          
+
           if (isMountedRef.current) {
             setUser({
               id: userId,
@@ -71,26 +65,20 @@ export const useAuthListener = (
               username: profile?.username
             });
             setLoading(false);
-            setAuthChecked(true);
-            // Mark initialization as complete
+            setAuthChecked(true); // Ensure authChecked is set after user is loaded
             isInitializedRef.current = true;
             console.log("🔑 useAuthListener: User set from session:", userId);
-            console.log("🔑 useAuthListener: Auth checked set to true after user loaded");
           }
         } catch (profileError) {
           console.error("🔑 useAuthListener: Exception fetching profile:", profileError);
           if (isMountedRef.current) {
-            // Still set the user with basic info even if profile fetch fails
             setUser({
               id: userId,
               email: sessionData.session.user.email
             });
             setLoading(false);
-            setAuthChecked(true);
-            // Mark initialization as complete even if there was an error
+            setAuthChecked(true); // Ensure authChecked is set even if profile fetch fails
             isInitializedRef.current = true;
-            console.log("🔑 useAuthListener: User set with basic info due to profile error:", userId);
-            console.log("🔑 useAuthListener: Auth checked set to true after profile error");
           }
         }
       } catch (error) {
@@ -98,8 +86,7 @@ export const useAuthListener = (
         if (isMountedRef.current) {
           setUser(null);
           setLoading(false);
-          setAuthChecked(true);
-          console.log("🔑 useAuthListener: Auth checked set to true after exception");
+          setAuthChecked(true); // Ensure authChecked is set even on exception
         }
       }
     };
