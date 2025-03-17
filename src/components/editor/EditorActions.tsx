@@ -21,7 +21,7 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
     <div className="space-y-4 sticky top-0 z-20 h-10 flex justify-end">
       <div className="flex justify-end space-x-2 w-1/2 bg-black">
         <Button
-          className='w-20 h-6 bg-black text-white border-white border mt-3'
+          className='w-auto h-auto bg-black text-white border-white border mb-1 mt-1'
           variant="secondary"
           onClick={handleSave}
           disabled={isSaving}
@@ -31,7 +31,7 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
         
         {!isAdmin && (
           <Button
-            className='w-36 h-6 bg-black text-white border-white border mt-3'
+            className='w-auto h-auto bg-black text-white border-white border mb-1 mt-1'
             variant="secondary"
             onClick={handleSubmitSuggestion}
             disabled={isSaving}
