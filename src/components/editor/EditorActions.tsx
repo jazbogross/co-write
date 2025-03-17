@@ -18,9 +18,11 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
   handleSubmitSuggestion 
 }) => {
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end space-x-2">
+    <div className="space-y-4 sticky top-0 z-20 h-10 flex justify-end">
+      <div className="flex justify-end space-x-2 w-1/2 bg-black">
         <Button
+          className='w-20 h-6 bg-black text-white border-white border mt-3'
+          variant="secondary"
           onClick={handleSave}
           disabled={isSaving}
         >
@@ -29,6 +31,7 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
         
         {!isAdmin && (
           <Button
+            className='w-36 h-6 bg-black text-white border-white border mt-3'
             variant="secondary"
             onClick={handleSubmitSuggestion}
             disabled={isSaving}

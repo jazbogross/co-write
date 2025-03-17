@@ -128,13 +128,8 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
   }
   
   return (
+    
     <div className="space-y-4">
-      <EditorContent 
-        content={content} 
-        quillRef={quillRef} 
-        handleChange={handleChange} 
-      />
-      
       <EditorActions 
         isAdmin={isAdmin}
         isSaving={isSaving}
@@ -142,6 +137,14 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
         handleSave={handleSave}
         handleSubmitSuggestion={handleSubmitSuggestion}
       />
+
+      <EditorContent 
+        content={content} 
+        quillRef={quillRef} 
+        handleChange={handleChange} 
+      />
+      
+
     </div>
   );
 };
