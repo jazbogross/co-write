@@ -6,6 +6,7 @@ interface EditorActionsProps {
   isAdmin: boolean;
   isSaving: boolean;
   hasDraft: boolean;
+  disableSave?: boolean;
   handleSave: () => Promise<void>;
   handleSubmitSuggestion: () => Promise<void>;
 }
@@ -13,7 +14,8 @@ interface EditorActionsProps {
 export const EditorActions: React.FC<EditorActionsProps> = ({ 
   isAdmin, 
   isSaving, 
-  hasDraft, 
+  hasDraft,
+  disableSave = false,
   handleSave, 
   handleSubmitSuggestion 
 }) => {
@@ -24,9 +26,9 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
           className='h-8 bg-black text-white border-white border'
           variant="secondary"
           onClick={handleSave}
-          disabled={isSaving}
+          disabled={isSaving || disableSave}
         >
-          {isAdmin ? 'Save Changes' : 'Save Draft'}
+          {isAdmin ? (disableSave ? 'Review All Suggestions First' : 'Save Changes') : 'Save Draft'}
         </Button>
         
         {!isAdmin && (

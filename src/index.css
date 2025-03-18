@@ -135,3 +135,34 @@
   padding: 0 2px !important;
   border-radius: 2px !important;
 }
+
+/* Inline suggestion styles */
+.inline-suggestion {
+  position: relative;
+  cursor: pointer;
+}
+
+.inline-suggestion-badge {
+  position: absolute;
+  right: -5px;
+  top: -5px;
+  background-color: #ff6b6b;
+  color: white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Suggestion counter */
+.suggestion-counter {
+  background-color: #ff6b6b;
+  color: white;
+  border-radius: 9999px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: bold;
+}
