@@ -18,8 +18,8 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
   handleSubmitSuggestion 
 }) => {
   return (
-    <div className="sticky top-0 z-20 h-12 bg-black flex justify-end">
-      <div className="flex space-x-2 mr-2 mt-2">
+    <div className="sticky top-0 z-20 flex justify-end items-center h-12 bg-black">
+      <div className="flex justify-end space-x-2">
         <Button
           className='h-8 bg-black text-white border-white border'
           variant="secondary"

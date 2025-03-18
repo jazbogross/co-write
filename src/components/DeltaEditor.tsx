@@ -128,7 +128,7 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
   }
   
   return (
-    <div className="flex flex-col">
+    <div className="space-y-0">
       <EditorActions 
         isAdmin={isAdmin}
         isSaving={isSaving}

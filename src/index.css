@@ -50,7 +50,7 @@
   font-family: "Courier New", monospace !important;
 }
 
-/* Fix toolbar positioning - make it narrower to not interfere with buttons */
+/* Fix toolbar positioning */
 .ql-toolbar {
   position: absolute !important;
   top: 0 !important;
@@ -61,7 +61,7 @@
   border: none !important;
   border-radius: 0 !important;
   margin-bottom: 0 !important;
-  width: 40% !important; /* Take up less width to avoid buttons */
+  width: 50% !important; /* Take up half the width */
 }
 
 /* Ensure editor content has padding to accommodate the toolbar */
