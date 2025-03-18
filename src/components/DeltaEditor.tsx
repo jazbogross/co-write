@@ -12,6 +12,7 @@ import { InlineSuggestionReviewer } from '@/components/suggestions/InlineSuggest
 import { registerSuggestionFormats } from '@/utils/editor/formats/SuggestionFormat';
 import { DeltaStatic } from 'quill';
 import { fetchSuggestions } from '@/services/suggestionService';
+import ReactQuill from 'react-quill';
 
 interface DeltaEditorProps {
   scriptId: string;
@@ -59,35 +60,39 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     
     const applyFormattingToEditor = () => {
       try {
-        // Register suggestion formats
-        const Quill = quillRef.current?.getEditor().constructor;
+        // Get the Quill constructor from ReactQuill
+        const Quill = (ReactQuill as any).Quill;
+        
+        // Register suggestion formats with proper typing
         registerSuggestionFormats(Quill);
         
         // Get current editor content
         const editor = quillRef.current.getEditor();
-        const currentContent = editor.getContents() as DeltaStatic;
+        const currentContent = editor.getContents();
         
         // Apply all suggestion diffs as formatting
-        let formattedContent = currentContent;
-        
         pendingSuggestions.forEach(suggestion => {
-          const suggestionDelta = new Delta(suggestion.delta_diff.ops || []);
-          
-          // Format deleted content
-          suggestionDelta.ops?.forEach(op => {
-            if (op.delete) {
-              // Find text to delete and add deletion formatting
-              // This is simplified - a real implementation would need to find exact positions
-              editor.formatText(0, editor.getText().length, 'suggestion-deletion', false);
-            } else if (op.insert) {
-              // Find inserted text and add addition formatting
-              const text = typeof op.insert === 'string' ? op.insert : '';
-              const index = editor.getText().indexOf(text);
-              if (index >= 0) {
-                editor.formatText(index, text.length, 'suggestion-addition', true);
+          if (suggestion.delta_diff && typeof suggestion.delta_diff === 'object') {
+            // Ensure we have a proper Delta object
+            const diffOps = Array.isArray(suggestion.delta_diff.ops) 
+              ? suggestion.delta_diff.ops 
+              : [];
+              
+            const suggestionDelta = new Delta(diffOps);
+            
+            // Format deleted content
+            suggestionDelta.ops?.forEach(op => {
+              if (op.delete) {
+                editor.formatText(0, editor.getText().length, 'suggestion-deletion', false);
+              } else if (op.insert) {
+                const text = typeof op.insert === 'string' ? op.insert : '';
+                const index = editor.getText().indexOf(text);
+                if (index >= 0) {
+                  editor.formatText(index, text.length, 'suggestion-addition', true);
+                }
               }
-            }
-          });
+            });
+          }
         });
       } catch (error) {
         console.error('Error applying suggestion formatting:', error);
@@ -155,14 +160,16 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
         return;
       }
       
+      // Handle content_delta parsing safely
       const contentDeltaData = typeof data.content_delta === 'string' 
         ? JSON.parse(data.content_delta) 
         : data.content_delta;
-        
-      const originalDelta = new Delta(contentDeltaData.ops || []);
       
+      // Create Delta objects with proper typing
+      const originalDelta = new Delta(contentDeltaData.ops || []);
       const suggestedDelta = new Delta(suggestedContent.ops || []);
       
+      // Get the diff between original and suggested content
       const diffDelta = originalDelta.diff(suggestedDelta);
       
       if (diffDelta.ops?.length <= 1) {
@@ -170,6 +177,7 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
         return;
       }
       
+      // Store the diff as a plain object
       const { error } = await supabase
         .from('script_suggestions')
         .insert({
