@@ -2,6 +2,7 @@
 import { DeltaContent } from '../types';
 import { DiffChange } from '@/utils/diff';
 import Delta from 'quill-delta';
+import { DeltaOp } from '../types';
 
 /**
  * Format Delta content with suggestion highlights
@@ -87,8 +88,30 @@ export class SuggestionFormatter {
       }
     }
     
-    // Ensure we don't have a trailing newline if the original didn't have one
-    const ops = delta.ops;
-    return { ops };
+    // Convert Delta ops to DeltaOp[] type
+    const deltaOps = delta.ops.map(op => {
+      const newOp: DeltaOp = {};
+      
+      if ('insert' in op) {
+        newOp.insert = op.insert;
+      }
+      
+      if ('delete' in op) {
+        newOp.delete = typeof op.delete === 'number' ? op.delete : 0;
+      }
+      
+      if ('retain' in op) {
+        newOp.retain = typeof op.retain === 'number' ? op.retain : 0;
+      }
+      
+      if ('attributes' in op) {
+        newOp.attributes = op.attributes;
+      }
+      
+      return newOp;
+    });
+    
+    // Return the proper DeltaContent format
+    return { ops: deltaOps };
   }
 }

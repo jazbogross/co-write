@@ -3,10 +3,12 @@ import React, { useRef, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { DeltaStatic } from 'quill';
+import Delta from 'quill-delta';
 import { registerSuggestionFormats } from '@/utils/editor/formats/SuggestionFormat';
 import { SuggestionFormatter } from '@/utils/editor/formats/SuggestionFormatter';
 import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
 import { extractPlainTextFromDelta } from '@/utils/editor';
+import { safeToDelta } from '@/utils/delta/safeDeltaOperations';
 
 interface DiffEditorProps {
   originalContent: DeltaStatic | string;
@@ -47,9 +49,12 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
       changes
     );
     
+    // Convert to DeltaStatic before setting contents
+    const deltaStatic = safeToDelta(diffDelta);
+    
     // Set the content with diff formatting
     const editor = quillRef.current.getEditor();
-    editor.setContents(diffDelta);
+    editor.setContents(deltaStatic);
   }, [originalContent, suggestedContent]);
   
   const modules = {
