@@ -70,7 +70,8 @@ export function generateContentDiff(original: any, suggested: any): LineDiff {
 }
 
 /**
- * Finds all lines that contain changes between original and suggested text
+ * Finds lines that are truly changed between original and suggested text
+ * using a more accurate line-by-line comparison
  */
 function findChangedLines(originalLines: string[], suggestedLines: string[]): number[] {
   const changedLineIndices: number[] = [];
@@ -182,4 +183,3 @@ export function hasContentChanged(original: any, suggested: any): boolean {
   // Compare normalized text
   return originalText !== suggestedText;
 }
-

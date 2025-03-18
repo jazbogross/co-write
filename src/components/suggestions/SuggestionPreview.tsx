@@ -13,6 +13,7 @@ import { Suggestion } from './types';
 import { approveSuggestion } from '@/services/suggestionService';
 import { toast } from 'sonner';
 import { SuggestionDiffView } from '@/components/editor/SuggestionDiffView';
+import { DiffEditor } from '@/components/DiffEditor';
 import { extractPlainTextFromDelta } from '@/utils/editor';
 import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
 
@@ -42,6 +43,7 @@ export const SuggestionPreview: React.FC<SuggestionPreviewProps> = ({
     changes: any[];
     lineNumbers: number[];
   }>({ original: '', suggested: '', changes: [], lineNumbers: [] });
+  const [useQuillDiff, setUseQuillDiff] = useState(true);
   
   // Analyze differences when suggestion changes
   useEffect(() => {
@@ -97,19 +99,37 @@ export const SuggestionPreview: React.FC<SuggestionPreviewProps> = ({
     }
   };
   
+  const toggleDiffViewer = () => setUseQuillDiff(!useQuillDiff);
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Suggestion Preview</DialogTitle>
+          <DialogTitle className="flex justify-between items-center">
+            <span>Suggestion Preview</span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={toggleDiffViewer}
+            >
+              Switch to {useQuillDiff ? 'Line' : 'Rich'} Diff
+            </Button>
+          </DialogTitle>
         </DialogHeader>
         
-        <SuggestionDiffView
-          originalContent={diffData.original}
-          suggestedContent={diffData.suggested}
-          diffChanges={diffData.changes}
-          lineNumber={diffData.lineNumbers[0]}
-        />
+        {useQuillDiff ? (
+          <DiffEditor
+            originalContent={diffData.original}
+            suggestedContent={diffData.suggested}
+          />
+        ) : (
+          <SuggestionDiffView
+            originalContent={diffData.original}
+            suggestedContent={diffData.suggested}
+            diffChanges={diffData.changes}
+            lineNumber={diffData.lineNumbers[0]}
+          />
+        )}
         
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} variant="outline">

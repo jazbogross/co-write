@@ -1,3 +1,4 @@
+
 import { DiffChange } from '@/utils/diff';
 
 export interface ContextLine {
@@ -56,7 +57,7 @@ export function getAdjustedDiffChanges(diffChanges: DiffChange[]): DiffChange[] 
 }
 
 /**
- * Generates context lines for a single change
+ * Generates context lines for a single change, showing lines before and after
  */
 export function getContextLinesForChange(
   change: DiffChange & { originalLineNumber?: number; suggestedLineNumber?: number },
@@ -78,19 +79,21 @@ export function getContextLinesForChange(
   }
   
   // Ensure we stay within bounds when getting context
-  const startIndex = Math.max(0, refIndex - 1);
-  const endIndex = Math.min(source.length - 1, refIndex + 1);
+  const startIndex = Math.max(0, refIndex - 2); // Show 2 lines before
+  const endIndex = Math.min(source.length - 1, refIndex + 2); // Show 2 lines after
   const contextLines: ContextLine[] = [];
 
-  // Add line before (context)
+  // Add lines before (context)
   if (refIndex > 0) {
-    contextLines.push({
-      lineNumber: startIndex + 1,
-      text: source[startIndex],
-      type: 'context',
-      originalLineNumber: source === originalLines ? startIndex + 1 : undefined,
-      suggestedLineNumber: source === suggestedLines ? startIndex + 1 : undefined,
-    });
+    for (let i = startIndex; i < refIndex; i++) {
+      contextLines.push({
+        lineNumber: i + 1,
+        text: source[i],
+        type: 'context',
+        originalLineNumber: source === originalLines ? i + 1 : undefined,
+        suggestedLineNumber: source === suggestedLines ? i + 1 : undefined,
+      });
+    }
   }
 
   // Add the actual change
@@ -112,15 +115,17 @@ export function getContextLinesForChange(
     });
   }
 
-  // Add line after (context)
+  // Add lines after (context)
   if (refIndex < source.length - 1) {
-    contextLines.push({
-      lineNumber: endIndex + 1,
-      text: source[endIndex],
-      type: 'context',
-      originalLineNumber: source === originalLines ? endIndex + 1 : undefined,
-      suggestedLineNumber: source === suggestedLines ? endIndex + 1 : undefined,
-    });
+    for (let i = refIndex + 1; i <= endIndex; i++) {
+      contextLines.push({
+        lineNumber: i + 1,
+        text: source[i],
+        type: 'context',
+        originalLineNumber: source === originalLines ? i + 1 : undefined,
+        suggestedLineNumber: source === suggestedLines ? i + 1 : undefined,
+      });
+    }
   }
 
   return contextLines;
@@ -183,4 +188,37 @@ export function getAllContextWithChanges(
   });
   
   return allContextLines;
+}
+
+/**
+ * Groups continuous changes into blocks to make diff display cleaner
+ */
+export function groupChangeBlocks(contextLines: ContextLine[]): ContextLine[][] {
+  const blocks: ContextLine[][] = [];
+  let currentBlock: ContextLine[] = [];
+  
+  for (let i = 0; i < contextLines.length; i++) {
+    const current = contextLines[i];
+    const prev = i > 0 ? contextLines[i - 1] : null;
+    
+    // If this is the first line or if there's a gap larger than 1 in line numbers, start a new block
+    if (i === 0 || 
+        !prev || 
+        Math.abs((current.lineNumber || 0) - (prev.lineNumber || 0)) > 3) {
+      
+      if (currentBlock.length > 0) {
+        blocks.push(currentBlock);
+        currentBlock = [];
+      }
+    }
+    
+    currentBlock.push(current);
+  }
+  
+  // Add the last block if it has content
+  if (currentBlock.length > 0) {
+    blocks.push(currentBlock);
+  }
+  
+  return blocks;
 }

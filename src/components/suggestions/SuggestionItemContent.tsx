@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Eye, EyeOff } from 'lucide-react';
 import { extractPlainTextFromDelta } from '@/utils/editor';
 import { SuggestionDiffView } from '@/components/editor/SuggestionDiffView';
+import { DiffEditor } from '@/components/DiffEditor';
 import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
 
 interface SuggestionItemContentProps {
@@ -16,6 +17,7 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
   suggestedContent
 }) => {
   const [showDiff, setShowDiff] = useState(false);
+  const [useQuillDiff, setUseQuillDiff] = useState(true);
   const [diffData, setDiffData] = useState<{
     original: string;
     suggested: string;
@@ -25,6 +27,9 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
   
   // Toggle diff view
   const toggleDiff = () => setShowDiff(!showDiff);
+  
+  // Toggle diff viewer type
+  const toggleDiffViewer = () => setUseQuillDiff(!useQuillDiff);
   
   // Extract plain text if content is Delta
   const getDisplayContent = (content: any): string => {
@@ -57,32 +62,51 @@ export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({
     <div className="mt-2">
       <div className="flex justify-between items-center mb-2">
         <h4 className="text-sm font-medium">Suggested Change</h4>
-        <Button 
-          variant="ghost" 
-          size="sm"
-          onClick={toggleDiff}
-          className="h-8 px-2"
-        >
-          {showDiff ? (
-            <>
-              <EyeOff className="h-4 w-4 mr-1" />
-              <span className="text-xs">Hide Diff</span>
-            </>
-          ) : (
-            <>
-              <Eye className="h-4 w-4 mr-1" />
-              <span className="text-xs">Show Diff</span>
-            </>
+        <div className="flex space-x-2">
+          {showDiff && (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={toggleDiffViewer}
+              className="h-8 px-2"
+            >
+              Switch to {useQuillDiff ? 'Line' : 'Rich'} Diff
+            </Button>
           )}
-        </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={toggleDiff}
+            className="h-8 px-2"
+          >
+            {showDiff ? (
+              <>
+                <EyeOff className="h-4 w-4 mr-1" />
+                <span className="text-xs">Hide Diff</span>
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4 mr-1" />
+                <span className="text-xs">Show Diff</span>
+              </>
+            )}
+          </Button>
+        </div>
       </div>
       
       {showDiff ? (
-        <SuggestionDiffView
-          originalContent={diffData.original}
-          suggestedContent={diffData.suggested}
-          diffChanges={diffData.changes}
-        />
+        useQuillDiff ? (
+          <DiffEditor
+            originalContent={diffData.original}
+            suggestedContent={diffData.suggested}
+          />
+        ) : (
+          <SuggestionDiffView
+            originalContent={diffData.original}
+            suggestedContent={diffData.suggested}
+            diffChanges={diffData.changes}
+          />
+        )
       ) : (
         <div className="bg-gray-50 p-2 border whitespace-pre-wrap">
           {diffData.suggested}

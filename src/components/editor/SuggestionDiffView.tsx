@@ -32,9 +32,9 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
 
   // Step 3: Render the diff with proper line numbers and visual separators
   return (
-    <div className="border">
+    <div className="border rounded-md overflow-hidden">
       <ScrollArea className="h-[400px]">
-        <div className="font-mono text-sm">
+        <div className="font-mono text-sm p-1">
           {contextWithChanges.map((line, index) => (
             <DiffLine
               key={index}
