@@ -52,27 +52,25 @@
 
 /* Fix toolbar positioning */
 .ql-toolbar {
-  position: sticky !important;
+  position: absolute !important;
   top: 0 !important;
   left: 0 !important;
-  right: 0 !important;
   z-index: 10 !important;
   background-color: #000000 !important; /* Black background */
   padding: 8px !important;
   border: none !important;
   border-radius: 0 !important;
   margin-bottom: 0 !important;
+  width: 50% !important; /* Take up half the width */
 }
 
 /* Ensure editor content has padding to accommodate the toolbar */
 .quill-editor-container {
   position: relative !important;
-  padding-top: 42px !important; /* Add padding to prevent content from being hidden under toolbar */
+  padding-top: 48px !important; /* Add padding to prevent content from being hidden under toolbar */
 }
 
-
-
-/* Hide all formatting options by default */
+/* Show only specific formatting options */
 .ql-toolbar .ql-formats > * {
   display: none !important;
 }

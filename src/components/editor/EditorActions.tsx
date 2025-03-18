@@ -18,10 +18,10 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
   handleSubmitSuggestion 
 }) => {
   return (
-    <div className="space-y-4 sticky top-0 z-20 h-10 flex justify-end pointer-events-none">
-      <div className="flex justify-end space-x-2 w-1/2 bg-black">
+    <div className="sticky top-0 z-20 flex justify-end items-center h-12 bg-black">
+      <div className="flex justify-end space-x-2">
         <Button
-          className='w-auto h-auto bg-black text-white border-white border mb-1 mt-1'
+          className='h-8 bg-black text-white border-white border'
           variant="secondary"
           onClick={handleSave}
           disabled={isSaving}
@@ -31,7 +31,7 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
         
         {!isAdmin && (
           <Button
-            className='w-auto h-auto bg-black text-white border-white border mb-1 mt-1'
+            className='h-8 bg-black text-white border-white border'
             variant="secondary"
             onClick={handleSubmitSuggestion}
             disabled={isSaving}
@@ -42,7 +42,7 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
       </div>
       
       {hasDraft && !isAdmin && (
-        <div className="p-2 bg-yellow-50 text-yellow-600 border border-yellow-200 text-sm">
+        <div className="absolute top-12 right-0 p-2 bg-yellow-50 text-yellow-600 border border-yellow-200 text-sm">
           You have a draft saved. Submit your suggestion when you're ready to propose these changes to the admin.
         </div>
       )}

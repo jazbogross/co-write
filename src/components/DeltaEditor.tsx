@@ -128,8 +128,7 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
   }
   
   return (
-    
-    <div className="space-y-4">
+    <div className="space-y-0">
       <EditorActions 
         isAdmin={isAdmin}
         isSaving={isSaving}
@@ -143,8 +142,6 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
         quillRef={quillRef} 
         handleChange={handleChange} 
       />
-      
-
     </div>
   );
 };
