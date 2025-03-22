@@ -63,9 +63,77 @@ export const saveContent = async (
       }
     }
     
+    // Also update the content field in the scripts table
+    const { error: scriptUpdateError } = await supabase
+      .from('scripts')
+      .update({
+        content: contentObject,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', scriptId);
+    
+    if (scriptUpdateError) {
+      console.error('Error updating script content field:', scriptUpdateError);
+      // Don't return false here as we already updated the content_delta
+    }
+    
     return true;
   } catch (error) {
     console.error('Error in saveContent:', error);
+    return false;
+  }
+};
+
+/**
+ * Saves a version of the content
+ */
+export const saveVersion = async (
+  scriptId: string,
+  content: string,
+  versionName: string,
+  userId: string
+): Promise<boolean> => {
+  try {
+    // Parse content to ensure it's valid JSON
+    let contentObject;
+    try {
+      contentObject = typeof content === 'string' ? JSON.parse(content) : content;
+    } catch (e) {
+      console.error('Invalid content format:', e);
+      return false;
+    }
+    
+    // Get the current version number
+    const { data: versionData, error: versionError } = await supabase
+      .from('script_versions')
+      .select('version_number')
+      .eq('script_id', scriptId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    const nextVersionNumber = versionData ? versionData.version_number + 1 : 1;
+    
+    // Create a new version
+    const { error: createError } = await supabase
+      .from('script_versions')
+      .insert({
+        script_id: scriptId,
+        content_delta: contentObject,
+        created_by: userId,
+        version_number: nextVersionNumber,
+        created_at: new Date().toISOString(),
+        version_name: versionName
+      });
+    
+    if (createError) {
+      console.error('Error creating version:', createError);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in saveVersion:', error);
     return false;
   }
 };

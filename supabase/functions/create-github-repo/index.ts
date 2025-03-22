@@ -76,6 +76,7 @@ serve(async (req) => {
             name: repoName,
             private: false,
             auto_init: true,
+            description: 'Repository for storing script projects created with the Rewrite application'
           });
           console.log(`✅ Repository created successfully: ${repoName}`);
         } else {

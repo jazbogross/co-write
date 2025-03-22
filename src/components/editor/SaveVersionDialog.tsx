@@ -28,6 +28,7 @@ export function SaveVersionDialog({
 
   const handleSave = () => {
     onSave(versionName);
+    setVersionName("");
   };
 
   return (
@@ -52,7 +53,7 @@ export function SaveVersionDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSave} disabled={isSaving || !versionName.trim()}>
             {isSaving ? 'Saving...' : 'Save Version'}
           </Button>
         </DialogFooter>

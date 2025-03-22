@@ -3,7 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { EyeIcon, GitForkIcon, UserIcon, GithubIcon } from 'lucide-react';
+import { Eye, GitFork, User, Github } from 'lucide-react';
 import { format } from 'date-fns';
 import { Script } from '@/types/repository';
 
@@ -30,7 +30,7 @@ export const ScriptsTable: React.FC<ScriptsTableProps> = ({ scripts, isLoggedIn 
               <TableCell className="font-medium">{script.title}</TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  <UserIcon className="h-4 w-4 text-muted-foreground" />
+                  <User className="h-4 w-4 text-muted-foreground" />
                   <span>{script.profiles?.username || script.github_owner || 'Unknown'}</span>
                 </div>
               </TableCell>
@@ -38,7 +38,6 @@ export const ScriptsTable: React.FC<ScriptsTableProps> = ({ scripts, isLoggedIn 
                 {script.created_at ? format(new Date(script.created_at), 'MMM d, yyyy') : 'Unknown date'}
               </TableCell>
               <TableCell className="text-right space-x-2">
-                
                 {script.github_owner && script.github_repo && (
                   <Button asChild variant="outline" size="sm">
                     <a 
@@ -46,7 +45,7 @@ export const ScriptsTable: React.FC<ScriptsTableProps> = ({ scripts, isLoggedIn 
                       target="_blank" 
                       rel="noopener noreferrer"
                     >
-                      <GithubIcon className="mr-1 h-4 w-4" />
+                      <Github className="mr-1 h-4 w-4" />
                       View on GitHub
                     </a>
                   </Button>
@@ -55,7 +54,7 @@ export const ScriptsTable: React.FC<ScriptsTableProps> = ({ scripts, isLoggedIn 
                 {isLoggedIn && (
                   <Button asChild variant="outline" size="sm">
                     <Link to={`/scripts/${script.id}`}>
-                      <GitForkIcon className="mr-1 h-4 w-4" />
+                      <GitFork className="mr-1 h-4 w-4" />
                       Edit
                     </Link>
                   </Button>

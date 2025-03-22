@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useUserData } from "@/hooks/useUserData";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from 'uuid';
 
 interface CreateScriptDialogProps {
   open: boolean;
@@ -130,6 +131,10 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         repo = newRepo;
       }
 
+      // Generate a unique folder name for the script
+      const scriptFolderSuffix = uuidv4().substring(0, 8);
+      const scriptFolderName = `${newTitle.toLowerCase().replace(/\s+/g, '-')}-${scriptFolderSuffix}`;
+
       // Create script in database
       const { data: script, error: scriptError } = await supabase
         .from("scripts")
@@ -137,7 +142,6 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
           title: newTitle,
           admin_id: userId,
           is_private: isPrivate,
-          content: "",
           github_repo: repo.name,
           github_owner: repo.owner,
         }])
@@ -148,17 +152,41 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       if (!script) throw new Error('Script was not created');
 
       // Initialize folder structure for the script in GitHub
+      const initialContent = JSON.stringify({ 
+        ops: [{ insert: `# ${newTitle}\n\nInitial content for ${newTitle}.\n` }] 
+      });
+
+      // Get the profile to include the username in the README
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .single();
+
+      const username = profile?.username || 'unknown user';
+      const createdDate = new Date().toISOString();
+
+      // Create the initial README content
+      const readmeContent = `# ${newTitle}\n\n` +
+        `- **Admin:** ${username}\n` +
+        `- **Created:** ${new Date(createdDate).toLocaleDateString()}\n` +
+        `- **Last Updated:** ${new Date(createdDate).toLocaleDateString()}\n` +
+        `- **Suggestions:** 0\n` +
+        `- **Accepted Suggestions:** 0\n\n` +
+        `This script was created with the Rewrite application.`;
+
       const { data: initData, error: initError } = await supabase.functions.invoke("commit-script-changes", {
         body: {
           scriptId: script.id,
-          content: JSON.stringify({ 
-            ops: [{ insert: `# ${newTitle}\n\nInitial content for ${newTitle}.\n` }] 
-          }),
+          content: initialContent,
           githubAccessToken: (await supabase
             .from('profiles')
             .select('github_access_token')
             .eq('id', userId)
-            .single()).data?.github_access_token
+            .single()).data?.github_access_token,
+          scriptFolderName: scriptFolderName,
+          readmeContent: readmeContent,
+          createFolderStructure: true
         }
       });
 
@@ -166,6 +194,24 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         console.error("Error initializing script structure:", initError);
         // Don't fail the overall operation if initialization fails
       }
+
+      // Save the initial script content to the database
+      await supabase
+        .from('script_content')
+        .insert({
+          script_id: script.id,
+          content_delta: JSON.parse(initialContent),
+          updated_at: new Date().toISOString()
+        });
+
+      // Update the script record with the folder name
+      await supabase
+        .from('scripts')
+        .update({ 
+          content: JSON.parse(initialContent),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', script.id);
 
       onScriptCreated(script);
       setNewTitle("");
