@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useSession } from "@supabase/auth-helpers-react";
+import { SaveVersionDialog } from "@/components/editor/SaveVersionDialog";
 
 const ScriptEdit = () => {
   const { id } = useParams();
@@ -28,6 +29,9 @@ const ScriptEdit = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [githubToken, setGithubToken] = useState<string | null>(null);
+  const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
+  const [isSavingVersion, setIsSavingVersion] = useState(false);
+  const [currentContent, setCurrentContent] = useState<string | null>(null);
 
   useEffect(() => {
     const loadScript = async () => {
@@ -101,12 +105,55 @@ const ScriptEdit = () => {
       if (error) {
         console.error("Error committing to GitHub:", error);
         toast.error("Failed to commit to GitHub");
+        return false;
       } else {
         toast.success("Changes committed to GitHub");
+        return true;
       }
     } catch (githubError) {
       console.error("Error with GitHub integration:", githubError);
       toast.error("Failed to sync with GitHub");
+      return false;
+    }
+  };
+
+  const handleSaveVersion = (content: string) => {
+    setCurrentContent(content);
+    setIsVersionDialogOpen(true);
+  };
+
+  const saveVersion = async (versionName: string) => {
+    if (!script || !id || !githubToken || !currentContent) {
+      setIsVersionDialogOpen(false);
+      return;
+    }
+    
+    setIsSavingVersion(true);
+    
+    try {
+      // Call the Supabase function to save version to GitHub
+      const { data, error } = await supabase.functions.invoke("commit-script-changes", {
+        body: {
+          scriptId: id,
+          content: currentContent,
+          githubAccessToken: githubToken,
+          versionName: versionName,
+          saveAsVersion: true
+        }
+      });
+
+      if (error) {
+        console.error("Error saving version to GitHub:", error);
+        toast.error("Failed to save version");
+      } else {
+        toast.success(`Version "${versionName}" saved successfully`);
+        setIsVersionDialogOpen(false);
+      }
+    } catch (githubError) {
+      console.error("Error with GitHub integration:", githubError);
+      toast.error("Failed to save version");
+    } finally {
+      setIsSavingVersion(false);
     }
   };
 
@@ -130,10 +177,19 @@ const ScriptEdit = () => {
         <CardContent>
           <DeltaTextEditor 
             scriptId={id} 
-            isAdmin={isAdmin} 
+            isAdmin={isAdmin}
+            onCommitToGithub={handleCommitToGithub}
+            onSaveVersion={handleSaveVersion}
           />
         </CardContent>
       </Card>
+      
+      <SaveVersionDialog
+        open={isVersionDialogOpen}
+        onOpenChange={setIsVersionDialogOpen}
+        onSave={saveVersion}
+        isSaving={isSavingVersion}
+      />
     </div>
   );
 };

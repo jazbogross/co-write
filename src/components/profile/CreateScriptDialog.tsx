@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -21,155 +22,86 @@ interface CreateScriptDialogProps {
   onScriptCreated: (script: any) => void;
 }
 
-interface GitHubRepo {
-  name: string;
-  owner: string;
-  html_url: string;
-}
-
 export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: CreateScriptDialogProps) {
   const [newTitle, setNewTitle] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const { toast: uiToast } = useToast();
   const { userId, authProvider } = useUserData();
+  const [githubRepo, setGithubRepo] = useState<string | null>(null);
+  const [githubOwner, setGithubOwner] = useState<string | null>(null);
+  const [needsGithubRepo, setNeedsGithubRepo] = useState(false);
 
-  const verifyGitHubConnection = async () => {
-    console.log("CreateScriptDialog: Verifying GitHub connection...");
-    console.log("CreateScriptDialog: Calling supabase.auth.getUser()");
-    const { data: { user } } = await supabase.auth.getUser();
-    console.log("CreateScriptDialog: supabase.auth.getUser() returned:", user);
-    if (!user) {
-      console.error("CreateScriptDialog: No authenticated user found");
-      throw new Error('No authenticated user found');
+  useEffect(() => {
+    if (open && userId) {
+      checkUserGithubRepo();
     }
+  }, [open, userId]);
 
-    console.log("CreateScriptDialog: Auth provider:", authProvider);
+  const checkUserGithubRepo = async () => {
+    if (!userId) return;
     
-    console.log("CreateScriptDialog: Fetching profile for user:", user.id);
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('github_access_token')
-      .eq('id', user.id)
-      .maybeSingle();
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('github_main_repo, github_username, github_access_token')
+        .eq('id', userId)
+        .single();
       
-    if (profileError) {
-      console.error("CreateScriptDialog: Error fetching profile:", profileError);
-      console.log("CreateScriptDialog: Profile error details:", JSON.stringify(profileError));
-      throw new Error('Error verifying GitHub connection');
-    }
-    
-    console.log("CreateScriptDialog: Profile data:", profile ? "Found" : "Not found");
-    console.log("CreateScriptDialog: GitHub access token:", profile?.github_access_token ? "Present" : "Not present");
-    
-    // If user is authenticated via GitHub and already has a token
-    if (authProvider === 'github' && profile?.github_access_token) {
-      console.log("CreateScriptDialog: GitHub connection verified using token from profile.");
-      return profile.github_access_token;
-    } else if (profile?.github_access_token) {
-      console.log("CreateScriptDialog: Using stored GitHub access token from profile.");
-      return profile.github_access_token;
-    }
-    
-    // If user is authenticated via GitHub but token is missing
-    if (authProvider === 'github' && !profile?.github_access_token) {
-      console.log("CreateScriptDialog: User authenticated via GitHub but token is missing.");
-      console.log("CreateScriptDialog: Calling supabase.auth.getSession() to retrieve provider token.");
-      const { data: sessionData } = await supabase.auth.getSession();
-      console.log("CreateScriptDialog: supabase.auth.getSession() returned:", sessionData);
-      const providerToken = sessionData?.session?.provider_token;
+      if (error) throw error;
       
-      if (providerToken) {
-        console.log("CreateScriptDialog: Provider token found in session:", providerToken.substring(0, 10) + "...");
-        
-        if (!profile) {
-          console.log("CreateScriptDialog: No profile found, creating a new profile with GitHub token.");
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert({ 
-              id: user.id,
-              username: user.email?.split('@')[0] || 'user',
-              github_access_token: providerToken,
-              updated_at: new Date().toISOString()
-            });
-            
-          if (insertError) {
-            console.error("CreateScriptDialog: Failed to create profile:", insertError);
-            console.log("CreateScriptDialog: Insert error details:", JSON.stringify(insertError));
-            throw new Error('Failed to create profile with GitHub token');
-          }
-          console.log("CreateScriptDialog: New profile created with GitHub token.");
-        } else {
-          console.log("CreateScriptDialog: Updating existing profile with provider token.");
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ 
-              github_access_token: providerToken,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', user.id);
-            
-          if (updateError) {
-            console.error("CreateScriptDialog: Failed to update GitHub token:", updateError);
-            console.log("CreateScriptDialog: Update error details:", JSON.stringify(updateError));
-            throw new Error('Failed to update GitHub token');
-          }
-          console.log("CreateScriptDialog: Existing profile updated with new GitHub token.");
-        }
-        
-        return providerToken;
+      if (profile?.github_main_repo && profile?.github_username) {
+        setGithubRepo(profile.github_main_repo);
+        setGithubOwner(profile.github_username);
+        setNeedsGithubRepo(false);
+      } else if (profile?.github_access_token) {
+        setNeedsGithubRepo(true);
       } else {
-        console.error("CreateScriptDialog: No provider token found in session.");
-        throw new Error('No provider token found in session');
+        setNeedsGithubRepo(false);
       }
+    } catch (error) {
+      console.error('Error checking user GitHub repo:', error);
     }
-    
-    console.error("CreateScriptDialog: GitHub connection not found");
-    throw new Error('GitHub not connected. Please connect your GitHub account in the profile settings.');
   };
 
-  const createGitHubRepository = async (scriptTitle: string): Promise<GitHubRepo> => {
-    console.log("CreateScriptDialog: Creating GitHub repository for script title:", scriptTitle);
-    const githubAccessToken = await verifyGitHubConnection();
-    console.log("CreateScriptDialog: Using GitHub access token:", githubAccessToken.substring(0, 10) + "...");
+  const createGithubRepo = async () => {
+    if (!userId) return null;
     
-    console.log("CreateScriptDialog: Fetching user data for repository creation...");
-    const { data: userData } = await supabase.auth.getUser();
-    console.log("CreateScriptDialog: Fetched user data:", userData);
-    
-    console.log("CreateScriptDialog: Fetching profile for username...");
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('id', userData.user?.id)
-      .single();
-    console.log("CreateScriptDialog: Fetched profile username:", profile?.username);
-    
-    console.log("CreateScriptDialog: Invoking edge function 'create-github-repo' with payload:");
-    console.log({
-      scriptName: scriptTitle.toLowerCase().replace(/\s+/g, '-'),
-      originalCreator: profile?.username || 'user',
-      coAuthors: [],
-      isPrivate: isPrivate,
-      githubAccessToken,
-    });
-    
-    const { data, error } = await supabase.functions.invoke('create-github-repo', {
-      body: {
-        scriptName: scriptTitle.toLowerCase().replace(/\s+/g, '-'),
-        originalCreator: profile?.username || 'user',
-        coAuthors: [],
-        isPrivate: isPrivate,
-        githubAccessToken,
-      },
-    });
-    
-    console.log("CreateScriptDialog: Edge function response:", { data, error });
-    
-    if (error) throw new Error(error.message);
-    if (!data?.name || !data?.owner) throw new Error('Invalid repository data received');
-    
-    return data as GitHubRepo;
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('github_access_token')
+        .eq('id', userId)
+        .single();
+      
+      if (!profile?.github_access_token) {
+        toast.error('GitHub token not found. Please connect your GitHub account.');
+        return null;
+      }
+      
+      const { data, error } = await supabase.functions.invoke('create-github-repo', {
+        body: {
+          userId: userId,
+          githubAccessToken: profile.github_access_token
+        }
+      });
+      
+      if (error) throw error;
+      if (!data || !data.name || !data.owner) {
+        throw new Error('Invalid response from GitHub repository creation');
+      }
+      
+      // Update local state with new repo details
+      setGithubRepo(data.name);
+      setGithubOwner(data.owner);
+      setNeedsGithubRepo(false);
+      
+      return { name: data.name, owner: data.owner };
+    } catch (error) {
+      console.error('Error creating GitHub repo:', error);
+      toast.error('Failed to create GitHub repository');
+      return null;
+    }
   };
 
   const handleCreate = async () => {
@@ -186,11 +118,19 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
     try {
       if (!userId) throw new Error("No user found");
       
-      console.log("CreateScriptDialog: Initiating repository creation...");
-      const repo = await createGitHubRepository(newTitle);
-      console.log("CreateScriptDialog: GitHub repository created:", repo);
+      // Ensure we have a GitHub repo
+      let repo = { name: githubRepo, owner: githubOwner };
+      
+      if (needsGithubRepo || !githubRepo || !githubOwner) {
+        const newRepo = await createGithubRepo();
+        if (!newRepo) {
+          setIsCreating(false);
+          return;
+        }
+        repo = newRepo;
+      }
 
-      console.log("CreateScriptDialog: Inserting new script into the database...");
+      // Create script in database
       const { data: script, error: scriptError } = await supabase
         .from("scripts")
         .insert([{
@@ -207,17 +147,35 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       if (scriptError) throw scriptError;
       if (!script) throw new Error('Script was not created');
 
-      console.log("CreateScriptDialog: Script successfully created:", script);
+      // Initialize folder structure for the script in GitHub
+      const { data: initData, error: initError } = await supabase.functions.invoke("commit-script-changes", {
+        body: {
+          scriptId: script.id,
+          content: JSON.stringify({ 
+            ops: [{ insert: `# ${newTitle}\n\nInitial content for ${newTitle}.\n` }] 
+          }),
+          githubAccessToken: (await supabase
+            .from('profiles')
+            .select('github_access_token')
+            .eq('id', userId)
+            .single()).data?.github_access_token
+        }
+      });
+
+      if (initError) {
+        console.error("Error initializing script structure:", initError);
+        // Don't fail the overall operation if initialization fails
+      }
+
       onScriptCreated(script);
       setNewTitle("");
       onOpenChange(false);
-      toast.success("New script and GitHub repository created");
+      toast.success("New script created successfully");
     } catch (error: any) {
-      console.error("CreateScriptDialog: Script creation error:", error);
-      toast.error(error.message || "Failed to create script and repository");
+      console.error("Script creation error:", error);
+      toast.error(error.message || "Failed to create script");
     } finally {
       setIsCreating(false);
-      console.log("CreateScriptDialog: handleCreate process completed.");
     }
   };
 
@@ -243,8 +201,18 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
               checked={isPrivate}
               onCheckedChange={setIsPrivate}
             />
-            <Label htmlFor="private">Private Repository</Label>
+            <Label htmlFor="private">Private Script</Label>
           </div>
+          {needsGithubRepo && (
+            <div className="bg-amber-50 p-3 rounded border border-amber-200 text-amber-800 text-sm">
+              A GitHub repository will be created for your scripts when you click Create.
+            </div>
+          )}
+          {githubRepo && githubOwner && (
+            <div className="bg-green-50 p-3 rounded border border-green-200 text-green-800 text-sm">
+              Script will be created in your GitHub repository: {githubOwner}/{githubRepo}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -1,5 +1,6 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { Octokit } from 'https://esm.sh/@octokit/rest'
 
 const corsHeaders = {
@@ -8,10 +9,7 @@ const corsHeaders = {
 }
 
 interface RequestBody {
-  scriptName: string;
-  originalCreator: string;
-  coAuthors: string[];
-  isPrivate: boolean;
+  userId: string;
   githubAccessToken: string;
 }
 
@@ -28,11 +26,20 @@ serve(async (req) => {
     const body = await req.json() as RequestBody;
     console.log("✅ Request Body:", JSON.stringify(body, null, 2));
 
-    const { scriptName, originalCreator, coAuthors, isPrivate, githubAccessToken } = body;
+    const { userId, githubAccessToken } = body;
 
     if (!githubAccessToken) {
       throw new Error('❌ GitHub OAuth access token is required');
     }
+
+    if (!userId) {
+      throw new Error('❌ User ID is required');
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
     try {
       console.log("🔐 Initializing GitHub client with OAuth token...");
@@ -45,46 +52,51 @@ serve(async (req) => {
       const { data: user } = await octokit.rest.users.getAuthenticated();
       console.log(`✅ Authenticated as GitHub user: ${user.login}`);
 
-      // Create a unique repository name
-      const repoName = `script-${scriptName}-${Date.now()}`
+      // Create a unique repository name with date format
+      const today = new Date();
+      const day = today.getDate();
+      const month = today.getMonth() + 1;
+      const year = today.getFullYear();
+      
+      const repoName = `rewrite-scripts-${day}-${month}-${year}`
       console.log(`📂 Creating repository: ${repoName}`);
 
-      // Create the repository in the user's account
-      const { data: repo } = await octokit.rest.repos.createForAuthenticatedUser({
-        name: repoName,
-        private: isPrivate,
-        auto_init: true,
-      });
+      // Check if repo already exists
+      try {
+        await octokit.rest.repos.get({
+          owner: user.login,
+          repo: repoName
+        });
+        console.log(`✅ Repository already exists: ${repoName}`);
+      } catch (error) {
+        // If error, repo doesn't exist, so create it
+        if (error.status === 404) {
+          // Create the repository in the user's account
+          await octokit.rest.repos.createForAuthenticatedUser({
+            name: repoName,
+            private: false,
+            auto_init: true,
+          });
+          console.log(`✅ Repository created successfully: ${repoName}`);
+        } else {
+          throw error;
+        }
+      }
 
-      console.log(`✅ Repository created successfully: ${repo.html_url}`);
+      // Update the user's profile with the repo details
+      const { error: profileError } = await supabaseClient
+        .from('profiles')
+        .update({ 
+          github_main_repo: repoName,
+          github_username: user.login,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
 
-      // Wait for repository initialization
-      console.log("⏳ Waiting 2 seconds for repository initialization...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Get the current README content to get its SHA
-      console.log("🔍 Getting current README content...");
-      const { data: currentFile } = await octokit.rest.repos.getContent({
-        owner: user.login,
-        repo: repoName,
-        path: 'README.md',
-      });
-
-      // Create initial README content
-      const readmeContent = `# ${scriptName}\n\nCreated by: ${originalCreator}\n${
-        coAuthors.length ? `\nContributors:\n${coAuthors.map(author => `- ${author}`).join('\n')}` : ''
-      }`;
-
-      console.log("📝 Updating README with new content...");
-      await octokit.rest.repos.createOrUpdateFileContents({
-        owner: user.login,
-        repo: repoName,
-        path: 'README.md',
-        message: 'Initial commit: Add README',
-        content: btoa(readmeContent),
-        sha: Array.isArray(currentFile) ? undefined : currentFile.sha,
-        branch: 'main'
-      });
+      if (profileError) {
+        console.error("❌ Error updating profile:", profileError);
+        throw new Error(`Failed to update user profile: ${profileError.message}`);
+      }
 
       console.log('🎉 Repository setup complete');
 
@@ -92,7 +104,7 @@ serve(async (req) => {
         JSON.stringify({
           name: repoName,
           owner: user.login,
-          html_url: repo.html_url
+          success: true
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1,196 +1,129 @@
-import { DeltaStatic } from 'quill';
-import Delta from 'quill-delta';
+
 import { supabase } from '@/integrations/supabase/client';
+import { DeltaStatic } from 'quill';
 
 /**
- * Convert a JSON object to a proper Quill Delta
- */
-export const toDelta = (obj: any): DeltaStatic => {
-  if (!obj) return new Delta() as unknown as DeltaStatic;
-  
-  // If already a Delta instance, return it
-  if (typeof obj.compose === 'function') return obj;
-  
-  // Otherwise create a new Delta from the object
-  return new Delta(obj) as unknown as DeltaStatic;
-};
-
-/**
- * Convert a Delta to a plain JSON object for storage
- */
-export const toJSON = (delta: DeltaStatic): any => {
-  return JSON.parse(JSON.stringify(delta));
-};
-
-/**
- * Save a Delta to the database
+ * Saves content to the database as a Delta
  */
 export const saveContent = async (
-  scriptId: string, 
-  delta: DeltaStatic,
-  userId: string | null,
-  isAdmin: boolean = false
+  scriptId: string,
+  content: string,
+  lineData: any[] = []
 ): Promise<boolean> => {
   try {
-    // Convert the Delta to a JSON object for storage
-    const contentJson = toJSON(delta);
+    // Parse content to ensure it's valid JSON
+    let contentObject;
+    try {
+      contentObject = typeof content === 'string' ? JSON.parse(content) : content;
+    } catch (e) {
+      console.error('Invalid content format:', e);
+      return false;
+    }
     
-    if (isAdmin) {
-      // For admins: Update the main content and create a version
-      const { error } = await supabase
+    // Check if content exists
+    const { data: existingData, error: checkError } = await supabase
+      .from('script_content')
+      .select('content_delta')
+      .eq('script_id', scriptId)
+      .maybeSingle();
+    
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing content:', checkError);
+      return false;
+    }
+    
+    // If no content exists, create it
+    if (!existingData) {
+      const { error: insertError } = await supabase
         .from('script_content')
-        .upsert({
-          script_id: scriptId,
-          content_delta: contentJson,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'script_id'
-        });
-      
-      if (error) throw error;
-      
-      // Get the current version number
-      const { data: currentContent } = await supabase
-        .from('script_content')
-        .select('version')
-        .eq('script_id', scriptId)
-        .single();
-      
-      // Create a new version entry
-      await supabase
-        .from('script_versions')
         .insert({
           script_id: scriptId,
-          version_number: (currentContent?.version || 0) + 1,
-          content_delta: contentJson,
-          created_by: userId
+          content_delta: contentObject,
+          updated_at: new Date().toISOString(),
+          version: 1
         });
       
-      // Update the version number in the main content
-      await supabase
+      if (insertError) {
+        console.error('Error creating content:', insertError);
+        return false;
+      }
+    } else {
+      // If content exists, update it
+      const { error: updateError } = await supabase
         .from('script_content')
         .update({
-          version: (currentContent?.version || 0) + 1
+          content_delta: contentObject,
+          updated_at: new Date().toISOString()
         })
         .eq('script_id', scriptId);
-    } else {
-      // For non-admins: Save as a draft
-      if (!userId) return false;
       
-      const { error } = await supabase
-        .from('script_drafts')
-        .upsert({
-          script_id: scriptId,
-          user_id: userId,
-          draft_content: contentJson,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'script_id,user_id'
-        });
-      
-      if (error) throw error;
+      if (updateError) {
+        console.error('Error updating content:', updateError);
+        return false;
+      }
     }
     
     return true;
   } catch (error) {
-    console.error('Error saving content:', error);
+    console.error('Error in saveContent:', error);
     return false;
   }
 };
 
 /**
- * Load content for a script
+ * Loads content from the database
  */
-export const loadContent = async (
-  scriptId: string,
-  userId: string | null
-): Promise<{ contentDelta: DeltaStatic, hasDraft: boolean }> => {
+export const loadContent = async (scriptId: string): Promise<any | null> => {
   try {
-    // Check for draft content first (for non-admin users)
-    if (userId) {
-      const { data: draft } = await supabase
-        .from('script_drafts')
-        .select('draft_content')
-        .eq('script_id', scriptId)
-        .eq('user_id', userId)
-        .maybeSingle();
-      
-      if (draft?.draft_content) {
-        return {
-          contentDelta: toDelta(draft.draft_content),
-          hasDraft: true
-        };
-      }
-    }
-    
-    // Load main content
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('script_content')
       .select('content_delta')
       .eq('script_id', scriptId)
-      .single();
+      .maybeSingle();
     
-    if (data?.content_delta) {
-      return {
-        contentDelta: toDelta(data.content_delta),
-        hasDraft: false
-      };
+    if (error) {
+      console.error('Error loading content:', error);
+      return null;
     }
     
-    // Return empty Delta if no content exists
-    return {
-      contentDelta: toDelta({ ops: [{ insert: '\n' }] }),
-      hasDraft: false
-    };
+    if (!data?.content_delta) {
+      console.log('No content found for script:', scriptId);
+      return { ops: [{ insert: '\n' }] };
+    }
+    
+    return data.content_delta;
   } catch (error) {
-    console.error('Error loading content:', error);
-    // Return empty Delta on error
-    return {
-      contentDelta: toDelta({ ops: [{ insert: '\n' }] }),
-      hasDraft: false
-    };
+    console.error('Error in loadContent:', error);
+    return null;
   }
 };
 
 /**
- * Create suggestion as a diff between original and new content
+ * Creates a suggestion based on the differences
  */
 export const createSuggestion = async (
   scriptId: string,
-  originalDelta: DeltaStatic,
-  newDelta: DeltaStatic,
-  userId: string | null
+  userId: string,
+  deltaContent: DeltaStatic
 ): Promise<boolean> => {
   try {
-    if (!userId) return false;
-    
-    // Calculate diff between original and new content
-    const diffDelta = originalDelta.diff(newDelta);
-    const diffJson = toJSON(diffDelta);
-    
-    // Save the diff as a suggestion
     const { error } = await supabase
       .from('script_suggestions')
       .insert({
         script_id: scriptId,
         user_id: userId,
-        delta_diff: diffJson,
-        status: 'pending',
-        created_at: new Date().toISOString()
+        delta_diff: deltaContent,
+        status: 'pending'
       });
     
-    if (error) throw error;
-    
-    // Clear user's draft after submitting suggestion
-    await supabase
-      .from('script_drafts')
-      .delete()
-      .eq('script_id', scriptId)
-      .eq('user_id', userId);
+    if (error) {
+      console.error('Error creating suggestion:', error);
+      return false;
+    }
     
     return true;
   } catch (error) {
-    console.error('Error creating suggestion:', error);
+    console.error('Error in createSuggestion:', error);
     return false;
   }
 };
