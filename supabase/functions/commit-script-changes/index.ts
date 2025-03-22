@@ -134,24 +134,17 @@ serve(async (req) => {
     console.log("Admin username:", adminUsername);
 
     // Get suggestion stats for README
-    console.log("Fetching suggestion stats for script:", scriptId);
-    const { data: suggestions } = await supabaseClient
+    console.log("Fetching suggestions for script:", scriptId);
+    const { data: suggestions, error: suggestionsError } = await supabaseClient
       .from('script_suggestions')
-      .select('status, count')
-      .eq('script_id', scriptId)
-      .group('status');
-    const suggestionStats: SuggestionStats = {
-      total: 0,
-      accepted: 0
-    };
-    if (suggestions) {
-      suggestions.forEach((item: any) => {
-        if (item.status === 'approved') {
-          suggestionStats.accepted = parseInt(item.count);
-        }
-        suggestionStats.total += parseInt(item.count);
-      });
+      .select('status');
+    if (suggestionsError) {
+      console.error("Error fetching suggestions:", suggestionsError);
     }
+    const suggestionStats: SuggestionStats = {
+      total: suggestions ? suggestions.length : 0,
+      accepted: suggestions ? suggestions.filter((s: any) => s.status === 'approved').length : 0
+    };
     console.log("Suggestion stats computed:", suggestionStats);
 
     // Initialize GitHub API client
@@ -245,7 +238,7 @@ serve(async (req) => {
             repo: script.github_repo,
             path: `${folderName}/versions`
           });
-          console.log(`Versions folder already exists`);
+          console.log("Versions folder already exists");
         } catch (error: any) {
           if (error.status === 404) {
             console.log("Versions folder not found; creating it with .gitkeep");
@@ -319,6 +312,7 @@ serve(async (req) => {
         // Store the version in the database if userId is provided
         if (userId) {
           console.log("Storing version data in database for user:", userId);
+          // Instead of using group, fetch all version rows then calculate the next version number
           const { data: versionData } = await supabaseClient
             .from('script_versions')
             .select('version_number')
