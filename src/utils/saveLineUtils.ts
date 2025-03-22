@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
-import { combineDeltaContents } from '@/utils/editor/operations/deltaCombination';
+import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
 
 /**
  * Saves content to the database as a full Delta
@@ -36,7 +36,7 @@ export const saveContent = async (
         .from('script_content')
         .insert({
           script_id: scriptId,
-          content_delta: deltaContent as any,
+          content_delta: normalizeContentForStorage(deltaContent),
           updated_at: new Date().toISOString(),
           version: 1
         });
@@ -50,7 +50,7 @@ export const saveContent = async (
       const { error: updateError } = await supabase
         .from('script_content')
         .update({
-          content_delta: deltaContent as any,
+          content_delta: normalizeContentForStorage(deltaContent),
           updated_at: new Date().toISOString()
         })
         .eq('script_id', scriptId);
@@ -98,5 +98,49 @@ export const loadContent = async (scriptId: string): Promise<DeltaContent | null
   } catch (error) {
     console.error('Error in loadContent:', error);
     return null;
+  }
+};
+
+/**
+ * Save a named version of the script content
+ */
+export const saveNamedVersion = async (
+  scriptId: string, 
+  content: DeltaContent,
+  versionName: string,
+  userId: string | null
+): Promise<boolean> => {
+  if (!userId) return false;
+  
+  try {
+    // Get current version number
+    const { data: currentData } = await supabase
+      .from('script_content')
+      .select('version')
+      .eq('script_id', scriptId)
+      .single();
+    
+    const versionNumber = (currentData?.version || 0) + 1;
+    
+    // Save version to script_versions table
+    const { error } = await supabase
+      .from('script_versions')
+      .insert({
+        script_id: scriptId,
+        version_number: versionNumber,
+        content_delta: normalizeContentForStorage(content),
+        created_by: userId,
+        version_name: versionName
+      });
+    
+    if (error) {
+      console.error('Error saving version:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in saveNamedVersion:', error);
+    return false;
   }
 };

@@ -6,6 +6,7 @@ import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
 import { saveSuggestions } from '@/utils/suggestions/saveSuggestions';
 import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
+import { saveNamedVersion } from '@/utils/saveLineUtils';
 
 // Update function to handle line data string
 const saveScriptContent = async (
@@ -39,41 +40,6 @@ const saveScriptContent = async (
     if (error) {
       console.error('Error saving script content:', error);
       return false;
-    }
-    
-    // Get current version and increment
-    const { data: currentData } = await supabase
-      .from('script_content')
-      .select('version')
-      .eq('script_id', scriptId)
-      .single();
-    
-    const currentVersion = currentData?.version || 0;
-    const newVersion = currentVersion + 1;
-    
-    // Update version number
-    const { error: versionError } = await supabase
-      .from('script_content')
-      .update({ version: newVersion })
-      .eq('script_id', scriptId);
-    
-    if (versionError) {
-      console.error('Error updating version:', versionError);
-    }
-    
-    // Create version history entry
-    const { error: historyError } = await supabase
-      .from('script_versions')
-      .insert({
-        script_id: scriptId,
-        version_number: newVersion,
-        content_delta: normalizedContent,
-        created_by: userId
-      });
-    
-    if (historyError) {
-      console.error('Error creating version history:', historyError);
-      // Don't fail the overall save operation if version history fails
     }
     
     return true;
@@ -224,6 +190,39 @@ export const useSubmitEdits = ({
     }
   }, [scriptId, userId]);
   
+  const saveVersion = useCallback(async (
+    content: DeltaContent,
+    versionName: string,
+    options: SubmitOptions = { showToast: true }
+  ): Promise<boolean> => {
+    if (!userId || !isAdmin) return false;
+    
+    try {
+      setIsSaving(true);
+      
+      const success = await saveNamedVersion(scriptId, content, versionName, userId);
+      
+      if (success) {
+        setLastSavedTime(new Date());
+        if (options.showToast) {
+          toast.success('Version saved successfully');
+        }
+      } else if (options.showToast) {
+        toast.error('Failed to save version');
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error in saveVersion:', error);
+      if (options.showToast) {
+        toast.error('An error occurred while saving version');
+      }
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [scriptId, userId, isAdmin]);
+  
   const submitEdits = useCallback(async (
     content: DeltaContent,
     options: SubmitOptions = { showToast: true, asDraft: false }
@@ -242,6 +241,7 @@ export const useSubmitEdits = ({
     submitAsAdmin,
     submitAsDraft,
     submitAsSuggestion,
+    saveVersion,
     isSaving,
     lastSavedTime
   };

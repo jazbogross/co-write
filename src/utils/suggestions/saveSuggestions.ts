@@ -2,6 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { DeltaContent } from '@/utils/editor/types';
 import { LineData } from '@/types/lineTypes';
+import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
 
 /**
  * Interface for suggestion submission
@@ -47,8 +48,8 @@ export const saveSuggestions = async (
       deltaDiff: deltaDiff as DeltaContent
     };
     
-    // Convert to JSON for storage in Supabase
-    const jsonDeltaDiff = JSON.parse(JSON.stringify(suggestion.deltaDiff));
+    // Normalize the delta to be Supabase-compatible
+    const normalizedDelta = normalizeContentForStorage(suggestion.deltaDiff);
     
     // Save to database
     const { data, error } = await supabase
@@ -56,7 +57,7 @@ export const saveSuggestions = async (
       .insert({
         script_id: suggestion.scriptId,
         user_id: suggestion.userId,
-        delta_diff: jsonDeltaDiff,
+        delta_diff: normalizedDelta,
         status: 'pending'
       })
       .select('id')

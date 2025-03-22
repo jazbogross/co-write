@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { DeltaStatic } from 'quill';
 import { supabase } from '@/integrations/supabase/client';
-import { loadContent } from '@/utils/deltaUtils';
+import { loadContent } from '@/utils/saveLineUtils';
 import ReactQuill from 'react-quill';
 
 export function useEditorContent(scriptId: string, isAdmin: boolean) {
@@ -24,10 +24,28 @@ export function useEditorContent(scriptId: string, isAdmin: boolean) {
         if (user) {
           setUserId(user.id);
           
-          const result = await loadContent(scriptId, user.id);
+          // Check for user's draft
+          if (!isAdmin) {
+            const { data: draftData } = await supabase
+              .from('script_drafts')
+              .select('draft_content')
+              .eq('script_id', scriptId)
+              .eq('user_id', user.id)
+              .maybeSingle();
+            
+            if (draftData?.draft_content) {
+              setContent(draftData.draft_content as unknown as DeltaStatic);
+              setHasDraft(true);
+              setIsLoading(false);
+              return;
+            }
+          }
           
-          setContent(result.contentDelta);
-          setHasDraft(result.hasDraft);
+          // Load main content if no draft found or user is admin
+          const contentData = await loadContent(scriptId);
+          if (contentData) {
+            setContent(contentData as unknown as DeltaStatic);
+          }
         }
       } catch (error) {
         console.error('Error loading editor content:', error);
@@ -38,7 +56,7 @@ export function useEditorContent(scriptId: string, isAdmin: boolean) {
     };
     
     fetchData();
-  }, [scriptId]);
+  }, [scriptId, isAdmin]);
 
   return {
     content,

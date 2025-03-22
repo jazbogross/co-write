@@ -1,13 +1,15 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import 'react-quill/dist/quill.snow.css';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { saveContent, loadContent } from '@/utils/deltaUtils';
+import { loadContent } from '@/utils/saveLineUtils';
 import Delta from 'quill-delta';
 import { useEditorContent } from '@/hooks/useEditorContent';
 import { EditorContent } from '@/components/editor/EditorContent';
 import { EditorActions } from '@/components/editor/EditorActions';
+import { SaveVersionDialog } from './editor/SaveVersionDialog';
+import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 
 interface DeltaEditorProps {
   scriptId: string;
@@ -22,10 +24,22 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     isLoading,
     hasDraft,
     setHasDraft,
-    isSaving,
-    setIsSaving,
     quillRef
   } = useEditorContent(scriptId, isAdmin);
+  
+  const [showSaveVersionDialog, setShowSaveVersionDialog] = useState(false);
+  
+  const { 
+    submitAsAdmin, 
+    submitAsDraft, 
+    submitAsSuggestion,
+    saveVersion,
+    isSaving 
+  } = useSubmitEdits({ 
+    scriptId, 
+    isAdmin, 
+    userId 
+  });
   
   const handleChange = (value: any) => {
     // This is intentionally empty as changes are captured by the quill reference
@@ -34,34 +48,36 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
   const handleSave = async () => {
     if (!quillRef.current || !userId) return;
     
-    setIsSaving(true);
-    
     try {
       const currentContent = quillRef.current.getEditor().getContents();
       
-      const success = await saveContent(scriptId, currentContent, userId, isAdmin);
-      
-      if (success) {
-        toast.success(isAdmin ? 'Content updated successfully' : 'Draft saved successfully');
-        
-        if (!isAdmin) {
-          setHasDraft(true);
-        }
+      if (isAdmin) {
+        await submitAsAdmin(currentContent);
       } else {
-        toast.error('Failed to save content');
+        await submitAsDraft(currentContent);
+        setHasDraft(true);
       }
     } catch (error) {
       console.error('Error saving content:', error);
       toast.error('An error occurred while saving');
-    } finally {
-      setIsSaving(false);
+    }
+  };
+  
+  const handleSaveVersion = async (versionName: string) => {
+    if (!quillRef.current || !userId || !isAdmin) return;
+    
+    try {
+      const currentContent = quillRef.current.getEditor().getContents();
+      await saveVersion(currentContent, versionName);
+      setShowSaveVersionDialog(false);
+    } catch (error) {
+      console.error('Error saving version:', error);
+      toast.error('An error occurred while saving version');
     }
   };
   
   const handleSubmitSuggestion = async () => {
     if (!quillRef.current || !userId || isAdmin) return;
-    
-    setIsSaving(true);
     
     try {
       const suggestedContent = quillRef.current.getEditor().getContents();
@@ -92,34 +108,28 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
         return;
       }
       
-      const { error } = await supabase
-        .from('script_suggestions')
-        .insert({
-          script_id: scriptId,
-          user_id: userId,
-          delta_diff: JSON.parse(JSON.stringify(diffDelta)),
-          status: 'pending'
-        });
+      // Create a single line data element with the full content
+      const lineData = [{
+        uuid: scriptId,
+        lineNumber: 1,
+        content: suggestedContent,
+        originalAuthor: userId,
+        editedBy: [],
+        hasDraft: false
+      }];
       
-      if (error) throw error;
-      
-      await supabase
-        .from('script_drafts')
-        .delete()
-        .eq('script_id', scriptId)
-        .eq('user_id', userId);
+      await submitAsSuggestion(lineData, originalDelta);
       
       setHasDraft(false);
-      toast.success('Suggestion submitted successfully');
       
-      const result = await loadContent(scriptId, userId);
-      setContent(result.contentDelta);
-      
+      // Reload content after suggestion is submitted
+      const result = await loadContent(scriptId);
+      if (result) {
+        setContent(result);
+      }
     } catch (error) {
       console.error('Error submitting suggestion:', error);
       toast.error('Failed to submit suggestion');
-    } finally {
-      setIsSaving(false);
     }
   };
   
@@ -135,12 +145,20 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
         hasDraft={hasDraft}
         handleSave={handleSave}
         handleSubmitSuggestion={handleSubmitSuggestion}
+        onSaveVersion={() => setShowSaveVersionDialog(true)}
       />
 
       <EditorContent 
         content={content} 
         quillRef={quillRef} 
         handleChange={handleChange} 
+      />
+      
+      <SaveVersionDialog
+        open={showSaveVersionDialog}
+        onOpenChange={setShowSaveVersionDialog}
+        onSave={handleSaveVersion}
+        isSaving={isSaving}
       />
     </div>
   );

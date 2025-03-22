@@ -180,6 +180,7 @@ export type Database = {
           created_by: string | null
           id: string
           script_id: string | null
+          version_name: string | null
           version_number: number
         }
         Insert: {
@@ -188,6 +189,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           script_id?: string | null
+          version_name?: string | null
           version_number: number
         }
         Update: {
@@ -196,6 +198,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           script_id?: string | null
+          version_name?: string | null
           version_number?: number
         }
         Relationships: [
@@ -213,6 +216,7 @@ export type Database = {
           admin_id: string
           content: Json | null
           created_at: string | null
+          folder_name: string | null
           github_owner: string | null
           github_repo: string | null
           id: string
@@ -224,6 +228,7 @@ export type Database = {
           admin_id: string
           content?: Json | null
           created_at?: string | null
+          folder_name?: string | null
           github_owner?: string | null
           github_repo?: string | null
           id?: string
@@ -235,6 +240,7 @@ export type Database = {
           admin_id?: string
           content?: Json | null
           created_at?: string | null
+          folder_name?: string | null
           github_owner?: string | null
           github_repo?: string | null
           id?: string
