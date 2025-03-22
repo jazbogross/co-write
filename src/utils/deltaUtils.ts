@@ -1,26 +1,153 @@
 
-import { supabase } from '@/integrations/supabase/client';
 import { DeltaStatic } from 'quill';
+import { DeltaContent } from './editor/types';
+import Delta from 'quill-delta';
+import { normalizeContentForStorage } from './suggestions/contentUtils';
 
 /**
- * Saves content to the database as a Delta
+ * Convert a DeltaStatic to a DeltaContent
+ */
+export const toDelta = (content: any): DeltaStatic => {
+  // If it's already a DeltaStatic with compose method, return it
+  if (content && typeof content.compose === 'function') {
+    return content;
+  }
+  
+  // If it's a DeltaContent with ops, create a new Delta
+  if (content && content.ops && Array.isArray(content.ops)) {
+    return new Delta(content.ops) as unknown as DeltaStatic;
+  }
+  
+  // If it's a string that might be JSON
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed && parsed.ops && Array.isArray(parsed.ops)) {
+        return new Delta(parsed.ops) as unknown as DeltaStatic;
+      }
+    } catch (e) {
+      // Not a valid JSON Delta
+    }
+  }
+  
+  // Fallback to empty Delta
+  return new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
+};
+
+/**
+ * Convert a DeltaStatic to a JSON-serializable object for storage
+ */
+export const toJSON = (delta: DeltaStatic): any => {
+  return normalizeContentForStorage(delta);
+};
+
+/**
+ * Ensure a value is a DeltaContent
+ */
+export const ensureDeltaContent = (value: any): DeltaContent => {
+  // If it's already a DeltaContent with ops array, return it
+  if (value && value.ops && Array.isArray(value.ops)) {
+    return value as DeltaContent;
+  }
+  
+  // If it's a DeltaStatic, extract its ops
+  if (value && typeof value.compose === 'function') {
+    return { ops: value.ops || [] };
+  }
+  
+  // If it's a string that might be JSON
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed && parsed.ops && Array.isArray(parsed.ops)) {
+        return parsed as DeltaContent;
+      }
+    } catch (e) {
+      // Not a valid JSON Delta
+    }
+  }
+  
+  // Fallback to empty DeltaContent
+  return { ops: [{ insert: '\n' }] };
+};
+
+/**
+ * Create a suggestion for a script
+ */
+export const createSuggestion = async (
+  scriptId: string, 
+  userId: string,
+  deltaDiff: any
+): Promise<string | null> => {
+  try {
+    // Normalize delta for Supabase's JSON storage
+    const normalizedDelta = normalizeContentForStorage(deltaDiff);
+    
+    // Save to database
+    const { data, error } = await supabase
+      .from('script_suggestions')
+      .insert({
+        script_id: scriptId,
+        user_id: userId,
+        delta_diff: normalizedDelta,
+        status: 'pending'
+      })
+      .select('id')
+      .single();
+    
+    if (error) {
+      console.error('Error creating suggestion:', error);
+      return null;
+    }
+    
+    return data.id;
+  } catch (error) {
+    console.error('Error in createSuggestion:', error);
+    return null;
+  }
+};
+
+/**
+ * Load content from the database
+ */
+export const loadContent = async (scriptId: string): Promise<DeltaStatic | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('script_content')
+      .select('content_delta')
+      .eq('script_id', scriptId)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('Error loading content:', error);
+      return null;
+    }
+    
+    if (!data?.content_delta) {
+      console.error('No content found for script:', scriptId);
+      return new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
+    }
+    
+    // Parse Delta content if needed
+    return toDelta(data.content_delta);
+  } catch (error) {
+    console.error('Error in loadContent:', error);
+    return null;
+  }
+};
+
+/**
+ * Saves content to the database as a full Delta
  */
 export const saveContent = async (
   scriptId: string,
-  content: string,
-  lineData: any[] = []
+  content: string | DeltaStatic | DeltaContent
 ): Promise<boolean> => {
   try {
-    // Parse content to ensure it's valid JSON
-    let contentObject;
-    try {
-      contentObject = typeof content === 'string' ? JSON.parse(content) : content;
-    } catch (e) {
-      console.error('Invalid content format:', e);
-      return false;
-    }
+    // Convert content to appropriate format
+    const normalizedContent = normalizeContentForStorage(content);
     
-    // Check if content exists
+    // First check if content exists
     const { data: existingData, error: checkError } = await supabase
       .from('script_content')
       .select('content_delta')
@@ -38,7 +165,7 @@ export const saveContent = async (
         .from('script_content')
         .insert({
           script_id: scriptId,
-          content_delta: contentObject,
+          content_delta: normalizedContent,
           updated_at: new Date().toISOString(),
           version: 1
         });
@@ -52,7 +179,7 @@ export const saveContent = async (
       const { error: updateError } = await supabase
         .from('script_content')
         .update({
-          content_delta: contentObject,
+          content_delta: normalizedContent,
           updated_at: new Date().toISOString()
         })
         .eq('script_id', scriptId);
@@ -63,20 +190,6 @@ export const saveContent = async (
       }
     }
     
-    // Also update the content field in the scripts table
-    const { error: scriptUpdateError } = await supabase
-      .from('scripts')
-      .update({
-        content: contentObject,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', scriptId);
-    
-    if (scriptUpdateError) {
-      console.error('Error updating script content field:', scriptUpdateError);
-      // Don't return false here as we already updated the content_delta
-    }
-    
     return true;
   } catch (error) {
     console.error('Error in saveContent:', error);
@@ -84,114 +197,64 @@ export const saveContent = async (
   }
 };
 
-/**
- * Saves a version of the content
- */
-export const saveVersion = async (
-  scriptId: string,
-  content: string,
-  versionName: string,
-  userId: string
-): Promise<boolean> => {
-  try {
-    // Parse content to ensure it's valid JSON
-    let contentObject;
-    try {
-      contentObject = typeof content === 'string' ? JSON.parse(content) : content;
-    } catch (e) {
-      console.error('Invalid content format:', e);
-      return false;
-    }
-    
-    // Get the current version number
-    const { data: versionData, error: versionError } = await supabase
-      .from('script_versions')
-      .select('version_number')
-      .eq('script_id', scriptId)
-      .order('version_number', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    
-    const nextVersionNumber = versionData ? versionData.version_number + 1 : 1;
-    
-    // Create a new version
-    const { error: createError } = await supabase
-      .from('script_versions')
-      .insert({
-        script_id: scriptId,
-        content_delta: contentObject,
-        created_by: userId,
-        version_number: nextVersionNumber,
-        created_at: new Date().toISOString(),
-        version_name: versionName
-      });
-    
-    if (createError) {
-      console.error('Error creating version:', createError);
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error in saveVersion:', error);
-    return false;
-  }
-};
+// Import needed for the function below
+import { supabase } from '@/integrations/supabase/client';
 
+// Add missing functions
 /**
- * Loads content from the database
+ * Fetch suggestions for a script
  */
-export const loadContent = async (scriptId: string): Promise<any | null> => {
+export const fetchSuggestions = async (scriptId: string): Promise<any[]> => {
   try {
     const { data, error } = await supabase
-      .from('script_content')
-      .select('content_delta')
+      .from('script_suggestions')
+      .select('*, profiles(*)')
       .eq('script_id', scriptId)
-      .maybeSingle();
+      .order('created_at', { ascending: false });
     
     if (error) {
-      console.error('Error loading content:', error);
-      return null;
+      console.error('Error fetching suggestions:', error);
+      return [];
     }
     
-    if (!data?.content_delta) {
-      console.log('No content found for script:', scriptId);
-      return { ops: [{ insert: '\n' }] };
-    }
-    
-    return data.content_delta;
+    return data || [];
   } catch (error) {
-    console.error('Error in loadContent:', error);
-    return null;
+    console.error('Error in fetchSuggestions:', error);
+    return [];
   }
 };
 
 /**
- * Creates a suggestion based on the differences
+ * Fetch user profiles by ID
  */
-export const createSuggestion = async (
-  scriptId: string,
-  userId: string,
-  deltaContent: DeltaStatic
-): Promise<boolean> => {
+export const fetchUserProfiles = async (userIds: string[]): Promise<Record<string, string>> => {
   try {
-    const { error } = await supabase
-      .from('script_suggestions')
-      .insert({
-        script_id: scriptId,
-        user_id: userId,
-        delta_diff: deltaContent,
-        status: 'pending'
-      });
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .in('id', userIds);
     
     if (error) {
-      console.error('Error creating suggestion:', error);
-      return false;
+      console.error('Error fetching user profiles:', error);
+      return {};
     }
     
-    return true;
+    // Map user IDs to usernames
+    const usernameMap: Record<string, string> = {};
+    data?.forEach(profile => {
+      usernameMap[profile.id] = profile.username || 'Unknown User';
+    });
+    
+    return usernameMap;
   } catch (error) {
-    console.error('Error in createSuggestion:', error);
-    return false;
+    console.error('Error in fetchUserProfiles:', error);
+    return {};
   }
+};
+
+/**
+ * Fetch original content for comparison
+ */
+export const fetchOriginalContent = async (scriptId: string): Promise<DeltaStatic | null> => {
+  return loadContent(scriptId);
 };

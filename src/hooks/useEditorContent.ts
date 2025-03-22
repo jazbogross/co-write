@@ -2,8 +2,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { DeltaStatic } from 'quill';
 import { supabase } from '@/integrations/supabase/client';
-import { loadContent } from '@/utils/saveLineUtils';
+import { loadContent } from '@/utils/deltaUtils';
 import ReactQuill from 'react-quill';
+import { DeltaContent } from '@/utils/editor/types';
+import { ensureDeltaContent } from '@/utils/deltaUtils';
 
 export function useEditorContent(scriptId: string, isAdmin: boolean) {
   const [content, setContent] = useState<DeltaStatic>({ ops: [{ insert: '\n' }] } as unknown as DeltaStatic);
@@ -34,7 +36,8 @@ export function useEditorContent(scriptId: string, isAdmin: boolean) {
               .maybeSingle();
             
             if (draftData?.draft_content) {
-              setContent(draftData.draft_content as unknown as DeltaStatic);
+              const deltaContent = ensureDeltaContent(draftData.draft_content);
+              setContent(deltaContent as unknown as DeltaStatic);
               setHasDraft(true);
               setIsLoading(false);
               return;
@@ -44,7 +47,7 @@ export function useEditorContent(scriptId: string, isAdmin: boolean) {
           // Load main content if no draft found or user is admin
           const contentData = await loadContent(scriptId);
           if (contentData) {
-            setContent(contentData as unknown as DeltaStatic);
+            setContent(contentData);
           }
         }
       } catch (error) {

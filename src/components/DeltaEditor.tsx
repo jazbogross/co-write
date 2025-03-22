@@ -3,13 +3,14 @@ import React, { useState } from 'react';
 import 'react-quill/dist/quill.snow.css';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { loadContent } from '@/utils/saveLineUtils';
+import { loadContent } from '@/utils/deltaUtils';
 import Delta from 'quill-delta';
 import { useEditorContent } from '@/hooks/useEditorContent';
 import { EditorContent } from '@/components/editor/EditorContent';
 import { EditorActions } from '@/components/editor/EditorActions';
 import { SaveVersionDialog } from './editor/SaveVersionDialog';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
+import { ensureDeltaContent } from '@/utils/deltaUtils';
 
 interface DeltaEditorProps {
   scriptId: string;
@@ -50,11 +51,12 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     
     try {
       const currentContent = quillRef.current.getEditor().getContents();
+      const contentAsContent = ensureDeltaContent(currentContent);
       
       if (isAdmin) {
-        await submitAsAdmin(currentContent);
+        await submitAsAdmin(contentAsContent);
       } else {
-        await submitAsDraft(currentContent);
+        await submitAsDraft(contentAsContent);
         setHasDraft(true);
       }
     } catch (error) {
@@ -68,7 +70,8 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     
     try {
       const currentContent = quillRef.current.getEditor().getContents();
-      await saveVersion(currentContent, versionName);
+      const contentAsContent = ensureDeltaContent(currentContent);
+      await saveVersion(contentAsContent, versionName);
       setShowSaveVersionDialog(false);
     } catch (error) {
       console.error('Error saving version:', error);
@@ -125,7 +128,7 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
       // Reload content after suggestion is submitted
       const result = await loadContent(scriptId);
       if (result) {
-        setContent(result);
+        setContent(ensureDeltaContent(result)); // Convert to DeltaContent
       }
     } catch (error) {
       console.error('Error submitting suggestion:', error);

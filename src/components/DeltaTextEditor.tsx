@@ -6,8 +6,9 @@ import { useSession } from '@supabase/auth-helpers-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { TextEditorActions } from './editor/TextEditorActions';
-import { loadContent, saveContent } from '@/utils/saveUtils';
+import { loadContent, saveContent } from '@/utils/deltaUtils';
 import { SaveVersionDialog } from '@/components/editor/SaveVersionDialog';
+import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
 
 interface DeltaTextEditorProps {
   scriptId: string;
@@ -65,7 +66,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
       const content = JSON.stringify(delta);
       
       // Save to database
-      const success = await saveContent(scriptId, content, []);
+      const success = await saveContent(scriptId, delta);
       
       if (!success) {
         toast.error('Failed to save content');
@@ -101,13 +102,16 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
       const editor = quillRef.current.getEditor();
       const delta = editor.getContents();
       
+      // Prepare content for storage
+      const normalizedContent = normalizeContentForStorage(delta);
+      
       // Save to drafts table
       const { error } = await supabase
         .from('script_drafts')
         .upsert({
           script_id: scriptId,
           user_id: session.user.id,
-          draft_content: delta,
+          draft_content: normalizedContent,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'script_id,user_id'

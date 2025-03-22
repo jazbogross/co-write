@@ -1,7 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
-import { DeltaContent } from '@/utils/editor/types';
+import { DeltaContent, DeltaStatic } from '@/utils/editor/types';
 import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
 
 /**
@@ -9,7 +9,7 @@ import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
  */
 export const saveContent = async (
   scriptId: string,
-  content: string | DeltaContent,
+  content: string | DeltaContent | DeltaStatic,
   lineData: LineData[]
 ): Promise<boolean> => {
   try {
@@ -71,7 +71,7 @@ export const saveContent = async (
 /**
  * Loads content from the database
  */
-export const loadContent = async (scriptId: string): Promise<DeltaContent | null> => {
+export const loadContent = async (scriptId: string): Promise<DeltaStatic | null> => {
   try {
     const { data, error } = await supabase
       .from('script_content')
@@ -86,7 +86,7 @@ export const loadContent = async (scriptId: string): Promise<DeltaContent | null
     
     if (!data?.content_delta) {
       console.error('No content found for script:', scriptId);
-      return { ops: [{ insert: '\n' }] };
+      return { ops: [{ insert: '\n' }] } as unknown as DeltaStatic;
     }
     
     // Parse Delta content if needed
@@ -94,7 +94,7 @@ export const loadContent = async (scriptId: string): Promise<DeltaContent | null
       ? JSON.parse(data.content_delta)
       : data.content_delta;
     
-    return deltaContent as DeltaContent;
+    return deltaContent as unknown as DeltaStatic;
   } catch (error) {
     console.error('Error in loadContent:', error);
     return null;
@@ -106,7 +106,7 @@ export const loadContent = async (scriptId: string): Promise<DeltaContent | null
  */
 export const saveNamedVersion = async (
   scriptId: string, 
-  content: DeltaContent,
+  content: DeltaContent | DeltaStatic,
   versionName: string,
   userId: string | null
 ): Promise<boolean> => {

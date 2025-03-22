@@ -8,6 +8,7 @@ interface EditorActionsProps {
   hasDraft: boolean;
   handleSave: () => Promise<void>;
   handleSubmitSuggestion: () => Promise<void>;
+  onSaveVersion?: () => void;  // Added this prop
 }
 
 export const EditorActions: React.FC<EditorActionsProps> = ({ 
@@ -15,7 +16,8 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
   isSaving, 
   hasDraft, 
   handleSave, 
-  handleSubmitSuggestion 
+  handleSubmitSuggestion,
+  onSaveVersion  // Added this prop
 }) => {
   return (
     <div className="sticky top-0 z-20 flex justify-end items-center h-12 bg-black">
@@ -28,6 +30,17 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
         >
           {isAdmin ? 'Save Changes' : 'Save Draft'}
         </Button>
+        
+        {isAdmin && onSaveVersion && (
+          <Button
+            className='h-8 bg-black text-white border-white border'
+            variant="secondary"
+            onClick={onSaveVersion}
+            disabled={isSaving}
+          >
+            Save Version
+          </Button>
+        )}
         
         {!isAdmin && (
           <Button

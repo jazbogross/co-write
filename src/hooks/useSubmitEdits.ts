@@ -7,11 +7,12 @@ import { saveSuggestions } from '@/utils/suggestions/saveSuggestions';
 import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
 import { saveNamedVersion } from '@/utils/saveLineUtils';
+import { DeltaStatic } from 'quill';
 
 // Update function to handle line data string
 const saveScriptContent = async (
   scriptId: string,
-  content: DeltaContent | string,
+  content: DeltaContent | DeltaStatic | string,
   userId: string | null
 ): Promise<boolean> => {
   try {
@@ -22,9 +23,7 @@ const saveScriptContent = async (
     }
     
     // Normalize content for storage
-    const normalizedContent = typeof content === 'string' 
-      ? content 
-      : normalizeContentForStorage(content);
+    const normalizedContent = normalizeContentForStorage(content);
     
     // Update script_content table
     const { error } = await supabase
@@ -69,7 +68,7 @@ export const useSubmitEdits = ({
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
   
   const submitAsAdmin = useCallback(async (
-    content: DeltaContent | string,
+    content: DeltaContent | DeltaStatic | string,
     options: SubmitOptions = { showToast: true }
   ): Promise<boolean> => {
     try {
@@ -99,7 +98,7 @@ export const useSubmitEdits = ({
   }, [scriptId, userId]);
   
   const submitAsDraft = useCallback(async (
-    content: DeltaContent,
+    content: DeltaContent | DeltaStatic,
     options: SubmitOptions = { showToast: true }
   ): Promise<boolean> => {
     if (!userId) return false;
@@ -107,7 +106,7 @@ export const useSubmitEdits = ({
     try {
       setIsSaving(true);
       
-      // Normalize content for Supabase JSON compatibility
+      // Normalize content for Supabase's JSON compatibility
       const normalizedContent = normalizeContentForStorage(content);
       
       // Save to script_drafts table
@@ -191,7 +190,7 @@ export const useSubmitEdits = ({
   }, [scriptId, userId]);
   
   const saveVersion = useCallback(async (
-    content: DeltaContent,
+    content: DeltaContent | DeltaStatic,
     versionName: string,
     options: SubmitOptions = { showToast: true }
   ): Promise<boolean> => {
@@ -224,7 +223,7 @@ export const useSubmitEdits = ({
   }, [scriptId, userId, isAdmin]);
   
   const submitEdits = useCallback(async (
-    content: DeltaContent,
+    content: DeltaContent | DeltaStatic,
     options: SubmitOptions = { showToast: true, asDraft: false }
   ): Promise<boolean> => {
     if (isAdmin) {
