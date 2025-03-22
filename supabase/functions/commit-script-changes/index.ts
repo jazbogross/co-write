@@ -37,7 +37,7 @@ serve(async (req) => {
     // Get script details from Supabase
     const { data: script, error: scriptError } = await supabaseClient
       .from('scripts')
-      .select('github_repo, github_owner, admin_id')
+      .select('github_repo, github_owner, admin_id, title')
       .eq('id', scriptId)
       .single()
 
@@ -59,6 +59,39 @@ serve(async (req) => {
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // Fetch script content from database
+    const { data: contentData, error: contentError } = await supabaseClient
+      .from('script_content')
+      .select('content_delta')
+      .eq('script_id', scriptId)
+      .maybeSingle()
+
+    // If content doesn't exist yet, create a default empty content entry
+    if (!contentData || contentError) {
+      console.log('No content found, creating default empty content')
+      
+      // Create default content
+      const defaultContent = JSON.stringify({ 
+        ops: [{ insert: `# ${script.title || 'Untitled Script'}\n\nContent has not been saved yet.\n` }] 
+      })
+      
+      // Save default content to database
+      const { error: createError } = await supabaseClient
+        .from('script_content')
+        .insert({
+          script_id: scriptId,
+          content_delta: { ops: [{ insert: `# ${script.title || 'Untitled Script'}\n\nContent has not been saved yet.\n` }] },
+          version: 1
+        })
+      
+      if (createError) {
+        console.error('Error creating default content:', createError)
+      }
+      
+      // Use default content for GitHub commit
+      content = defaultContent
     }
 
     // Initialize Octokit using the provided GitHub OAuth access token

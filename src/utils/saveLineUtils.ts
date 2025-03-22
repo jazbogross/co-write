@@ -18,18 +18,47 @@ export const saveContent = async (
       ? { ops: [{ insert: content }] }
       : content;
     
-    // Update script_content table with the full Delta
-    const { error } = await supabase
+    // First check if content exists
+    const { data: existingData, error: checkError } = await supabase
       .from('script_content')
-      .upsert({
-        script_id: scriptId,
-        content_delta: deltaContent as any,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'script_id' });
+      .select('content_delta')
+      .eq('script_id', scriptId)
+      .maybeSingle();
     
-    if (error) {
-      console.error('Error saving content:', error);
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing content:', checkError);
       return false;
+    }
+    
+    // If no content exists, create it
+    if (!existingData) {
+      const { error: insertError } = await supabase
+        .from('script_content')
+        .insert({
+          script_id: scriptId,
+          content_delta: deltaContent as any,
+          updated_at: new Date().toISOString(),
+          version: 1
+        });
+      
+      if (insertError) {
+        console.error('Error creating content:', insertError);
+        return false;
+      }
+    } else {
+      // If content exists, update it
+      const { error: updateError } = await supabase
+        .from('script_content')
+        .update({
+          content_delta: deltaContent as any,
+          updated_at: new Date().toISOString()
+        })
+        .eq('script_id', scriptId);
+      
+      if (updateError) {
+        console.error('Error updating content:', updateError);
+        return false;
+      }
     }
     
     return true;
@@ -48,7 +77,7 @@ export const loadContent = async (scriptId: string): Promise<DeltaContent | null
       .from('script_content')
       .select('content_delta')
       .eq('script_id', scriptId)
-      .single();
+      .maybeSingle();
     
     if (error) {
       console.error('Error loading content:', error);
@@ -57,7 +86,7 @@ export const loadContent = async (scriptId: string): Promise<DeltaContent | null
     
     if (!data?.content_delta) {
       console.error('No content found for script:', scriptId);
-      return null;
+      return { ops: [{ insert: '\n' }] };
     }
     
     // Parse Delta content if needed

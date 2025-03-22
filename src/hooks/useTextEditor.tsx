@@ -59,29 +59,34 @@ export const useTextEditor = (
           .from('script_content')
           .select('content_delta')
           .eq('script_id', scriptId)
-          .single();
+          .maybeSingle();
         
-        if (error) {
-          if (error.code === 'PGRST116') {
-            // Content not found, create empty content
-            const emptyDelta = { ops: [{ insert: '\n' }] };
-            setContent(emptyDelta);
-            
-            // For admins, save the empty content
-            if (isAdmin) {
-              await supabase
-                .from('script_content')
-                .insert({
-                  script_id: scriptId,
-                  content_delta: emptyDelta,
-                  version: 1
-                });
-            }
-          } else {
-            throw error;
+        if (error && error.code !== 'PGRST116') {
+          throw error;
+        }
+        
+        if (!data || !data.content_delta) {
+          // Content not found, create empty content
+          const emptyDelta = { ops: [{ insert: '\n' }] };
+          setContent(emptyDelta);
+          
+          // For admins, save the empty content
+          if (isAdmin) {
+            await supabase
+              .from('script_content')
+              .insert({
+                script_id: scriptId,
+                content_delta: emptyDelta,
+                version: 1
+              });
           }
         } else {
-          setContent(data.content_delta as unknown as DeltaContent);
+          // Parse Delta content if needed
+          const deltaContent = typeof data.content_delta === 'string'
+            ? JSON.parse(data.content_delta)
+            : data.content_delta;
+          
+          setContent(deltaContent as DeltaContent);
         }
       } catch (error) {
         console.error('Error loading content:', error);

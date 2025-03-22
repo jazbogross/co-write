@@ -2,15 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-export interface Script {
-  id: string;
-  title: string;
-  created_at: string;
-  admin_id: string;
-  is_private?: boolean;
-  admin_username?: string;
-}
+import { Script } from '@/types/repository';
 
 export const useScripts = (userId: string | null) => {
   const [publicScripts, setPublicScripts] = useState<Script[]>([]);
@@ -32,7 +24,9 @@ export const useScripts = (userId: string | null) => {
           title,
           created_at,
           admin_id,
-          is_private
+          is_private,
+          github_repo,
+          github_owner
         `)
         .eq('is_private', false);
   
@@ -72,7 +66,7 @@ export const useScripts = (userId: string | null) => {
             });
           }
           
-          // Format scripts with admin usernames
+          // Format scripts with admin usernames and prepare for repository Script type
           const formattedPublicScripts: Script[] = publicData.map(script => {
             return {
               id: script.id,
@@ -80,7 +74,12 @@ export const useScripts = (userId: string | null) => {
               created_at: script.created_at,
               admin_id: script.admin_id,
               is_private: script.is_private ?? false,
-              admin_username: adminUsernames[script.admin_id] || 'Unknown'
+              admin_username: adminUsernames[script.admin_id] || 'Unknown',
+              github_repo: script.github_repo || null,
+              github_owner: script.github_owner || null,
+              profiles: {
+                username: adminUsernames[script.admin_id] || 'Unknown'
+              }
             };
           });
           
@@ -96,7 +95,12 @@ export const useScripts = (userId: string | null) => {
               created_at: script.created_at,
               admin_id: script.admin_id,
               is_private: script.is_private ?? false,
-              admin_username: 'Unknown'
+              admin_username: 'Unknown',
+              github_repo: script.github_repo || null,
+              github_owner: script.github_owner || null,
+              profiles: {
+                username: 'Unknown'
+              }
             };
           });
           setPublicScripts(formattedPublicScripts);
