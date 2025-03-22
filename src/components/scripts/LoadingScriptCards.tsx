@@ -10,7 +10,7 @@ export const LoadingScriptCards: React.FC = () => {
         <TableHeader>
           <TableRow>
             <TableHead className="w-[250px]">Title</TableHead>
-            <TableHead>Author</TableHead>
+            <TableHead>Created By</TableHead>
             <TableHead className="hidden md:table-cell">Created</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>

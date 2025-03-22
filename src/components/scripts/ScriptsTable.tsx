@@ -31,22 +31,16 @@ export const ScriptsTable: React.FC<ScriptsTableProps> = ({ scripts, isLoggedIn 
               <TableCell>
                 <div className="flex items-center gap-2">
                   <UserIcon className="h-4 w-4 text-muted-foreground" />
-                  <span>{script.profiles?.username || script.admin_username || 'Unknown'}</span>
+                  <span>{script.profiles?.username || script.github_owner || 'Unknown'}</span>
                 </div>
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 {script.created_at ? format(new Date(script.created_at), 'MMM d, yyyy') : 'Unknown date'}
               </TableCell>
               <TableCell className="text-right space-x-2">
-                <Button asChild variant="ghost" size="sm">
-                  <Link to={`/scripts/${script.id}`}>
-                    <EyeIcon className="mr-1 h-4 w-4" />
-                    View
-                  </Link>
-                </Button>
                 
                 {script.github_owner && script.github_repo && (
-                  <Button asChild variant="outline" size="sm" className="bg-gray-100">
+                  <Button asChild variant="outline" size="sm">
                     <a 
                       href={`https://github.com/${script.github_owner}/${script.github_repo}`} 
                       target="_blank" 

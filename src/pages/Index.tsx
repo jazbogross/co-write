@@ -29,10 +29,10 @@ export const Index: React.FC = () => {
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-bold">Script Library</h2>
+        <h2 className="text-3xl font-bold">Rewrite Scripts</h2>
         {user && (
           <Button asChild>
-            <Link to="/profile">Manage Your Scripts</Link>
+            <Link to="/profile">My Profile</Link>
           </Button>
         )}
       </div>
@@ -42,7 +42,6 @@ export const Index: React.FC = () => {
       ) : (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-2xl font-semibold">Public Scripts</h3>
             <Button 
               onClick={() => fetchScripts()}
               variant="outline"

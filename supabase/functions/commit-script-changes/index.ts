@@ -22,7 +22,7 @@ serve(async (req) => {
 
   try {
     // Parse request body
-    const { scriptId, content, githubAccessToken } = await req.json() as RequestBody
+    let { scriptId, content, githubAccessToken } = await req.json() as RequestBody
 
     // Validate GitHub OAuth token
     if (!githubAccessToken) {
