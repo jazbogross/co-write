@@ -144,6 +144,7 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
           is_private: isPrivate,
           github_repo: repo.name,
           github_owner: repo.owner,
+          folder_name: scriptFolderName, // Set folder name right away
         }])
         .select()
         .single();
@@ -151,17 +152,39 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       if (scriptError) throw scriptError;
       if (!script) throw new Error('Script was not created');
 
-      // Initialize folder structure for the script in GitHub
+      console.log("Script created:", script);
+
+      // Initialize content for the script in database first
       const initialContent = JSON.stringify({ 
         ops: [{ insert: `# ${newTitle}\n\nInitial content for ${newTitle}.\n` }] 
       });
 
+      // Save the initial script content to the database before GitHub operations
+      try {
+        await supabase
+          .from('script_content')
+          .insert({
+            script_id: script.id,
+            content_delta: JSON.parse(initialContent),
+            updated_at: new Date().toISOString()
+          });
+        
+        console.log("Initial content saved to database");
+      } catch (contentError) {
+        console.error("Error saving initial content to database:", contentError);
+        // Continue with GitHub operations even if content saving fails
+      }
+
       // Get the profile to include the username in the README
       const { data: profile } = await supabase
         .from('profiles')
-        .select('username')
+        .select('username, github_access_token')
         .eq('id', userId)
         .single();
+
+      if (!profile?.github_access_token) {
+        throw new Error('GitHub access token not found. Please reconnect your GitHub account.');
+      }
 
       const username = profile?.username || 'unknown user';
       const createdDate = new Date().toISOString();
@@ -175,36 +198,31 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
         `- **Accepted Suggestions:** 0\n\n` +
         `This script was created with the Rewrite application.`;
 
-      const { data: initData, error: initError } = await supabase.functions.invoke("commit-script-changes", {
-        body: {
-          scriptId: script.id,
-          content: initialContent,
-          githubAccessToken: (await supabase
-            .from('profiles')
-            .select('github_access_token')
-            .eq('id', userId)
-            .single()).data?.github_access_token,
-          scriptFolderName: scriptFolderName,
-          readmeContent: readmeContent,
-          createFolderStructure: true
+      console.log("Initializing GitHub structure for the script");
+      try {
+        const initResponse = await supabase.functions.invoke("commit-script-changes", {
+          body: {
+            scriptId: script.id,
+            content: initialContent,
+            githubAccessToken: profile.github_access_token,
+            scriptFolderName: scriptFolderName,
+            readmeContent: readmeContent,
+            createFolderStructure: true
+          }
+        });
+        
+        if (initResponse.error) {
+          console.error("Error initializing script structure:", initResponse.error);
+          toast.warning("Script created, but GitHub initialization failed. You can try again later.");
+        } else {
+          console.log("GitHub structure initialized successfully:", initResponse.data);
         }
-      });
-
-      if (initError) {
-        console.error("Error initializing script structure:", initError);
-        // Don't fail the overall operation if initialization fails
+      } catch (initError) {
+        console.error("Exception initializing script structure:", initError);
+        toast.warning("Script created, but GitHub initialization failed. You can try again later.");
       }
 
-      // Save the initial script content to the database
-      await supabase
-        .from('script_content')
-        .insert({
-          script_id: script.id,
-          content_delta: JSON.parse(initialContent),
-          updated_at: new Date().toISOString()
-        });
-
-      // Update the script record with the folder name
+      // Update script record with content regardless of GitHub status
       await supabase
         .from('scripts')
         .update({ 

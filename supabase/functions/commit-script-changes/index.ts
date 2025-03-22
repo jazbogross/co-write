@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { Octokit } from 'https://esm.sh/@octokit/rest'
@@ -41,10 +40,27 @@ serve(async (req) => {
   }
 
   try {
+    // Start logging key events for debugging
+    console.log("commit-script-changes function started");
+    
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+    
+    console.log("Supabase client created");
+
+    let requestData;
+    try {
+      requestData = await req.json() as RequestBody;
+      console.log("Request data parsed successfully");
+    } catch (jsonError) {
+      console.error("JSON parsing error:", jsonError);
+      return new Response(
+        JSON.stringify({ error: `Failed to parse request JSON: ${jsonError.message}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const {
       scriptId,
@@ -56,9 +72,12 @@ serve(async (req) => {
       isVersion = false,
       versionName = '',
       userId
-    } = await req.json() as RequestBody;
+    } = requestData;
+
+    console.log(`Request parameters received: scriptId=${scriptId}, hasToken=${!!githubAccessToken}, createFolder=${createFolderStructure}`);
 
     if (!scriptId || !githubAccessToken) {
+      console.error("Missing required parameters:", { hasScriptId: !!scriptId, hasGithubToken: !!githubAccessToken });
       return new Response(
         JSON.stringify({ error: 'Script ID and GitHub access token are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -66,6 +85,7 @@ serve(async (req) => {
     }
 
     // Get script data
+    console.log("Fetching script data from DB");
     const { data: script, error: scriptError } = await supabaseClient
       .from('scripts')
       .select('id, title, github_repo, github_owner, admin_id, updated_at, folder_name')
@@ -73,12 +93,18 @@ serve(async (req) => {
       .single() as { data: ScriptData | null, error: any };
 
     if (scriptError || !script) {
-      console.error("Error fetching script:", scriptError);
+      console.error("Error fetching script:", scriptError?.message || "Script not found");
       return new Response(
         JSON.stringify({ error: scriptError?.message || 'Script not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    console.log("Script data fetched successfully:", {
+      title: script.title,
+      repo: script.github_repo,
+      owner: script.github_owner
+    });
 
     // Get admin profile for README
     const { data: adminProfile } = await supabaseClient
@@ -111,15 +137,49 @@ serve(async (req) => {
     }
 
     // Initialize GitHub API client
-    const octokit = new Octokit({
-      auth: githubAccessToken
-    });
+    console.log("Initializing GitHub API client");
+    try {
+      var octokit = new Octokit({
+        auth: githubAccessToken
+      });
+      console.log("GitHub API client initialized successfully");
+    } catch (githubInitError) {
+      console.error("Error initializing GitHub API client:", githubInitError);
+      return new Response(
+        JSON.stringify({ error: `Failed to initialize GitHub client: ${githubInitError.message}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify repository exists
+    try {
+      console.log(`Verifying repository exists: ${script.github_owner}/${script.github_repo}`);
+      await octokit.rest.repos.get({
+        owner: script.github_owner,
+        repo: script.github_repo
+      });
+      console.log("Repository verification successful");
+    } catch (repoError) {
+      console.error("Error verifying repository:", repoError);
+      if (repoError.status === 404) {
+        return new Response(
+          JSON.stringify({ error: `Repository ${script.github_owner}/${script.github_repo} not found. Please ensure it exists.` }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(
+        JSON.stringify({ error: `Error accessing repository: ${repoError.message}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Get or create folder name
     const folderName = scriptFolderName || script.folder_name || `${script.title.toLowerCase().replace(/\s+/g, '-')}-${Date.now().toString().substring(7)}`;
+    console.log(`Using folder name: ${folderName}`);
     
     // If script doesn't have a folder_name yet, update it
     if (!script.folder_name) {
+      console.log("Updating script record with folder name");
       await supabaseClient
         .from('scripts')
         .update({ folder_name: folderName })
@@ -141,15 +201,17 @@ serve(async (req) => {
         } catch (error) {
           if (error.status === 404) {
             // Create the folder with a placeholder file
+            console.log("Creating main folder");
             await octokit.rest.repos.createOrUpdateFileContents({
               owner: script.github_owner,
               repo: script.github_repo,
               path: `${folderName}/.gitkeep`,
               message: "Initialize script folder",
-              content: "",
+              content: btoa(""),
             });
             console.log(`Created folder ${folderName}`);
           } else {
+            console.error("Unexpected error checking folder:", error);
             throw error;
           }
         }
@@ -165,21 +227,24 @@ serve(async (req) => {
         } catch (error) {
           if (error.status === 404) {
             // Create the versions folder with a placeholder file
+            console.log("Creating versions subfolder");
             await octokit.rest.repos.createOrUpdateFileContents({
               owner: script.github_owner,
               repo: script.github_repo,
               path: `${folderName}/versions/.gitkeep`,
               message: "Initialize versions folder",
-              content: "",
+              content: btoa(""),
             });
             console.log(`Created versions folder`);
           } else {
+            console.error("Unexpected error checking versions folder:", error);
             throw error;
           }
         }
 
         // Create initial README.md
         if (readmeContent) {
+          console.log("Creating README.md");
           await octokit.rest.repos.createOrUpdateFileContents({
             owner: script.github_owner,
             repo: script.github_repo,
@@ -191,6 +256,7 @@ serve(async (req) => {
         }
 
         // Create initial script-latest.json
+        console.log("Creating script-latest.json");
         await octokit.rest.repos.createOrUpdateFileContents({
           owner: script.github_owner,
           repo: script.github_repo,
@@ -203,7 +269,10 @@ serve(async (req) => {
       } catch (error) {
         console.error("Error creating folder structure:", error);
         return new Response(
-          JSON.stringify({ error: `Error creating folder structure: ${error.message}` }),
+          JSON.stringify({ 
+            error: `Error creating folder structure: ${error.message}`,
+            details: error.stack || 'No stack trace available'
+          }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -314,6 +383,7 @@ serve(async (req) => {
       }
     }
 
+    console.log("Operation completed successfully");
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -326,7 +396,11 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in commit-script-changes:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        stack: error.stack || 'No stack trace available',
+        name: error.name || 'Unknown error type'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
