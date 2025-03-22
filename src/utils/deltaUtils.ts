@@ -56,9 +56,9 @@ export const ensureDeltaContent = (value: any): DeltaContent => {
   }
   
   // If it's a string that might be JSON
-  if (typeof content === 'string') {
+  if (typeof value === 'string') {
     try {
-      const parsed = JSON.parse(content);
+      const parsed = JSON.parse(value);
       if (parsed && parsed.ops && Array.isArray(parsed.ops)) {
         return parsed as DeltaContent;
       }

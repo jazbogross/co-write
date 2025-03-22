@@ -8,7 +8,7 @@ interface EditorActionsProps {
   hasDraft: boolean;
   handleSave: () => Promise<void>;
   handleSubmitSuggestion: () => Promise<void>;
-  onSaveVersion?: () => void;  // Added this prop
+  onSaveVersion?: () => void;
 }
 
 export const EditorActions: React.FC<EditorActionsProps> = ({ 
@@ -17,7 +17,7 @@ export const EditorActions: React.FC<EditorActionsProps> = ({
   hasDraft, 
   handleSave, 
   handleSubmitSuggestion,
-  onSaveVersion  // Added this prop
+  onSaveVersion
 }) => {
   return (
     <div className="sticky top-0 z-20 flex justify-end items-center h-12 bg-black">

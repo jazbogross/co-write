@@ -10,7 +10,7 @@ import { EditorContent } from '@/components/editor/EditorContent';
 import { EditorActions } from '@/components/editor/EditorActions';
 import { SaveVersionDialog } from './editor/SaveVersionDialog';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
-import { ensureDeltaContent } from '@/utils/deltaUtils';
+import { ensureDeltaContent, toDelta } from '@/utils/deltaUtils';
 
 interface DeltaEditorProps {
   scriptId: string;
@@ -128,7 +128,8 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
       // Reload content after suggestion is submitted
       const result = await loadContent(scriptId);
       if (result) {
-        setContent(ensureDeltaContent(result)); // Convert to DeltaContent
+        // Convert DeltaStatic to DeltaStatic using toDelta to ensure type compatibility
+        setContent(toDelta(result));
       }
     } catch (error) {
       console.error('Error submitting suggestion:', error);
