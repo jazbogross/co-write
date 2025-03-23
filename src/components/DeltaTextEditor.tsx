@@ -59,7 +59,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   };
 
   const handleChangeSelection = (range: any, source: string, editor: any) => {
-    if (range) {
+    if (range && editor && typeof editor.getFormat === 'function') {
       setCurrentFormat(editor.getFormat(range));
     }
   };
@@ -132,12 +132,12 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
       
       // Get original content to compare with
       const { data } = await supabase
-        .from('script_content')
-        .select('content_delta')
-        .eq('script_id', scriptId)
+        .from('scripts')
+        .select('content')
+        .eq('id', scriptId)
         .single();
         
-      const originalContent = data?.content_delta || { ops: [{ insert: '\n' }] };
+      const originalContent = data?.content || { ops: [{ insert: '\n' }] };
       
       // Submit the suggestion
       const result = await submitAsSuggestion(lineData, originalContent);

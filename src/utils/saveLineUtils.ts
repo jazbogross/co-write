@@ -18,47 +18,18 @@ export const saveContent = async (
       ? { ops: [{ insert: content }] }
       : content;
     
-    // First check if content exists
-    const { data: existingData, error: checkError } = await supabase
-      .from('script_content')
-      .select('content_delta')
-      .eq('script_id', scriptId)
-      .maybeSingle();
+    // Update script content directly in scripts table
+    const { error: updateError } = await supabase
+      .from('scripts')
+      .update({
+        content: normalizeContentForStorage(deltaContent),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', scriptId);
     
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error('Error checking existing content:', checkError);
+    if (updateError) {
+      console.error('Error updating content:', updateError);
       return false;
-    }
-    
-    // If no content exists, create it
-    if (!existingData) {
-      const { error: insertError } = await supabase
-        .from('script_content')
-        .insert({
-          script_id: scriptId,
-          content_delta: normalizeContentForStorage(deltaContent),
-          updated_at: new Date().toISOString(),
-          version: 1
-        });
-      
-      if (insertError) {
-        console.error('Error creating content:', insertError);
-        return false;
-      }
-    } else {
-      // If content exists, update it
-      const { error: updateError } = await supabase
-        .from('script_content')
-        .update({
-          content_delta: normalizeContentForStorage(deltaContent),
-          updated_at: new Date().toISOString()
-        })
-        .eq('script_id', scriptId);
-      
-      if (updateError) {
-        console.error('Error updating content:', updateError);
-        return false;
-      }
     }
     
     return true;
@@ -74,9 +45,9 @@ export const saveContent = async (
 export const loadContent = async (scriptId: string): Promise<DeltaStatic | null> => {
   try {
     const { data, error } = await supabase
-      .from('script_content')
-      .select('content_delta')
-      .eq('script_id', scriptId)
+      .from('scripts')
+      .select('content')
+      .eq('id', scriptId)
       .maybeSingle();
     
     if (error) {
@@ -84,15 +55,15 @@ export const loadContent = async (scriptId: string): Promise<DeltaStatic | null>
       return null;
     }
     
-    if (!data?.content_delta) {
+    if (!data?.content) {
       console.error('No content found for script:', scriptId);
       return { ops: [{ insert: '\n' }] } as unknown as DeltaStatic;
     }
     
     // Parse Delta content if needed
-    const deltaContent = typeof data.content_delta === 'string'
-      ? JSON.parse(data.content_delta)
-      : data.content_delta;
+    const deltaContent = typeof data.content === 'string'
+      ? JSON.parse(data.content)
+      : data.content;
     
     return deltaContent as unknown as DeltaStatic;
   } catch (error) {
@@ -115,19 +86,17 @@ export const saveNamedVersion = async (
   try {
     // Get current version number
     const { data: currentData } = await supabase
-      .from('script_content')
-      .select('version')
-      .eq('script_id', scriptId)
+      .from('scripts')
+      .select('updated_at')
+      .eq('id', scriptId)
       .single();
-    
-    const versionNumber = (currentData?.version || 0) + 1;
     
     // Save version to script_versions table
     const { error } = await supabase
       .from('script_versions')
       .insert({
         script_id: scriptId,
-        version_number: versionNumber,
+        version_number: 1, // Start with version 1 since we no longer track in content table
         content_delta: normalizeContentForStorage(content),
         created_by: userId,
         version_name: versionName

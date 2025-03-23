@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { DeltaStatic } from 'quill';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +17,11 @@ export const toJSON = (delta: DeltaStatic | any): Record<string, any> => {
     try {
       // Try to parse if it's a string
       if (typeof delta === 'string') {
+        // Check if it's an HTML string
+        if (delta.includes('<')) {
+          console.warn('HTML detected in delta - converting to plain text');
+          return { ops: [{ insert: delta.replace(/<[^>]*>/g, '') + '\n' }] };
+        }
         return JSON.parse(delta);
       }
       return { ops: [{ insert: String(delta) + '\n' }] };
@@ -31,24 +35,24 @@ export const toJSON = (delta: DeltaStatic | any): Record<string, any> => {
 };
 
 /**
- * Load content from script_content table
+ * Load content from scripts table
  */
 export const loadContent = async (scriptId: string): Promise<DeltaStatic | null> => {
   try {
     const { data, error } = await supabase
-      .from('script_content')
-      .select('content_delta')
-      .eq('script_id', scriptId)
+      .from('scripts')
+      .select('content')
+      .eq('id', scriptId)
       .maybeSingle();
 
     if (error) throw error;
 
-    if (!data || !data.content_delta) {
+    if (!data || !data.content) {
       console.log('No content found for script:', scriptId);
       return null;
     }
 
-    const deltaContent = data.content_delta;
+    const deltaContent = data.content;
     
     // Convert the content to a proper Delta object
     return toDelta(deltaContent);
@@ -59,47 +63,23 @@ export const loadContent = async (scriptId: string): Promise<DeltaStatic | null>
 };
 
 /**
- * Save content to script_content table
+ * Save content to scripts table
  */
 export const saveContent = async (scriptId: string, content: DeltaStatic | any): Promise<boolean> => {
   try {
     // Convert content to proper format if needed
     const normalizedContent = normalizeContentForStorage(content);
 
-    // Check if content already exists
-    const { data, error: fetchError } = await supabase
-      .from('script_content')
-      .select('script_id')
-      .eq('script_id', scriptId)
-      .maybeSingle();
+    // Update scripts table
+    const { error: updateError } = await supabase
+      .from('scripts')
+      .update({ 
+        content: normalizedContent,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', scriptId);
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      throw fetchError;
-    }
-
-    if (data) {
-      // Update existing content
-      const { error: updateError } = await supabase
-        .from('script_content')
-        .update({ 
-          content_delta: normalizedContent,
-          updated_at: new Date().toISOString()
-        })
-        .eq('script_id', scriptId);
-
-      if (updateError) throw updateError;
-    } else {
-      // Create new content
-      const { error: insertError } = await supabase
-        .from('script_content')
-        .insert({
-          script_id: scriptId,
-          content_delta: normalizedContent
-        });
-
-      if (insertError) throw insertError;
-    }
-
+    if (updateError) throw updateError;
     return true;
   } catch (error) {
     console.error('Error saving content:', error);
@@ -129,10 +109,9 @@ export const ensureDeltaContent = (value: any): DeltaContent => {
         return parsed;
       }
       
-      // If the string contains HTML tags, we need to create a proper Delta
+      // If the string contains HTML tags, convert to plain text
       if (value.includes('<')) {
         console.warn('HTML detected in Delta string - converting to plain text');
-        // Create a basic Delta with the text content only
         return { ops: [{ insert: value.replace(/<[^>]*>/g, '') + '\n' }] };
       }
       
@@ -140,6 +119,11 @@ export const ensureDeltaContent = (value: any): DeltaContent => {
       return { ops: [{ insert: value + '\n' }] };
     } catch {
       // Not valid JSON, treat as plain text
+      // Check if it's HTML content
+      if (value.includes('<')) {
+        console.warn('HTML detected in content string - converting to plain text');
+        return { ops: [{ insert: value.replace(/<[^>]*>/g, '') + '\n' }] };
+      }
       return { ops: [{ insert: value + '\n' }] };
     }
   }
@@ -157,7 +141,6 @@ export const toDelta = (content: any): DeltaStatic => {
   // Ensure we're creating a proper Delta instance
   try {
     // Create a new Delta instance
-    // Use "as any" to work around TypeScript issues with the Delta constructor
     const delta = new Delta(deltaContent.ops as any);
     return delta as unknown as DeltaStatic;
   } catch (e) {
@@ -175,7 +158,7 @@ export const normalizeContentForStorage = (content: any): Record<string, any> =>
     return { ops: [{ insert: '\n' }] };
   }
   
-  // If it's an HTML string, warn and convert to plain text
+  // Handle HTML content by converting to plain text
   if (typeof content === 'string' && content.includes('<')) {
     console.warn('HTML detected in content - converting to plain text');
     return { ops: [{ insert: content.replace(/<[^>]*>/g, '') + '\n' }] };
@@ -190,7 +173,13 @@ export const normalizeContentForStorage = (content: any): Record<string, any> =>
   // If it's a string, try to parse it
   if (typeof content === 'string') {
     try {
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      // Check if parsed content contains HTML
+      if (typeof parsed === 'string' && parsed.includes('<')) {
+        console.warn('HTML detected in parsed content - converting to plain text');
+        return { ops: [{ insert: parsed.replace(/<[^>]*>/g, '') + '\n' }] };
+      }
+      return parsed;
     } catch {
       return { ops: [{ insert: content + '\n' }] };
     }

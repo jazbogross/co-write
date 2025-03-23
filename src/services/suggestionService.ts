@@ -8,7 +8,7 @@ import Delta from 'quill-delta';
  * Fetch all suggestions for a script
  */
 export const fetchSuggestions = async (scriptId: string) => {
-  // Fetch suggestions without joining with profiles
+  // Fetch suggestions
   const { data, error } = await supabase
     .from('script_suggestions')
     .select(`
@@ -58,16 +58,16 @@ export const fetchUserProfiles = async (userIds: string[]) => {
  */
 export const fetchOriginalContent = async (scriptId: string): Promise<DeltaStatic> => {
   const { data, error } = await supabase
-    .from('script_content')
-    .select('content_delta')
-    .eq('script_id', scriptId)
+    .from('scripts')
+    .select('content')
+    .eq('id', scriptId)
     .single();
   
   if (error) throw error;
   
   // Create a proper Delta object from content
-  if (data?.content_delta) {
-    return safeToDelta(data.content_delta);
+  if (data?.content) {
+    return safeToDelta(data.content);
   }
   
   // Default to empty content with newline
@@ -99,37 +99,23 @@ export const approveSuggestion = async (
   // Apply the diff to the original content
   const newContent = originalContent.compose(diff!);
   
-  // Update the script_content with the new content
+  // Update the scripts table with the new content
   const { error: updateError } = await supabase
-    .from('script_content')
+    .from('scripts')
     .update({ 
-      content_delta: JSON.parse(JSON.stringify(newContent))
+      content: JSON.parse(JSON.stringify(newContent)),
+      updated_at: new Date().toISOString()
     })
-    .eq('script_id', scriptId);
+    .eq('id', scriptId);
 
   if (updateError) throw updateError;
-
-  // Get current version
-  const { data: versionData } = await supabase
-    .from('script_content')
-    .select('version')
-    .eq('script_id', scriptId)
-    .single();
-  
-  const newVersion = (versionData?.version || 0) + 1;
-  
-  // Update version number
-  await supabase
-    .from('script_content')
-    .update({ version: newVersion })
-    .eq('script_id', scriptId);
   
   // Save version history
   await supabase
     .from('script_versions')
     .insert({
       script_id: scriptId,
-      version_number: newVersion,
+      version_number: 1, // Start with version 1 since we don't track versions in content anymore
       content_delta: JSON.parse(JSON.stringify(newContent)),
       created_at: new Date().toISOString()
     });

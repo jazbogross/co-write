@@ -15,9 +15,9 @@ import { toDelta, toJSON } from '@/utils/deltaUtils';
 export const fetchScriptContent = async (scriptId: string): Promise<ScriptContent | null> => {
   try {
     const { data, error } = await supabase
-      .from('script_content')
-      .select('content_delta, version')
-      .eq('script_id', scriptId)
+      .from('scripts')
+      .select('content, updated_at')
+      .eq('id', scriptId)
       .single();
 
     if (error) {
@@ -29,8 +29,8 @@ export const fetchScriptContent = async (scriptId: string): Promise<ScriptConten
 
     return {
       scriptId,
-      contentDelta: toDelta(data.content_delta),
-      version: data.version
+      contentDelta: toDelta(data.content),
+      version: 1 // Fixed version since we no longer track versions in content
     };
   } catch (error) {
     console.error('Error in fetchScriptContent:', error);
@@ -53,26 +53,14 @@ export const saveScriptContent = async (
     // Get current user for version history
     const { data: { user } } = await supabase.auth.getUser();
     
-    // Determine current version
-    const { data: currentContent } = await supabase
-      .from('script_content')
-      .select('version')
-      .eq('script_id', scriptId)
-      .single();
-    
-    const newVersion = isAdmin ? (currentContent?.version || 0) + 1 : (currentContent?.version || 0);
-    
-    // Update script content
+    // Update script content directly in scripts table
     const { error } = await supabase
-      .from('script_content')
-      .upsert({
-        script_id: scriptId,
-        content_delta: contentJson,
-        version: newVersion,
+      .from('scripts')
+      .update({
+        content: contentJson,
         updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'script_id'
-      });
+      })
+      .eq('id', scriptId);
 
     if (error) {
       console.error('Error saving script content:', error);
@@ -86,7 +74,7 @@ export const saveScriptContent = async (
           .from('script_versions')
           .insert({
             script_id: scriptId,
-            version_number: newVersion,
+            version_number: 1, // Start with version 1 since we don't track versions in content anymore
             content_delta: contentJson,
             created_by: user?.id
           });
@@ -109,9 +97,9 @@ export const saveScriptContent = async (
 export const getCurrentVersion = async (scriptId: string): Promise<number> => {
   try {
     const { data, error } = await supabase
-      .from('script_content')
+      .from('scripts')
       .select('version')
-      .eq('script_id', scriptId)
+      .eq('id', scriptId)
       .single();
 
     if (error) {
@@ -298,10 +286,10 @@ export const approveSuggestion = async (suggestionId: string): Promise<boolean> 
     }
 
     // Get the current script content
-    const { data: scriptContent, error: scriptError } = await supabase
-      .from('script_content')
-      .select('content_delta, version')
-      .eq('script_id', suggestion.script_id)
+    const { data: scriptData, error: scriptError } = await supabase
+      .from('scripts')
+      .select('content')
+      .eq('id', suggestion.script_id)
       .single();
 
     if (scriptError) {
@@ -310,7 +298,7 @@ export const approveSuggestion = async (suggestionId: string): Promise<boolean> 
     }
 
     // Convert to Delta objects
-    const currentDelta = toDelta(scriptContent.content_delta);
+    const currentDelta = toDelta(scriptData.content);
     const diffDelta = toDelta(suggestion.delta_diff);
 
     // Compose the deltas to get the new content
@@ -319,13 +307,12 @@ export const approveSuggestion = async (suggestionId: string): Promise<boolean> 
 
     // Update the script content with the new delta
     const { error: updateContentError } = await supabase
-      .from('script_content')
+      .from('scripts')
       .update({
-        content_delta: newDeltaJson,
-        version: scriptContent.version + 1,
+        content: newDeltaJson,
         updated_at: new Date().toISOString()
       })
-      .eq('script_id', suggestion.script_id);
+      .eq('id', suggestion.script_id);
 
     if (updateContentError) {
       console.error('Error updating script content:', updateContentError);
@@ -351,7 +338,7 @@ export const approveSuggestion = async (suggestionId: string): Promise<boolean> 
       .from('script_versions')
       .insert({
         script_id: suggestion.script_id,
-        version_number: scriptContent.version + 1,
+        version_number: 1, // Start with version 1 since we don't track versions in content anymore
         content_delta: newDeltaJson,
         created_by: suggestion.user_id  // Credit the suggestion author
       });

@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -9,7 +8,7 @@ import { DeltaContent } from '@/utils/editor/types';
 import { saveNamedVersion } from '@/utils/saveLineUtils';
 import { DeltaStatic } from 'quill';
 
-// Update function to handle line data string
+// Update function to use scripts table
 const saveScriptContent = async (
   scriptId: string,
   content: DeltaContent | DeltaStatic | string,
@@ -25,16 +24,14 @@ const saveScriptContent = async (
     // Normalize content for storage
     const normalizedContent = normalizeContentForStorage(content);
     
-    // Update script_content table
+    // Update scripts table directly
     const { error } = await supabase
-      .from('script_content')
-      .upsert({
-        script_id: scriptId,
-        content_delta: normalizedContent,
+      .from('scripts')
+      .update({
+        content: normalizedContent,
         updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'script_id'
-      });
+      })
+      .eq('id', scriptId);
     
     if (error) {
       console.error('Error saving script content:', error);

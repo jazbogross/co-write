@@ -66,18 +66,18 @@ export const useTextEditor = (
           }
         }
         
-        // If no draft or no user, load main content
+        // If no draft or no user, load main content from scripts table
         const { data, error } = await supabase
-          .from('script_content')
-          .select('content_delta')
-          .eq('script_id', scriptId)
+          .from('scripts')
+          .select('content')
+          .eq('id', scriptId)
           .maybeSingle();
         
         if (error && error.code !== 'PGRST116') {
           throw error;
         }
         
-        if (!data || !data.content_delta) {
+        if (!data || !data.content) {
           // Content not found, create empty content
           const emptyDelta = { ops: [{ insert: '\n' }] };
           setContent(toDelta(emptyDelta));
@@ -85,25 +85,24 @@ export const useTextEditor = (
           // For admins, save the empty content
           if (isAdmin) {
             await supabase
-              .from('script_content')
-              .insert({
-                script_id: scriptId,
-                content_delta: emptyDelta,
-                version: 1
-              });
+              .from('scripts')
+              .update({
+                content: emptyDelta
+              })
+              .eq('id', scriptId);
           }
         } else {
           // Parse Delta content if needed
-          console.log('Found content:', data.content_delta);
+          console.log('Found content:', data.content);
           
           // Check for HTML in content
-          if (typeof data.content_delta === 'string' && data.content_delta.includes('<')) {
+          if (typeof data.content === 'string' && data.content.includes('<')) {
             console.warn('HTML detected in content - converting to plain text');
-            const plainText = data.content_delta.replace(/<[^>]*>/g, '');
+            const plainText = data.content.replace(/<[^>]*>/g, '');
             setContent(toDelta({ ops: [{ insert: plainText + '\n' }] }));
           } else {
             // Ensure it's a proper Delta object
-            setContent(toDelta(data.content_delta));
+            setContent(toDelta(data.content));
           }
         }
       } catch (error) {

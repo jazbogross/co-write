@@ -51,12 +51,20 @@ export const saveSuggestions = async (
     // Normalize the delta to be Supabase-compatible
     const normalizedDelta = normalizeContentForStorage(suggestion.deltaDiff);
     
-    // Save to database
+    // Get the current authenticated user to verify
+    const { data: userData } = await supabase.auth.getUser();
+    
+    if (!userData || !userData.user) {
+      console.error('No authenticated user found');
+      return { success: false, error: 'Authentication required' };
+    }
+    
+    // Save to database using the authenticated user's ID
     const { data, error } = await supabase
       .from('script_suggestions')
       .insert({
         script_id: suggestion.scriptId,
-        user_id: suggestion.userId,
+        user_id: userData.user.id, // Use the authenticated user's ID
         delta_diff: normalizedDelta,
         status: 'pending'
       })

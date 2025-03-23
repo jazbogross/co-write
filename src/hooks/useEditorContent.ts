@@ -45,9 +45,21 @@ export function useEditorContent(scriptId: string, isAdmin: boolean) {
           }
           
           // Load main content if no draft found or user is admin
-          const contentData = await loadContent(scriptId);
-          if (contentData) {
-            setContent(contentData);
+          // Now use scripts table directly
+          const { data: scriptData, error } = await supabase
+            .from('scripts')
+            .select('content')
+            .eq('id', scriptId)
+            .single();
+          
+          if (error) {
+            console.error('Error loading script content:', error);
+            return;
+          }
+          
+          if (scriptData?.content) {
+            const deltaContent = ensureDeltaContent(scriptData.content);
+            setContent(deltaContent as unknown as DeltaStatic);
           }
         }
       } catch (error) {

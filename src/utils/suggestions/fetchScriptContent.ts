@@ -12,9 +12,9 @@ export const fetchScriptContent = async (
 ): Promise<LineData[]> => {
   try {
     const { data, error } = await supabase
-      .from('script_content')
+      .from('scripts')
       .select('*')
-      .eq('script_id', scriptId)
+      .eq('id', scriptId)
       .single();
     
     if (error) {
@@ -31,15 +31,15 @@ export const fetchScriptContent = async (
     let content: DeltaContent;
     
     // Handle different content formats
-    if (data.content_delta) {
-      if (typeof data.content_delta === 'object') {
-        content = data.content_delta as unknown as DeltaContent;
-      } else if (typeof data.content_delta === 'string') {
+    if (data.content) {
+      if (typeof data.content === 'object') {
+        content = data.content as unknown as DeltaContent;
+      } else if (typeof data.content === 'string') {
         try {
-          content = JSON.parse(data.content_delta) as DeltaContent;
+          content = JSON.parse(data.content) as DeltaContent;
         } catch (e) {
           // If parse fails, create a minimal Delta with the string
-          content = { ops: [{ insert: data.content_delta + '\n' }] };
+          content = { ops: [{ insert: data.content + '\n' }] };
         }
       } else {
         // Default empty Delta
