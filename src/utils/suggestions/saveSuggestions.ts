@@ -59,6 +59,12 @@ export const saveSuggestions = async (
       return { success: false, error: 'Authentication required' };
     }
     
+    // Make sure userId matches the authenticated user's ID
+    if (userData.user.id !== userId) {
+      console.error('User ID mismatch');
+      return { success: false, error: 'User ID does not match authenticated user' };
+    }
+    
     // Save to database using the authenticated user's ID
     const { data, error } = await supabase
       .from('script_suggestions')

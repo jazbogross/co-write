@@ -187,6 +187,7 @@ export type Database = {
           admin_id: string
           content: Json | null
           created_at: string | null
+          edited_by: Json | null
           folder_name: string | null
           github_owner: string | null
           github_repo: string | null
@@ -199,6 +200,7 @@ export type Database = {
           admin_id: string
           content?: Json | null
           created_at?: string | null
+          edited_by?: Json | null
           folder_name?: string | null
           github_owner?: string | null
           github_repo?: string | null
@@ -211,6 +213,7 @@ export type Database = {
           admin_id?: string
           content?: Json | null
           created_at?: string | null
+          edited_by?: Json | null
           folder_name?: string | null
           github_owner?: string | null
           github_repo?: string | null

@@ -7,7 +7,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { toast } from 'sonner';
 import { DeltaStatic } from 'quill';
 import Delta from 'quill-delta';
-import { useSession } from '@supabase/auth-helpers-react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface SuggestionFormProps {
   scriptId: string;
@@ -20,8 +20,7 @@ export const SuggestionForm: React.FC<SuggestionFormProps> = ({
   currentContent,
   onSuggestionSubmitted 
 }) => {
-  const session = useSession();
-  const user = session?.user;
+  const { user } = useAuth();
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -43,8 +42,15 @@ export const SuggestionForm: React.FC<SuggestionFormProps> = ({
     try {
       // Create a Delta for the suggestion, then convert to plain object for storage
       const suggestionDelta = new Delta([{ insert: comment + "\n" }]);
+      
       // Convert Delta to a plain JSON object that Supabase can store
       const jsonDeltaDiff = JSON.parse(JSON.stringify(suggestionDelta));
+      
+      // Verify the user is authenticated
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) {
+        throw new Error('Authentication required');
+      }
       
       const { error } = await supabase
         .from('script_suggestions')
