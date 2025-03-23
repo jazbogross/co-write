@@ -49,10 +49,11 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
           ? JSON.parse(content) 
           : content;
         
-        setEditorContent(delta);
+        // Use toDelta to ensure we get a proper DeltaStatic object
+        setEditorContent(toDelta(delta));
       } catch (e) {
         console.error('Failed to parse content:', e);
-        setEditorContent({ ops: [{ insert: '\n' }] });
+        setEditorContent(toDelta({ ops: [{ insert: '\n' }] }));
       }
     }
   }, [content, isLoading]);
@@ -158,7 +159,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
       <ReactQuill
         ref={quillRef}
         theme="snow"
-        value={editorContent || { ops: [{ insert: '\n' }] }}
+        value={editorContent || toDelta({ ops: [{ insert: '\n' }] })}
         onChange={handleChange}
         onChangeSelection={handleChangeSelection}
         modules={{

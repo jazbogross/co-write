@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { DeltaStatic } from 'quill';
 import { supabase } from '@/integrations/supabase/client';
@@ -144,10 +145,17 @@ export const ensureDeltaContent = (value: any): DeltaContent => {
  */
 export const toDelta = (content: any): DeltaStatic => {
   const deltaContent = ensureDeltaContent(content);
-  // Fix the type issue by properly casting the operations
-  // Cast the ops to any first to bypass the type checking
-  const ops = deltaContent.ops as any;
-  return new Delta(ops) as unknown as DeltaStatic;
+  
+  // Ensure we're creating a proper Delta instance
+  // The key fix here: properly cast the ops to be compatible with Delta constructor
+  try {
+    // Create a new Delta instance
+    const delta = new Delta(deltaContent.ops as any);
+    return delta as unknown as DeltaStatic;
+  } catch (e) {
+    console.error('Error converting to Delta:', e);
+    return new Delta([{ insert: '\n' }]) as unknown as DeltaStatic;
+  }
 };
 
 /**

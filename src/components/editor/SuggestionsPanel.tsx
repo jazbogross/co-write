@@ -26,6 +26,7 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
   const [isLoading, setIsLoading] = useState(true);
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [currentSuggestionId, setCurrentSuggestionId] = useState<string | null>(null);
+  const [usernames, setUsernames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadSuggestions();
@@ -35,6 +36,7 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
     try {
       setIsLoading(true);
       
+      // First, fetch suggestions without joining profiles
       const { data, error } = await supabase
         .from('script_suggestions')
         .select(`
@@ -43,14 +45,36 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
           delta_diff, 
           status, 
           created_at, 
-          rejection_reason,
-          profiles(username)
+          rejection_reason
         `)
         .eq('script_id', scriptId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
+      
+      if (data && data.length > 0) {
+        // Get unique user IDs
+        const userIds = [...new Set(data.map(item => item.user_id))];
+        
+        // Fetch usernames in a separate query
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', userIds);
+          
+        if (profilesError) throw profilesError;
+        
+        // Create a map of user IDs to usernames
+        const usernameMap: Record<string, string> = {};
+        if (profilesData) {
+          profilesData.forEach(profile => {
+            usernameMap[profile.id] = profile.username || 'Unknown user';
+          });
+        }
+        
+        setUsernames(usernameMap);
+      }
       
       setSuggestions(data || []);
     } catch (err) {
@@ -89,37 +113,21 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
     setIsRejectionDialogOpen(true);
   };
 
-  const handleReject = async (suggestionId: string, reason: string) => {
-    try {
-      // Update suggestion status to rejected with reason
-      const { error } = await supabase
-        .from('script_suggestions')
-        .update({ 
-          status: 'rejected', 
-          rejection_reason: reason,
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', suggestionId);
-      
-      if (error) throw error;
-      
-      // Remove from local state
-      setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
-      
-      toast.success('Suggestion rejected');
-    } catch (err) {
-      console.error('Error rejecting suggestion:', err);
-      toast.error('Failed to reject suggestion');
-    } finally {
-      setIsRejectionDialogOpen(false);
-      setCurrentSuggestionId(null);
+  const handleRejectSuccess = () => {
+    // Remove rejected suggestion from local state
+    if (currentSuggestionId) {
+      setSuggestions(prev => prev.filter(s => s.id !== currentSuggestionId));
     }
+    
+    setCurrentSuggestionId(null);
+    setIsRejectionDialogOpen(false);
   };
 
   // Generate diff data for SuggestionDiffView
-  const generateDiffData = (deltaDiff: DeltaStatic) => {
+  const generateDiffData = (deltaDiff: any) => {
     // Convert Delta to plain text for diffing
-    const diffText = extractPlainTextFromDelta(deltaDiff);
+    const diffDelta = safeToDelta(deltaDiff);
+    const diffText = extractPlainTextFromDelta(diffDelta);
     // Use empty string as original for now (we'll need actual original content later)
     const originalText = '';
     
@@ -151,55 +159,56 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
           <div className="text-center py-4">No pending suggestions</div>
         ) : (
           <Accordion type="single" collapsible>
-            {suggestions.map((suggestion) => (
-              <AccordionItem key={suggestion.id} value={suggestion.id}>
-                <AccordionTrigger className="px-2 hover:bg-muted/50 rounded">
-                  <div className="flex justify-between items-center w-full pr-4">
-                    <div className="flex items-center gap-2">
-                      <User size={16} className="text-muted-foreground" />
-                      <span>{suggestion.profiles?.username || 'Unknown User'}</span>
+            {suggestions.map((suggestion) => {
+              const diffData = generateDiffData(suggestion.delta_diff);
+              
+              return (
+                <AccordionItem key={suggestion.id} value={suggestion.id}>
+                  <AccordionTrigger className="px-2 hover:bg-muted/50 rounded">
+                    <div className="flex justify-between items-center w-full pr-4">
+                      <div className="flex items-center gap-2">
+                        <User size={16} className="text-muted-foreground" />
+                        <span>{usernames[suggestion.user_id] || 'Unknown User'}</span>
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <Badge variant="outline">
+                          {new Date(suggestion.created_at).toLocaleDateString()}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex gap-2 items-center">
-                      <Badge variant="outline">
-                        {new Date(suggestion.created_at).toLocaleDateString()}
-                      </Badge>
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-2 pb-4">
-                    {/* Use the proper props for SuggestionDiffView */}
-                    {suggestion.delta_diff && (
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="pt-2 pb-4">
                       <SuggestionDiffView 
-                        originalContent=""
-                        suggestedContent={extractPlainTextFromDelta(safeToDelta(suggestion.delta_diff))}
-                        diffChanges={generateDiffData(safeToDelta(suggestion.delta_diff)).diffChanges}
+                        originalContent={diffData.originalContent}
+                        suggestedContent={diffData.suggestedContent}
+                        diffChanges={diffData.diffChanges}
                       />
-                    )}
-                    
-                    <div className="flex justify-end gap-2 mt-4">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => openRejectionDialog(suggestion.id)}
-                        className="flex items-center gap-1"
-                      >
-                        <XCircle size={16} />
-                        Reject
-                      </Button>
-                      <Button 
-                        size="sm"
-                        onClick={() => handleAccept(suggestion.id, safeToDelta(suggestion.delta_diff))}
-                        className="flex items-center gap-1"
-                      >
-                        <CheckCircle size={16} />
-                        Accept
-                      </Button>
+                      
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => openRejectionDialog(suggestion.id)}
+                          className="flex items-center gap-1"
+                        >
+                          <XCircle size={16} />
+                          Reject
+                        </Button>
+                        <Button 
+                          size="sm"
+                          onClick={() => handleAccept(suggestion.id, safeToDelta(suggestion.delta_diff))}
+                          className="flex items-center gap-1"
+                        >
+                          <CheckCircle size={16} />
+                          Accept
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
           </Accordion>
         )}
       </CardContent>
@@ -209,10 +218,7 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
         open={isRejectionDialogOpen}
         onOpenChange={setIsRejectionDialogOpen}
         suggestionId={currentSuggestionId || ''}
-        onSuccess={() => {
-          setCurrentSuggestionId(null);
-          setIsRejectionDialogOpen(false);
-        }}
+        onSuccess={handleRejectSuccess}
       />
     </Card>
   );
