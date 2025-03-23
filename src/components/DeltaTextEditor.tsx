@@ -76,8 +76,15 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     if (quillRef.current) {
       const editor = quillRef.current.getEditor();
       editor.format(format, value);
+      
+      // Immediately update the toolbar state based on current selection
+      const selection = editor.getSelection();
+      if (selection) {
+        setCurrentFormat(editor.getFormat(selection));
+      }
     }
   };
+  
 
   const handleSubmit = async () => {
     if (!userId) {

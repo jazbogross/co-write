@@ -23,7 +23,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ currentFormat, onF
 
   // Toggle alignment to left (or remove alignment if Quill uses `false`)
   const alignLeft = () => {
-    onFormat('align', false);
+    onFormat('align', null);
   };
 
   const alignCenter = () => {
@@ -38,11 +38,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ currentFormat, onF
   const toggleRTL = () => {
     const isCurrentlyRTL = currentFormat.direction === 'rtl';
     if (isCurrentlyRTL) {
-      // if already RTL, switch to LTR
-      onFormat('direction', false);
-      onFormat('align', false);
+      onFormat('direction', null);
+      onFormat('align', null);
     } else {
-      // set text to RTL and align right
       onFormat('direction', 'rtl');
       onFormat('align', 'right');
     }
