@@ -53,14 +53,22 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     }
   }, [content, isLoading]);
 
-  const handleChange = (content: DeltaStatic) => {
-    // Set the content as a Delta object directly
-    setEditorContent(content);
+  const handleChange = (value: string, delta: DeltaStatic, source: string, editor: any) => {
+    if (editor && editor.getContents) {
+      // Get the actual Delta object from the editor
+      const contentDelta = editor.getContents();
+      setEditorContent(contentDelta);
+    }
   };
 
   const handleChangeSelection = (range: any, source: string, editor: any) => {
     if (range && editor && typeof editor.getFormat === 'function') {
-      setCurrentFormat(editor.getFormat(range));
+      try {
+        setCurrentFormat(editor.getFormat(range));
+      } catch (error) {
+        console.error('Error getting format:', error);
+        setCurrentFormat({});
+      }
     }
   };
 

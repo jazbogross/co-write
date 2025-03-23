@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { DeltaStatic } from 'quill';
 import { supabase } from '@/integrations/supabase/client';
-import { loadContent } from '@/utils/deltaUtils';
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';
 import { ensureDeltaContent } from '@/utils/deltaUtils';
@@ -44,8 +43,7 @@ export function useEditorContent(scriptId: string, isAdmin: boolean) {
             }
           }
           
-          // Load main content if no draft found or user is admin
-          // Now use scripts table directly
+          // Load content directly from scripts table
           const { data: scriptData, error } = await supabase
             .from('scripts')
             .select('content')

@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { DeltaStatic } from 'quill';
 import Delta from 'quill-delta';
@@ -96,18 +97,23 @@ export const saveScriptContent = async (
  */
 export const getCurrentVersion = async (scriptId: string): Promise<number> => {
   try {
+    // Since we no longer store version in scripts table, 
+    // get the latest version from script_versions table if it exists
     const { data, error } = await supabase
-      .from('scripts')
-      .select('version')
-      .eq('id', scriptId)
-      .single();
+      .from('script_versions')
+      .select('version_number')
+      .eq('script_id', scriptId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
       console.error('Error fetching script version:', error);
       return 1;
     }
 
-    return data?.version || 1;
+    // Return the version number or default to 1
+    return data?.version_number || 1;
   } catch (error) {
     console.error('Error in getCurrentVersion:', error);
     return 1;
