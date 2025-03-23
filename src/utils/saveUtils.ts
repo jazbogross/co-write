@@ -1,3 +1,3 @@
 
 // Re-export utilities from deltaUtils
-export { saveContent, loadContent, createSuggestion } from '../utils/deltaUtils';
+export { saveContent, loadContent, saveSuggestion as createSuggestion } from '../utils/deltaUtils';

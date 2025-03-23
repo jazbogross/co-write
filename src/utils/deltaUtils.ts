@@ -6,6 +6,31 @@ import { DeltaContent } from '@/utils/editor/types';
 import Delta from 'quill-delta';
 
 /**
+ * Convert Delta object to JSON for storage
+ */
+export const toJSON = (delta: DeltaStatic | any): Record<string, any> => {
+  if (!delta) {
+    return { ops: [{ insert: '\n' }] };
+  }
+  
+  // If it's already a plain object or JSON string
+  if (typeof delta !== 'object' || !delta.ops) {
+    try {
+      // Try to parse if it's a string
+      if (typeof delta === 'string') {
+        return JSON.parse(delta);
+      }
+      return { ops: [{ insert: String(delta) + '\n' }] };
+    } catch (e) {
+      return { ops: [{ insert: '\n' }] };
+    }
+  }
+  
+  // Return a plain object copy for JSON serialization
+  return JSON.parse(JSON.stringify(delta));
+};
+
+/**
  * Load content from script_content table
  */
 export const loadContent = async (scriptId: string): Promise<DeltaStatic | null> => {
@@ -29,7 +54,7 @@ export const loadContent = async (scriptId: string): Promise<DeltaStatic | null>
       return JSON.parse(deltaContent) as DeltaStatic;
     }
     
-    return deltaContent as DeltaStatic;
+    return deltaContent as unknown as DeltaStatic;
   } catch (error) {
     console.error('Error loading content:', error);
     return null;
@@ -120,6 +145,7 @@ export const ensureDeltaContent = (value: any): DeltaContent => {
  */
 export const toDelta = (content: any): DeltaStatic => {
   const deltaContent = ensureDeltaContent(content);
+  // Cast to unknown first to satisfy TypeScript
   return new Delta(deltaContent.ops || []) as unknown as DeltaStatic;
 };
 
@@ -181,3 +207,6 @@ export const saveSuggestion = async (
     return false;
   }
 };
+
+// Adding alias for createSuggestion to fix import reference
+export const createSuggestion = saveSuggestion;

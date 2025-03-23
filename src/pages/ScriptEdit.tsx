@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/card";
 import { useSession } from "@supabase/auth-helpers-react";
 import { SaveVersionDialog } from "@/components/editor/SaveVersionDialog";
+import { SuggestionsPanel } from "@/components/editor/SuggestionsPanel";
+import { DeltaStatic } from "quill";
 
 const ScriptEdit = () => {
   const { id } = useParams();
@@ -33,6 +35,8 @@ const ScriptEdit = () => {
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
   const [isSavingVersion, setIsSavingVersion] = useState(false);
   const [currentContent, setCurrentContent] = useState<string | null>(null);
+  const [showSuggestionsPanel, setShowSuggestionsPanel] = useState(false);
+  const [pendingSuggestionsCount, setPendingSuggestionsCount] = useState(0);
 
   useEffect(() => {
     const loadScript = async () => {
@@ -79,6 +83,12 @@ const ScriptEdit = () => {
 
         setScript(scriptData);
         setIsAdmin(session.user.id === scriptData.admin_id);
+        
+        // If admin, check for pending suggestions
+        if (session.user.id === scriptData.admin_id) {
+          checkPendingSuggestions(id);
+        }
+        
         setLoading(false);
       } catch (error) {
         console.error("Error loading script:", error);
@@ -89,6 +99,22 @@ const ScriptEdit = () => {
 
     loadScript();
   }, [id, navigate, session, location.pathname]);
+
+  const checkPendingSuggestions = async (scriptId: string) => {
+    try {
+      const { data, error, count } = await supabase
+        .from('script_suggestions')
+        .select('id', { count: 'exact' })
+        .eq('script_id', scriptId)
+        .eq('status', 'pending');
+      
+      if (error) throw error;
+      
+      setPendingSuggestionsCount(count || 0);
+    } catch (err) {
+      console.error('Error checking pending suggestions:', err);
+    }
+  };
 
   const handleCommitToGithub = async (content: string) => {
     if (!script || !id || !githubToken) return false;
@@ -162,6 +188,7 @@ const ScriptEdit = () => {
             version_name: versionName,
             created_by: session?.user?.id,
             github_path: githubPath,
+            content_delta: currentContent,
             version_number: 0  // Will be auto-incremented by a trigger
           });
           
@@ -181,6 +208,15 @@ const ScriptEdit = () => {
     }
   };
 
+  const handleToggleSuggestions = () => {
+    setShowSuggestionsPanel(!showSuggestionsPanel);
+  };
+
+  const handleAcceptSuggestion = (suggestionId: string, deltaDiff: DeltaStatic) => {
+    // Refresh pending suggestions count
+    checkPendingSuggestions(id!);
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -191,22 +227,33 @@ const ScriptEdit = () => {
 
   return (
     <div className="container min-w-screen">
-      <Card>
-        <CardHeader>
-          <CardTitle>{script.title}</CardTitle>
-          <CardDescription>
-            {isAdmin ? "Edit your script" : "Suggest changes to this script"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DeltaTextEditor 
-            scriptId={id} 
-            isAdmin={isAdmin}
-            onCommitToGithub={handleCommitToGithub}
-            onSaveVersion={handleSaveVersion}
-          />
-        </CardContent>
-      </Card>
+      {showSuggestionsPanel ? (
+        <SuggestionsPanel 
+          scriptId={id} 
+          onAccept={handleAcceptSuggestion} 
+          onClose={() => setShowSuggestionsPanel(false)} 
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>{script.title}</CardTitle>
+            <CardDescription>
+              {isAdmin ? "Edit your script" : "Suggest changes to this script"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DeltaTextEditor 
+              scriptId={id} 
+              isAdmin={isAdmin}
+              onCommitToGithub={handleCommitToGithub}
+              onSaveVersion={handleSaveVersion}
+              onToggleSuggestions={handleToggleSuggestions}
+              pendingSuggestionsCount={pendingSuggestionsCount}
+              hasPendingSuggestions={pendingSuggestionsCount > 0}
+            />
+          </CardContent>
+        </Card>
+      )}
       
       <SaveVersionDialog
         open={isVersionDialogOpen}

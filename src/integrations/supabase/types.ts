@@ -178,6 +178,7 @@ export type Database = {
           content_delta: Json
           created_at: string | null
           created_by: string | null
+          github_path: string | null
           id: string
           script_id: string | null
           version_name: string | null
@@ -187,6 +188,7 @@ export type Database = {
           content_delta: Json
           created_at?: string | null
           created_by?: string | null
+          github_path?: string | null
           id?: string
           script_id?: string | null
           version_name?: string | null
@@ -196,6 +198,7 @@ export type Database = {
           content_delta?: Json
           created_at?: string | null
           created_by?: string | null
+          github_path?: string | null
           id?: string
           script_id?: string | null
           version_name?: string | null
