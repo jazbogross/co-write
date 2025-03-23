@@ -162,12 +162,13 @@ export function CreateScriptDialog({ open, onOpenChange, onScriptCreated }: Crea
       // Save the initial script content to the database before GitHub operations
       try {
         await supabase
-          .from('script_content')
-          .insert({
-            script_id: script.id,
-            content_delta: JSON.parse(initialContent),
-            updated_at: new Date().toISOString()
-          });
+        .from('scripts')
+        .update({
+          content: JSON.parse(initialContent),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', script.id);
+      
         
         console.log("Initial content saved to database");
       } catch (contentError) {

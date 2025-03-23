@@ -47,24 +47,13 @@ export const CreateRepositoryButton: React.FC<CreateRepositoryButtonProps> = ({ 
         .insert({
           title: repositoryName.trim(),
           admin_id: user.id,
-          is_private: isPrivate
+          is_private: isPrivate,
+          content: { ops: [{ insert: '\n' }] }
         })
         .select('id')
         .single();
 
       if (error) throw error;
-
-      // Create initial empty content for the script
-      if (data?.id) {
-        const { error: contentError } = await supabase
-          .from('script_content')
-          .insert({
-            script_id: data.id,
-            content_delta: { ops: [{ insert: '\n' }] }
-          });
-
-        if (contentError) throw contentError;
-      }
 
       toast.success('Repository created successfully');
       setRepositoryName('');

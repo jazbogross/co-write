@@ -67,9 +67,9 @@ export const findBestMatchingLine = (
  */
 export const fetchLineDataFromSupabase = async (scriptId: string) => {
   const { data, error } = await supabase
-    .from('script_content')
+    .from('scripts')
     .select('*')
-    .eq('script_id', scriptId)
+    .eq('id', scriptId)
     .order('line_number', { ascending: true });
     
   if (error) throw error;

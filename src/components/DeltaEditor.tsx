@@ -86,19 +86,19 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
       const suggestedContent = quillRef.current.getEditor().getContents();
       
       const { data } = await supabase
-        .from('script_content')
-        .select('content_delta')
-        .eq('script_id', scriptId)
+        .from('scripts')
+        .select('content')
+        .eq('id', scriptId)
         .single();
       
-      if (!data?.content_delta) {
+      if (!data?.content) {
         toast.error('Could not load original content to compare');
         return;
       }
       
-      const contentDeltaData = typeof data.content_delta === 'string' 
-        ? JSON.parse(data.content_delta) 
-        : data.content_delta;
+      const contentDeltaData = typeof data.content === 'string' 
+        ? JSON.parse(data.content) 
+        : data.content;
         
       const originalDelta = new Delta(contentDeltaData.ops || []);
       

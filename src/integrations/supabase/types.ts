@@ -71,35 +71,6 @@ export type Database = {
           },
         ]
       }
-      script_content: {
-        Row: {
-          content_delta: Json
-          script_id: string
-          updated_at: string | null
-          version: number
-        }
-        Insert: {
-          content_delta?: Json
-          script_id: string
-          updated_at?: string | null
-          version?: number
-        }
-        Update: {
-          content_delta?: Json
-          script_id?: string
-          updated_at?: string | null
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "script_content_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: true
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       script_drafts: {
         Row: {
           draft_content: Json

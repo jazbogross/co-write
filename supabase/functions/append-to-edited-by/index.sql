@@ -8,7 +8,7 @@ DECLARE
   current_edited_by jsonb;
 BEGIN
   -- Get the current edited_by array
-  SELECT edited_by INTO current_edited_by FROM script_content WHERE id = content_id;
+  SELECT edited_by INTO current_edited_by FROM scripts WHERE id = content_id;
   
   -- If null, initialize as empty array
   IF current_edited_by IS NULL THEN
