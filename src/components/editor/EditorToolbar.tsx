@@ -1,6 +1,14 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Bold, Italic, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { 
+  Bold, 
+  Italic, 
+  AlignLeft, 
+  AlignCenter, 
+  AlignRight, 
+  ArrowLeftRight 
+} from 'lucide-react';
 
 interface EditorToolbarProps {
   currentFormat: Record<string, any>;  // e.g. { bold: true, italic: true, align: 'right', ... }
@@ -21,92 +29,105 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ currentFormat, onF
     onFormat('italic', !isCurrentlyItalic);
   };
 
-  // Toggle alignment to left (or remove alignment if Quill uses `false`)
+  // Set alignment to left (or remove alignment if Quill uses `false`)
   const alignLeft = () => {
+    // If already aligned left (or null), do nothing
+    if (!currentFormat.align) return;
     onFormat('align', null);
   };
 
   const alignCenter = () => {
-    onFormat('align', 'center');
+    // If already centered, remove alignment
+    if (currentFormat.align === 'center') {
+      onFormat('align', null);
+    } else {
+      onFormat('align', 'center');
+    }
   };
 
   const alignRight = () => {
-    onFormat('align', 'right');
-  };
-
-  // Example: toggling RTL. If it's already RTL, revert to LTR; otherwise set RTL.
-  const toggleRTL = () => {
-    const isCurrentlyRTL = currentFormat.direction === 'rtl';
-    if (isCurrentlyRTL) {
-      onFormat('direction', null);
+    // If already right-aligned, remove alignment
+    if (currentFormat.align === 'right') {
       onFormat('align', null);
     } else {
-      onFormat('direction', 'rtl');
       onFormat('align', 'right');
     }
   };
 
+  // Toggle RTL direction. If it's already RTL, revert to LTR; otherwise set RTL.
+  const toggleRTL = () => {
+    const isCurrentlyRTL = currentFormat.direction === 'rtl';
+    if (isCurrentlyRTL) {
+      onFormat('direction', false);
+    } else {
+      onFormat('direction', 'rtl');
+    }
+  };
+
   return (
-    <>
+    <div className="flex space-x-2">
       {/* BOLD */}
       <Button
         variant="outline"
         size="sm"
-        className={`justify-start ${currentFormat.bold ? 'bg-gray-600 text-white' : ''}`}
+        className={`${currentFormat.bold ? 'bg-gray-600 text-white' : ''}`}
         onClick={toggleBold}
       >
-        <Bold className="w-4 h-4 mr-2" />
+        <Bold className="w-4 h-4" />
       </Button>
 
       {/* ITALIC */}
       <Button
         variant="outline"
         size="sm"
-        className={`justify-start ${currentFormat.italic ? 'bg-gray-600 text-white' : ''}`}
+        className={`${currentFormat.italic ? 'bg-gray-600 text-white' : ''}`}
         onClick={toggleItalic}
       >
-        <Italic className="w-4 h-4 mr-2" />
+        <Italic className="w-4 h-4" />
       </Button>
 
-      {/* ALIGN LEFT */}
-      <Button
-        variant="outline"
-        size="sm"
-        className={`justify-start ${currentFormat.align === undefined ? 'bg-gray-600 text-white' : ''}`}
-        onClick={alignLeft}
-      >
-        <AlignLeft className="w-4 h-4 mr-2" />
-      </Button>
+      {/* ALIGNMENT */}
+      <div className="flex space-x-1 border rounded-md px-1">
+        {/* ALIGN LEFT */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`${!currentFormat.align ? 'bg-gray-600 text-white' : ''}`}
+          onClick={alignLeft}
+        >
+          <AlignLeft className="w-4 h-4" />
+        </Button>
 
-      {/* ALIGN CENTER */}
-      <Button
-        variant="outline"
-        size="sm"
-        className={`justify-start ${currentFormat.align === 'center' ? 'bg-gray-600 text-white' : ''}`}
-        onClick={alignCenter}
-      >
-        <AlignCenter className="w-4 h-4 mr-2" />
-      </Button>
+        {/* ALIGN CENTER */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`${currentFormat.align === 'center' ? 'bg-gray-600 text-white' : ''}`}
+          onClick={alignCenter}
+        >
+          <AlignCenter className="w-4 h-4" />
+        </Button>
 
-      {/* ALIGN RIGHT */}
-      <Button
-        variant="outline"
-        size="sm"
-        className={`justify-start ${currentFormat.align === 'right' ? 'bg-gray-600 text-white' : ''}`}
-        onClick={alignRight}
-      >
-        <AlignRight className="w-4 h-4 mr-2" />
-      </Button>
+        {/* ALIGN RIGHT */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`${currentFormat.align === 'right' ? 'bg-gray-600 text-white' : ''}`}
+          onClick={alignRight}
+        >
+          <AlignRight className="w-4 h-4" />
+        </Button>
+      </div>
 
       {/* TOGGLE RTL */}
       <Button
         variant="outline"
         size="sm"
-        className={`justify-start ${currentFormat.direction === 'rtl' ? 'bg-gray-600 text-white' : ''}`}
+        className={`${currentFormat.direction === 'rtl' ? 'bg-gray-600 text-white' : ''}`}
         onClick={toggleRTL}
       >
-        RTL
+        <ArrowLeftRight className="w-4 h-4" />
       </Button>
-    </>
+    </div>
   );
 };

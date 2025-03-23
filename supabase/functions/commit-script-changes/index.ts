@@ -140,7 +140,7 @@ serve(async (req) => {
               repo: scriptData.github_repo,
               path: `${versionsPath}/.gitkeep`,
               message: `Create versions directory for ${scriptData.title}`,
-              content: Buffer.from('').toString('base64')
+              content: btoa('')
             });
           } else {
             throw error;
@@ -161,7 +161,7 @@ serve(async (req) => {
           repo: scriptData.github_repo,
           path: `${versionsPath}/${fileName}`,
           message: `Save version "${versionName}" of ${scriptData.title}`,
-          content: Buffer.from(JSON.stringify(versionMetadata, null, 2)).toString('base64')
+          content: btoa(JSON.stringify(versionMetadata, null, 2))
         });
         
         console.log(`✅ Version file saved successfully`);
@@ -194,7 +194,7 @@ serve(async (req) => {
         repo: scriptData.github_repo,
         path: contentPath,
         message: `Update content for ${scriptData.title}`,
-        content: Buffer.from(content).toString('base64'),
+        content: btoa(content),
         sha: await getSHA(octokit, scriptData.github_owner, scriptData.github_repo, contentPath)
       });
       
@@ -241,3 +241,14 @@ async function getSHA(octokit: any, owner: string, repo: string, path: string): 
     throw error;
   }
 }
+
+// Helper function to Base64 encode strings in Deno (replacing Buffer)
+function btoa(str: string): string {
+  // Convert the string to an ArrayBuffer
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  
+  // Convert the ArrayBuffer to a base64 string
+  return btoa(String.fromCharCode(...new Uint8Array(data)));
+}
+

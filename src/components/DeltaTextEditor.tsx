@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -39,11 +38,9 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     userId
   });
 
-  // Initialize editor with content
   useEffect(() => {
     if (!isLoading && content) {
       try {
-        // Convert the content to a proper Delta object
         const delta = toDelta(content);
         setEditorContent(delta);
       } catch (e) {
@@ -53,22 +50,24 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     }
   }, [content, isLoading]);
 
-  const handleChange = (value: string, delta: DeltaStatic, source: string, editor: any) => {
+  const handleChange = (_value: string, _delta: DeltaStatic, _source: string, editor: any) => {
     if (editor && editor.getContents) {
-      // Get the actual Delta object from the editor
       const contentDelta = editor.getContents();
       setEditorContent(contentDelta);
     }
   };
 
-  const handleChangeSelection = (range: any, source: string, editor: any) => {
+  const handleChangeSelection = (range: any, _source: string, editor: any) => {
     if (range && editor && typeof editor.getFormat === 'function') {
       try {
-        setCurrentFormat(editor.getFormat(range));
+        const formats = editor.getFormat(range);
+        setCurrentFormat(formats);
       } catch (error) {
         console.error('Error getting format:', error);
         setCurrentFormat({});
       }
+    } else {
+      setCurrentFormat({});
     }
   };
 
@@ -77,14 +76,15 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
       const editor = quillRef.current.getEditor();
       editor.format(format, value);
       
-      // Immediately update the toolbar state based on current selection
       const selection = editor.getSelection();
       if (selection) {
-        setCurrentFormat(editor.getFormat(selection));
+        setCurrentFormat({
+          ...currentFormat,
+          [format]: value
+        });
       }
     }
   };
-  
 
   const handleSubmit = async () => {
     if (!userId) {
@@ -94,15 +94,10 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
 
     try {
       if (isAdmin && quillRef.current) {
-        // Get the Delta object directly from the editor
         const delta = quillRef.current.getEditor().getContents();
-        
-        // Save content to database
         const success = await submitEdits(delta);
         
         if (success && onCommitToGithub) {
-          // Also commit to GitHub if function is provided
-          // Convert Delta to string for GitHub storage
           await onCommitToGithub(JSON.stringify(delta));
         }
       }
@@ -116,10 +111,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     if (!userId || isAdmin || !quillRef.current) return;
     
     try {
-      // Get the Delta object directly from the editor
       const delta = quillRef.current.getEditor().getContents();
-      
-      // Save as draft for non-admin users
       await submitEdits(delta, { asDraft: true });
       toast.success('Draft saved successfully');
     } catch (error) {
@@ -132,10 +124,8 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     if (!userId || isAdmin || !quillRef.current) return;
     
     try {
-      // Get the Delta object directly from the editor
       const delta = quillRef.current.getEditor().getContents();
       
-      // Create a lineData object with the current editor content
       const lineData = [{
         uuid: scriptId,
         lineNumber: 1,
@@ -145,7 +135,6 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
         hasDraft: false
       }];
       
-      // Get original content to compare with
       const { data } = await supabase
         .from('scripts')
         .select('content')
@@ -154,7 +143,6 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
         
       const originalContent = data?.content || { ops: [{ insert: '\n' }] };
       
-      // Submit the suggestion
       const result = await submitAsSuggestion(lineData, originalContent);
       
       if (result.success) {
@@ -171,10 +159,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   const handleSaveVersion = () => {
     if (!onSaveVersion || !quillRef.current) return;
     
-    // Get the Delta object directly from the editor
     const delta = quillRef.current.getEditor().getContents();
-    
-    // Convert to JSON string for version storage
     onSaveVersion(JSON.stringify(delta));
   };
 
@@ -220,7 +205,9 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
           'image',
           'code-block',
           'background',
-          'color'
+          'color',
+          'align',
+          'direction'
         ]}
       />
     </div>
