@@ -1,7 +1,7 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { Octokit } from 'https://esm.sh/@octokit/rest'
+import { encode as base64Encode } from 'https://deno.land/std@0.168.0/encoding/base64.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -140,7 +140,7 @@ serve(async (req) => {
               repo: scriptData.github_repo,
               path: `${versionsPath}/.gitkeep`,
               message: `Create versions directory for ${scriptData.title}`,
-              content: btoa('')
+              content: encodeToBase64('')
             });
           } else {
             throw error;
@@ -161,7 +161,7 @@ serve(async (req) => {
           repo: scriptData.github_repo,
           path: `${versionsPath}/${fileName}`,
           message: `Save version "${versionName}" of ${scriptData.title}`,
-          content: btoa(JSON.stringify(versionMetadata, null, 2))
+          content: encodeToBase64(JSON.stringify(versionMetadata, null, 2))
         });
         
         console.log(`✅ Version file saved successfully`);
@@ -194,7 +194,7 @@ serve(async (req) => {
         repo: scriptData.github_repo,
         path: contentPath,
         message: `Update content for ${scriptData.title}`,
-        content: btoa(content),
+        content: encodeToBase64(content),
         sha: await getSHA(octokit, scriptData.github_owner, scriptData.github_repo, contentPath)
       });
       
@@ -242,13 +242,9 @@ async function getSHA(octokit: any, owner: string, repo: string, path: string): 
   }
 }
 
-// Helper function to Base64 encode strings in Deno (replacing Buffer)
-function btoa(str: string): string {
-  // Convert the string to an ArrayBuffer
+// Helper function to Base64 encode strings in Deno
+function encodeToBase64(str: string): string {
   const encoder = new TextEncoder();
   const data = encoder.encode(str);
-  
-  // Convert the ArrayBuffer to a base64 string
-  return btoa(String.fromCharCode(...new Uint8Array(data)));
+  return base64Encode(data);
 }
-
