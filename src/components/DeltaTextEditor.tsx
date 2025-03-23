@@ -30,7 +30,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   pendingSuggestionsCount = 0,
   hasPendingSuggestions = false
 }) => {
-  const [editorValue, setEditorValue] = useState('');
+  const [editorContent, setEditorContent] = useState<DeltaStatic | null>(null);
   const [currentFormat, setCurrentFormat] = useState<Record<string, any>>({});
   const quillRef = useRef<ReactQuill>(null);
   const { content, isLoading, userId } = useTextEditor(scriptId, isAdmin);
@@ -44,16 +44,22 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   useEffect(() => {
     if (!isLoading && content) {
       try {
-        setEditorValue(JSON.stringify(content));
+        // Convert the content to a proper Delta object
+        const delta = typeof content === 'string' 
+          ? JSON.parse(content) 
+          : content;
+        
+        setEditorContent(delta);
       } catch (e) {
-        console.error('Failed to stringify content:', e);
-        setEditorValue('');
+        console.error('Failed to parse content:', e);
+        setEditorContent({ ops: [{ insert: '\n' }] });
       }
     }
   }, [content, isLoading]);
 
-  const handleChange = (value: string) => {
-    setEditorValue(value);
+  const handleChange = (content: any) => {
+    // ReactQuill provides the content as a Delta object
+    setEditorContent(content);
   };
 
   const handleChangeSelection = (range: any, source: string, editor: any) => {
@@ -76,20 +82,13 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     }
 
     try {
-      let content;
-      try {
-        content = JSON.parse(editorValue);
-      } catch (e) {
-        content = { ops: [{ insert: editorValue }] };
-      }
-
-      if (isAdmin) {
+      if (isAdmin && editorContent) {
         // Save content to database
-        const success = await submitEdits(content);
+        const success = await submitEdits(editorContent);
         
         if (success && onCommitToGithub) {
           // Also commit to GitHub if function is provided
-          await onCommitToGithub(JSON.stringify(content));
+          await onCommitToGithub(JSON.stringify(editorContent));
         }
       }
     } catch (error) {
@@ -99,18 +98,11 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   };
 
   const handleSaveDraft = async () => {
-    if (!userId || isAdmin) return;
+    if (!userId || isAdmin || !editorContent) return;
     
     try {
-      let content;
-      try {
-        content = JSON.parse(editorValue);
-      } catch (e) {
-        content = { ops: [{ insert: editorValue }] };
-      }
-      
       // Save as draft for non-admin users
-      await submitEdits(content, { asDraft: true });
+      await submitEdits(editorContent, { asDraft: true });
       toast.success('Draft saved successfully');
     } catch (error) {
       console.error('Error saving draft:', error);
@@ -119,18 +111,11 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   };
 
   const handleSubmitSuggestion = async () => {
-    if (!userId || isAdmin) return;
+    if (!userId || isAdmin || !editorContent) return;
     
     try {
-      let content;
-      try {
-        content = JSON.parse(editorValue);
-      } catch (e) {
-        content = { ops: [{ insert: editorValue }] };
-      }
-      
       // Save suggestion
-      const success = await saveSuggestion(scriptId, userId, content);
+      const success = await saveSuggestion(scriptId, userId, editorContent);
       
       if (success) {
         toast.success('Suggestion submitted successfully');
@@ -147,8 +132,8 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   };
 
   const handleSaveVersion = () => {
-    if (!onSaveVersion) return;
-    onSaveVersion(editorValue);
+    if (!onSaveVersion || !editorContent) return;
+    onSaveVersion(JSON.stringify(editorContent));
   };
 
   if (isLoading) {
@@ -173,7 +158,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
       <ReactQuill
         ref={quillRef}
         theme="snow"
-        value={editorValue}
+        value={editorContent || { ops: [{ insert: '\n' }] }}
         onChange={handleChange}
         onChangeSelection={handleChangeSelection}
         modules={{
@@ -191,7 +176,9 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
           'indent',
           'link',
           'image',
-          'code-block'
+          'code-block',
+          'background',
+          'color'
         ]}
       />
     </div>

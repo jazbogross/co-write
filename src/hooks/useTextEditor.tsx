@@ -1,16 +1,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { LineData } from '@/types/lineTypes';
 import { toast } from 'sonner';
-import { isDeltaObject, extractPlainTextFromDelta } from '@/utils/editor';
+import { isDeltaObject } from '@/utils/editor';
 import { DeltaContent } from '@/utils/editor/types';
+import { DeltaStatic } from 'quill';
+import { ensureDeltaContent } from '@/utils/deltaUtils';
 
 export const useTextEditor = (
   scriptId: string,
   isAdmin: boolean
 ) => {
-  const [content, setContent] = useState<DeltaContent>({ ops: [{ insert: '\n' }] });
+  const [content, setContent] = useState<DeltaContent | DeltaStatic>({ ops: [{ insert: '\n' }] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const editorRef = useRef<any>(null);
@@ -48,7 +49,8 @@ export const useTextEditor = (
             .maybeSingle();
           
           if (draft?.draft_content) {
-            setContent(draft.draft_content as unknown as DeltaContent);
+            // Ensure content is a proper Delta object
+            setContent(ensureDeltaContent(draft.draft_content));
             setIsLoading(false);
             return;
           }
@@ -86,7 +88,7 @@ export const useTextEditor = (
             ? JSON.parse(data.content_delta)
             : data.content_delta;
           
-          setContent(deltaContent as DeltaContent);
+          setContent(ensureDeltaContent(deltaContent));
         }
       } catch (error) {
         console.error('Error loading content:', error);
