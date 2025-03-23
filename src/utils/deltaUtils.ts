@@ -50,11 +50,8 @@ export const loadContent = async (scriptId: string): Promise<DeltaStatic | null>
 
     const deltaContent = data.content_delta;
     
-    if (typeof deltaContent === 'string') {
-      return JSON.parse(deltaContent) as DeltaStatic;
-    }
-    
-    return deltaContent as unknown as DeltaStatic;
+    // Convert the content to a proper Delta object
+    return toDelta(deltaContent);
   } catch (error) {
     console.error('Error loading content:', error);
     return null;
@@ -126,12 +123,23 @@ export const ensureDeltaContent = (value: any): DeltaContent => {
   // If it's a string, try to parse it
   if (typeof value === 'string') {
     try {
+      // Check if it's a JSON string representing a Delta
       const parsed = JSON.parse(value);
       if (parsed.ops) {
         return parsed;
       }
+      
+      // If the string contains HTML tags, we need to create a proper Delta
+      if (value.includes('<')) {
+        console.warn('HTML detected in Delta string - converting to plain text');
+        // Create a basic Delta with the text content only
+        return { ops: [{ insert: value.replace(/<[^>]*>/g, '') + '\n' }] };
+      }
+      
+      // Regular string
       return { ops: [{ insert: value + '\n' }] };
     } catch {
+      // Not valid JSON, treat as plain text
       return { ops: [{ insert: value + '\n' }] };
     }
   }
@@ -147,9 +155,9 @@ export const toDelta = (content: any): DeltaStatic => {
   const deltaContent = ensureDeltaContent(content);
   
   // Ensure we're creating a proper Delta instance
-  // The key fix here: properly cast the ops to be compatible with Delta constructor
   try {
     // Create a new Delta instance
+    // Use "as any" to work around TypeScript issues with the Delta constructor
     const delta = new Delta(deltaContent.ops as any);
     return delta as unknown as DeltaStatic;
   } catch (e) {
@@ -167,7 +175,13 @@ export const normalizeContentForStorage = (content: any): Record<string, any> =>
     return { ops: [{ insert: '\n' }] };
   }
   
-  // If it's already a Delta object with ops property
+  // If it's an HTML string, warn and convert to plain text
+  if (typeof content === 'string' && content.includes('<')) {
+    console.warn('HTML detected in content - converting to plain text');
+    return { ops: [{ insert: content.replace(/<[^>]*>/g, '') + '\n' }] };
+  }
+  
+  // If it's a Delta object or has the ops property
   if (content.ops) {
     // Convert to plain object to avoid issues with Supabase JSON storage
     return JSON.parse(JSON.stringify(content));

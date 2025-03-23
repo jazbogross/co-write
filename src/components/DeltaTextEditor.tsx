@@ -2,7 +2,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { saveContent, saveSuggestion } from '@/utils/deltaUtils';
 import { TextEditorActions } from '@/components/editor/TextEditorActions';
 import { DeltaStatic } from 'quill';
 import { toast } from 'sonner';
@@ -45,12 +44,8 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     if (!isLoading && content) {
       try {
         // Convert the content to a proper Delta object
-        const delta = typeof content === 'string' 
-          ? JSON.parse(content) 
-          : content;
-        
-        // Use toDelta to ensure we get a proper DeltaStatic object
-        setEditorContent(toDelta(delta));
+        const delta = toDelta(content);
+        setEditorContent(delta);
       } catch (e) {
         console.error('Failed to parse content:', e);
         setEditorContent(toDelta({ ops: [{ insert: '\n' }] }));
@@ -58,8 +53,8 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     }
   }, [content, isLoading]);
 
-  const handleChange = (content: any) => {
-    // ReactQuill provides the content as a Delta object
+  const handleChange = (content: DeltaStatic) => {
+    // Set the content as a Delta object directly
     setEditorContent(content);
   };
 
@@ -83,13 +78,17 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     }
 
     try {
-      if (isAdmin && editorContent) {
+      if (isAdmin && quillRef.current) {
+        // Get the Delta object directly from the editor
+        const delta = quillRef.current.getEditor().getContents();
+        
         // Save content to database
-        const success = await submitEdits(editorContent);
+        const success = await submitEdits(delta);
         
         if (success && onCommitToGithub) {
           // Also commit to GitHub if function is provided
-          await onCommitToGithub(JSON.stringify(editorContent));
+          // Convert Delta to string for GitHub storage
+          await onCommitToGithub(JSON.stringify(delta));
         }
       }
     } catch (error) {
@@ -99,11 +98,14 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   };
 
   const handleSaveDraft = async () => {
-    if (!userId || isAdmin || !editorContent) return;
+    if (!userId || isAdmin || !quillRef.current) return;
     
     try {
+      // Get the Delta object directly from the editor
+      const delta = quillRef.current.getEditor().getContents();
+      
       // Save as draft for non-admin users
-      await submitEdits(editorContent, { asDraft: true });
+      await submitEdits(delta, { asDraft: true });
       toast.success('Draft saved successfully');
     } catch (error) {
       console.error('Error saving draft:', error);
@@ -112,17 +114,36 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   };
 
   const handleSubmitSuggestion = async () => {
-    if (!userId || isAdmin || !editorContent) return;
+    if (!userId || isAdmin || !quillRef.current) return;
     
     try {
-      // Save suggestion
-      const success = await saveSuggestion(scriptId, userId, editorContent);
+      // Get the Delta object directly from the editor
+      const delta = quillRef.current.getEditor().getContents();
       
-      if (success) {
-        toast.success('Suggestion submitted successfully');
+      // Create a lineData object with the current editor content
+      const lineData = [{
+        uuid: scriptId,
+        lineNumber: 1,
+        content: delta,
+        originalAuthor: userId,
+        editedBy: [],
+        hasDraft: false
+      }];
+      
+      // Get original content to compare with
+      const { data } = await supabase
+        .from('script_content')
+        .select('content_delta')
+        .eq('script_id', scriptId)
+        .single();
         
-        // Also save as draft
-        handleSaveDraft();
+      const originalContent = data?.content_delta || { ops: [{ insert: '\n' }] };
+      
+      // Submit the suggestion
+      const result = await submitAsSuggestion(lineData, originalContent);
+      
+      if (result.success) {
+        toast.success('Suggestion submitted successfully');
       } else {
         toast.error('Failed to submit suggestion');
       }
@@ -133,8 +154,13 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   };
 
   const handleSaveVersion = () => {
-    if (!onSaveVersion || !editorContent) return;
-    onSaveVersion(JSON.stringify(editorContent));
+    if (!onSaveVersion || !quillRef.current) return;
+    
+    // Get the Delta object directly from the editor
+    const delta = quillRef.current.getEditor().getContents();
+    
+    // Convert to JSON string for version storage
+    onSaveVersion(JSON.stringify(delta));
   };
 
   if (isLoading) {

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { DeltaContent } from '@/utils/editor/types';
 import { LineData } from '@/types/lineTypes';
 import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
+import { DeltaStatic } from 'quill';
 
 /**
  * Interface for suggestion submission
@@ -10,7 +11,7 @@ import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
 interface SuggestionSubmission {
   scriptId: string;
   userId: string;
-  deltaDiff: DeltaContent;
+  deltaDiff: DeltaContent | DeltaStatic;
 }
 
 /**
@@ -28,8 +29,7 @@ export const saveSuggestions = async (
   }
   
   try {
-    // Calculate the diff between current content and original content
-    // In the simplified Delta approach, we just store the entire Delta
+    // Extract the Delta content from lineData
     const currentDelta = lineData.length > 0 ? lineData[0].content : null;
     
     if (!currentDelta) {
@@ -45,7 +45,7 @@ export const saveSuggestions = async (
     const suggestion: SuggestionSubmission = {
       scriptId,
       userId,
-      deltaDiff: deltaDiff as DeltaContent
+      deltaDiff: deltaDiff
     };
     
     // Normalize the delta to be Supabase-compatible

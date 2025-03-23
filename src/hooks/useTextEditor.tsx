@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { isDeltaObject } from '@/utils/editor';
 import { DeltaContent } from '@/utils/editor/types';
 import { DeltaStatic } from 'quill';
-import { ensureDeltaContent } from '@/utils/deltaUtils';
+import { ensureDeltaContent, toDelta } from '@/utils/deltaUtils';
 
 export const useTextEditor = (
   scriptId: string,
@@ -49,8 +49,18 @@ export const useTextEditor = (
             .maybeSingle();
           
           if (draft?.draft_content) {
-            // Ensure content is a proper Delta object
-            setContent(ensureDeltaContent(draft.draft_content));
+            console.log('Found draft content:', draft.draft_content);
+            
+            // Check if the draft content is HTML
+            if (typeof draft.draft_content === 'string' && draft.draft_content.includes('<')) {
+              console.warn('HTML detected in draft - converting to plain text');
+              const plainText = draft.draft_content.replace(/<[^>]*>/g, '');
+              setContent(toDelta({ ops: [{ insert: plainText + '\n' }] }));
+            } else {
+              // Ensure content is a proper Delta object
+              setContent(toDelta(draft.draft_content));
+            }
+            
             setIsLoading(false);
             return;
           }
@@ -70,7 +80,7 @@ export const useTextEditor = (
         if (!data || !data.content_delta) {
           // Content not found, create empty content
           const emptyDelta = { ops: [{ insert: '\n' }] };
-          setContent(emptyDelta);
+          setContent(toDelta(emptyDelta));
           
           // For admins, save the empty content
           if (isAdmin) {
@@ -84,16 +94,25 @@ export const useTextEditor = (
           }
         } else {
           // Parse Delta content if needed
-          const deltaContent = typeof data.content_delta === 'string'
-            ? JSON.parse(data.content_delta)
-            : data.content_delta;
+          console.log('Found content:', data.content_delta);
           
-          setContent(ensureDeltaContent(deltaContent));
+          // Check for HTML in content
+          if (typeof data.content_delta === 'string' && data.content_delta.includes('<')) {
+            console.warn('HTML detected in content - converting to plain text');
+            const plainText = data.content_delta.replace(/<[^>]*>/g, '');
+            setContent(toDelta({ ops: [{ insert: plainText + '\n' }] }));
+          } else {
+            // Ensure it's a proper Delta object
+            setContent(toDelta(data.content_delta));
+          }
         }
       } catch (error) {
         console.error('Error loading content:', error);
         setError(error as Error);
         toast.error('Failed to load content');
+        
+        // Set empty content as fallback
+        setContent(toDelta({ ops: [{ insert: '\n' }] }));
       } finally {
         setIsLoading(false);
       }

@@ -175,7 +175,6 @@ export type Database = {
       }
       script_versions: {
         Row: {
-          content_delta: Json
           created_at: string | null
           created_by: string | null
           github_path: string | null
@@ -185,7 +184,6 @@ export type Database = {
           version_number: number
         }
         Insert: {
-          content_delta: Json
           created_at?: string | null
           created_by?: string | null
           github_path?: string | null
@@ -195,7 +193,6 @@ export type Database = {
           version_number: number
         }
         Update: {
-          content_delta?: Json
           created_at?: string | null
           created_by?: string | null
           github_path?: string | null
