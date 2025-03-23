@@ -40,29 +40,37 @@ export const SuggestionForm: React.FC<SuggestionFormProps> = ({
     setIsSubmitting(true);
     
     try {
+      // Verify the user is authenticated before proceeding
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) {
+        toast.error('Authentication required');
+        setIsSubmitting(false);
+        return;
+      }
+      
       // Create a Delta for the suggestion, then convert to plain object for storage
       const suggestionDelta = new Delta([{ insert: comment + "\n" }]);
       
       // Convert Delta to a plain JSON object that Supabase can store
       const jsonDeltaDiff = JSON.parse(JSON.stringify(suggestionDelta));
       
-      // Verify the user is authenticated
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) {
-        throw new Error('Authentication required');
-      }
+      console.log('Submitting suggestion for script:', scriptId, 'by user:', user.id);
       
+      // Insert directly with the user's ID from authentication
       const { error } = await supabase
         .from('script_suggestions')
         .insert({
           script_id: scriptId,
-          user_id: user.id,
+          user_id: authData.user.id, // Use authenticated user ID
           delta_diff: jsonDeltaDiff,
           status: 'pending',
           created_at: new Date().toISOString()
         });
         
-      if (error) throw error;
+      if (error) {
+        console.error('Error submitting suggestion:', error);
+        throw error;
+      }
       
       toast.success('Suggestion submitted successfully');
       setComment('');

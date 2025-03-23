@@ -65,14 +65,17 @@ export const saveSuggestions = async (
       return { success: false, error: 'User ID does not match authenticated user' };
     }
     
+    console.log('Saving suggestion for script:', scriptId, 'by user:', userId);
+    
     // Save to database using the authenticated user's ID
     const { data, error } = await supabase
       .from('script_suggestions')
       .insert({
-        script_id: suggestion.scriptId,
-        user_id: userData.user.id, // Use the authenticated user's ID
+        script_id: scriptId,
+        user_id: userId,
         delta_diff: normalizedDelta,
-        status: 'pending'
+        status: 'pending',
+        created_at: new Date().toISOString()
       })
       .select('id')
       .single();
@@ -82,6 +85,7 @@ export const saveSuggestions = async (
       return { success: false, error };
     }
     
+    console.log('Suggestion saved successfully with ID:', data.id);
     return { success: true, id: data.id };
   } catch (error) {
     console.error('Error in saveSuggestions:', error);
