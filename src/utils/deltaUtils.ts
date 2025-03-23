@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic, Op } from 'quill';
 import { supabase } from '@/integrations/supabase/client';
 import { DeltaContent } from '@/utils/editor/types';
 import Delta from 'quill-delta';
@@ -145,8 +145,10 @@ export const ensureDeltaContent = (value: any): DeltaContent => {
  */
 export const toDelta = (content: any): DeltaStatic => {
   const deltaContent = ensureDeltaContent(content);
-  // Cast to unknown first to satisfy TypeScript
-  return new Delta(deltaContent.ops || []) as unknown as DeltaStatic;
+  // Fix the type issue by properly casting the operations
+  // Cast the ops to any first to bypass the type checking
+  const ops = deltaContent.ops as any;
+  return new Delta(ops) as unknown as DeltaStatic;
 };
 
 /**

@@ -11,6 +11,8 @@ import { DeltaStatic } from 'quill';
 import { SuggestionDiffView } from './SuggestionDiffView';
 import { safeToDelta } from '@/utils/delta/safeDeltaOperations';
 import { RejectionDialog } from '../suggestions/RejectionDialog';
+import { extractPlainTextFromDelta } from '@/utils/editor';
+import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
 
 interface SuggestionsPanelProps {
   scriptId: string;
@@ -42,7 +44,7 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
           status, 
           created_at, 
           rejection_reason,
-          profiles:user_id(username)
+          profiles(username)
         `)
         .eq('script_id', scriptId)
         .eq('status', 'pending')
@@ -114,6 +116,23 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
     }
   };
 
+  // Generate diff data for SuggestionDiffView
+  const generateDiffData = (deltaDiff: DeltaStatic) => {
+    // Convert Delta to plain text for diffing
+    const diffText = extractPlainTextFromDelta(deltaDiff);
+    // Use empty string as original for now (we'll need actual original content later)
+    const originalText = '';
+    
+    // Generate diff changes (this would normally compare two texts)
+    const { changes } = analyzeDeltaDifferences(originalText, diffText);
+    
+    return {
+      originalContent: originalText,
+      suggestedContent: diffText,
+      diffChanges: changes
+    };
+  };
+
   return (
     <Card className="w-full max-w-4xl">
       <CardHeader>
@@ -149,7 +168,14 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="pt-2 pb-4">
-                    <SuggestionDiffView deltaDiff={safeToDelta(suggestion.delta_diff)} />
+                    {/* Use the proper props for SuggestionDiffView */}
+                    {suggestion.delta_diff && (
+                      <SuggestionDiffView 
+                        originalContent=""
+                        suggestedContent={extractPlainTextFromDelta(safeToDelta(suggestion.delta_diff))}
+                        diffChanges={generateDiffData(safeToDelta(suggestion.delta_diff)).diffChanges}
+                      />
+                    )}
                     
                     <div className="flex justify-end gap-2 mt-4">
                       <Button 
@@ -178,10 +204,15 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
         )}
       </CardContent>
 
+      {/* Fix the RejectionDialog props */}
       <RejectionDialog
         open={isRejectionDialogOpen}
         onOpenChange={setIsRejectionDialogOpen}
-        onReject={(reason) => currentSuggestionId && handleReject(currentSuggestionId, reason)}
+        suggestionId={currentSuggestionId || ''}
+        onSuccess={() => {
+          setCurrentSuggestionId(null);
+          setIsRejectionDialogOpen(false);
+        }}
       />
     </Card>
   );
