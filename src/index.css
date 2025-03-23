@@ -69,6 +69,10 @@
   position: relative !important;
 }
 
+.ql-editor {
+  background-color: rgb(228, 222, 216) !important;
+}
+
 /* Show only specific formatting options */
 .ql-toolbar .ql-formats > * {
   display: none !important;
