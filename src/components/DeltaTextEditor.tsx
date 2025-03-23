@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -7,6 +8,7 @@ import { toast } from 'sonner';
 import { TextEditorActions } from './editor/TextEditorActions';
 import { loadContent, saveContent } from '@/utils/deltaUtils';
 import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
+import { SuggestionsPanel } from './editor/SuggestionsPanel';
 
 interface DeltaTextEditorProps {
   scriptId: string;
@@ -24,8 +26,14 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   const session = useSession();
   const quillRef = useRef<ReactQuill>(null);
 
-  // Track whether we’re submitting (saving) changes
+  // Track whether we're submitting (saving) changes
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Track whether the suggestions panel is open
+  const [isSuggestionsPanelOpen, setIsSuggestionsPanelOpen] = useState(false);
+  
+  // Track pending suggestions count
+  const [pendingSuggestionsCount, setPendingSuggestionsCount] = useState(0);
 
   // Track the current formatting at the cursor (e.g. { bold: true, italic: false, align: 'right', ... })
   const [currentFormat, setCurrentFormat] = useState<Record<string, any>>({});
@@ -45,6 +53,45 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     };
     fetchContent();
   }, [scriptId]);
+
+  // Load pending suggestions count for admins
+  useEffect(() => {
+    if (isAdmin) {
+      const fetchPendingSuggestions = async () => {
+        try {
+          const { count, error } = await supabase
+            .from('script_suggestions')
+            .select('id', { count: 'exact' })
+            .eq('script_id', scriptId)
+            .eq('status', 'pending');
+
+          if (error) throw error;
+          setPendingSuggestionsCount(count || 0);
+        } catch (error) {
+          console.error('Error fetching pending suggestions:', error);
+        }
+      };
+
+      fetchPendingSuggestions();
+      
+      // Subscribe to changes in suggestions
+      const suggestionChannel = supabase
+        .channel(`script_suggestions_${scriptId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'script_suggestions',
+          filter: `script_id=eq.${scriptId}`
+        }, () => {
+          fetchPendingSuggestions();
+        })
+        .subscribe();
+        
+      return () => {
+        supabase.removeChannel(suggestionChannel);
+      };
+    }
+  }, [scriptId, isAdmin]);
 
   // Attach listeners after the editor mounts to track selection changes & text changes
   useEffect(() => {
@@ -119,9 +166,13 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     }
   };
 
-  // Save a draft version to your "script_drafts" table
+  // Save a draft version to the "script_drafts" table
   const handleSaveDraft = async () => {
-    if (!quillRef.current || !session?.user?.id) {
+    if (!quillRef.current || !session?.user?.id || isAdmin) {
+      if (isAdmin) {
+        // Admins don't need drafts
+        return;
+      }
       toast.error('You must be logged in to save drafts');
       return;
     }
@@ -156,6 +207,60 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     }
   };
 
+  // Submit a suggestion from non-admin user
+  const handleSubmitSuggestion = async () => {
+    if (!quillRef.current || !session?.user?.id || isAdmin) {
+      return;
+    }
+    
+    try {
+      setIsSubmitting(true);
+      const editor = quillRef.current.getEditor();
+      const suggestedContent = editor.getContents();
+      
+      // First, save as draft
+      await handleSaveDraft();
+      
+      // Get original content for comparison
+      const { data } = await supabase
+        .from('script_content')
+        .select('content_delta')
+        .eq('script_id', scriptId)
+        .single();
+      
+      if (!data?.content_delta) {
+        toast.error('Could not load original content to compare');
+        return;
+      }
+      
+      // Create the suggestion and save to script_suggestions table
+      const normalizedSuggestion = normalizeContentForStorage(suggestedContent);
+      
+      const { error } = await supabase
+        .from('script_suggestions')
+        .insert({
+          script_id: scriptId,
+          user_id: session.user.id,
+          delta_diff: normalizedSuggestion,
+          status: 'pending',
+          created_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        console.error('Error saving suggestion:', error);
+        toast.error('Failed to save suggestion');
+        return;
+      }
+      
+      toast.success('Your suggestion has been submitted for review');
+    } catch (error) {
+      console.error('Error submitting suggestion:', error);
+      toast.error('An error occurred while submitting suggestion');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Save a new version (admin-only)
   const handleSaveVersion = () => {
     if (!quillRef.current || !onSaveVersion) return;
@@ -166,33 +271,49 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   };
 
   return (
-    <div className="space-y-0">
-      {/* Toolbar & actions */}
-      <TextEditorActions
-        isAdmin={isAdmin}
-        isSubmitting={isSubmitting}
-        currentFormat={currentFormat}     /* pass down current formatting */
-        onFormat={handleFormat}
-        onSubmit={handleSubmit}
-        onSave={handleSaveDraft}
-        onSaveVersion={handleSaveVersion}
-      />
-
-      {/* Quill editor */}
-      <div className="border rounded-md">
-        <ReactQuill
-          ref={quillRef}
-          theme="snow"
-          modules={{
-            toolbar: false, // We hide the default toolbar since we have our own
-            history: {
-              delay: 2000,
-              maxStack: 500,
-              userOnly: true
-            }
-          }}
+    <div className="space-y-0 flex">
+      {/* Main editor area */}
+      <div className={`flex-1 transition-all ${isSuggestionsPanelOpen ? 'mr-12' : ''}`}>
+        {/* Toolbar & actions */}
+        <TextEditorActions
+          isAdmin={isAdmin}
+          isSubmitting={isSubmitting}
+          hasPendingSuggestions={pendingSuggestionsCount > 0}
+          currentFormat={currentFormat}
+          onFormat={handleFormat}
+          onSubmit={handleSubmit}
+          onSave={handleSaveDraft}
+          onSaveVersion={isAdmin ? handleSaveVersion : undefined}
+          onSubmitSuggestion={!isAdmin ? handleSubmitSuggestion : undefined}
+          onToggleSuggestions={isAdmin ? () => setIsSuggestionsPanelOpen(!isSuggestionsPanelOpen) : undefined}
+          pendingSuggestionsCount={pendingSuggestionsCount}
         />
+
+        {/* Quill editor */}
+        <div className="border rounded-md">
+          <ReactQuill
+            ref={quillRef}
+            theme="snow"
+            modules={{
+              toolbar: false, // We hide the default toolbar since we have our own
+              history: {
+                delay: 2000,
+                maxStack: 500,
+                userOnly: true
+              }
+            }}
+          />
+        </div>
       </div>
+      
+      {/* Suggestions panel for admins */}
+      {isAdmin && (
+        <SuggestionsPanel 
+          isOpen={isSuggestionsPanelOpen}
+          scriptId={scriptId}
+          onToggle={() => setIsSuggestionsPanelOpen(!isSuggestionsPanelOpen)}
+        />
+      )}
     </div>
   );
 };

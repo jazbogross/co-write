@@ -25,6 +25,7 @@ const ScriptEdit = () => {
     admin_id: string;
     github_owner: string;
     github_repo: string;
+    folder_name: string;
   } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -52,7 +53,7 @@ const ScriptEdit = () => {
         // Get script data
         const { data: scriptData, error: scriptError } = await supabase
           .from("scripts")
-          .select("title, admin_id, github_owner, github_repo")
+          .select("title, admin_id, github_owner, github_repo, folder_name")
           .eq("id", id)
           .single();
 
@@ -90,7 +91,7 @@ const ScriptEdit = () => {
   }, [id, navigate, session, location.pathname]);
 
   const handleCommitToGithub = async (content: string) => {
-    if (!script || !id || !githubToken) return;
+    if (!script || !id || !githubToken) return false;
     
     try {
       // Call the Supabase function to commit changes to GitHub
@@ -131,13 +132,19 @@ const ScriptEdit = () => {
     setIsSavingVersion(true);
     
     try {
+      // Generate a unique filename for the version
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const versionFileName = `${timestamp}.json`;
+      
       // Call the Supabase function to save version to GitHub
       const { data, error } = await supabase.functions.invoke("commit-script-changes", {
         body: {
           scriptId: id,
+          scriptTitle: script.title,
           content: currentContent,
           githubAccessToken: githubToken,
           versionName: versionName,
+          versionFileName: versionFileName,
           saveAsVersion: true
         }
       });
@@ -146,8 +153,25 @@ const ScriptEdit = () => {
         console.error("Error saving version to GitHub:", error);
         toast.error("Failed to save version");
       } else {
-        toast.success(`Version "${versionName}" saved successfully`);
-        setIsVersionDialogOpen(false);
+        // Save reference to the version file path in the database
+        const githubPath = `${script.folder_name}/versions/${versionFileName}`;
+        const { error: dbError } = await supabase
+          .from('script_versions')
+          .insert({
+            script_id: id,
+            version_name: versionName,
+            created_by: session?.user?.id,
+            github_path: githubPath,
+            version_number: 0  // Will be auto-incremented by a trigger
+          });
+          
+        if (dbError) {
+          console.error("Error saving version reference to database:", dbError);
+          toast.warning("Version saved to GitHub but failed to save reference in database");
+        } else {
+          toast.success(`Version "${versionName}" saved successfully`);
+          setIsVersionDialogOpen(false);
+        }
       }
     } catch (githubError) {
       console.error("Error with GitHub integration:", githubError);
