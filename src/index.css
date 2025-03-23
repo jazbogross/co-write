@@ -71,6 +71,29 @@
 
 .ql-editor {
   background-color: rgb(228, 222, 216) !important;
+  counter-reset: paragraph;
+}
+
+.ql-editor p {
+  position: relative;
+  padding-left: 2.5em;
+}
+
+/* Force paragraph numbering to stay on the left, ignoring RTL */
+.ql-editor p::before {
+  counter-increment: paragraph;
+  content: counter(paragraph) ". ";
+  
+  /* Position the number physically on the left */
+  position: absolute;
+  left: 0;       /* anchor to the left side */
+  width: 2em;    /* so the text is right-aligned within that space */
+  text-align: right;
+  color: #adadad;
+
+  /* Ensure the numbering itself is displayed LTR even in RTL paragraphs */
+  direction: ltr;
+  unicode-bidi: bidi-override;
 }
 
 /* Show only specific formatting options */
