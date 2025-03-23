@@ -188,7 +188,7 @@ serve(async (req) => {
       console.log(`💾 Updating script content in GitHub...`);
       
       // Save main script content
-      const contentPath = `${folderName}/content.json`;
+      const contentPath = `${folderName}/script-latest.json`;
       await octokit.rest.repos.createOrUpdateFileContents({
         owner: scriptData.github_owner,
         repo: scriptData.github_repo,
