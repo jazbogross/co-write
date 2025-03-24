@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +24,6 @@ interface SuggestionsPanelProps {
 
 export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPanelProps) {
   const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [currentSuggestionId, setCurrentSuggestionId] = useState<string | null>(null);
@@ -101,10 +101,12 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
 
       suggestions.forEach(suggestion => {
         try {
-          const originalDelta = new Delta(originalContent.ops || []);
+          const originalDelta = new Delta(originalContent.ops || []) as unknown as DeltaStatic;
           const diffDelta = safeToDelta(suggestion.delta_diff);
           
-          const suggestedDelta = originalDelta.compose(diffDelta);
+          // This fixes the type error by casting to the appropriate type
+          const deltaForCompose = new Delta(diffDelta.ops || []) as unknown as Delta;
+          const suggestedDelta = originalDelta.compose(deltaForCompose);
           
           const originalText = extractPlainTextFromDelta(originalDelta);
           const suggestedText = extractPlainTextFromDelta(suggestedDelta);

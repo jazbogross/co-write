@@ -2,17 +2,11 @@
 import React from 'react';
 import { DiffChange } from '@/utils/diff';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  getAdjustedDiffChanges, 
-  getAllContextWithChanges
-} from '@/utils/diff/diffViewUtils';
-import { DiffLine } from '@/components/editor/DiffLine';
 
 interface SuggestionDiffViewProps {
   originalContent: string;
   suggestedContent: string;
   diffChanges: DiffChange[];
-  lineNumber?: number;
 }
 
 export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
@@ -20,27 +14,36 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
   suggestedContent,
   diffChanges,
 }) => {
-  // Step 1: Process diff changes and ensure they have proper line numbers
-  const adjustedChanges = getAdjustedDiffChanges(diffChanges);
-
-  // Step 2: Collect all context lines from each diff change
-  const contextWithChanges = getAllContextWithChanges(
-    adjustedChanges,
-    originalContent,
-    suggestedContent
-  );
-
-  // Step 3: Render the diff with proper line numbers and visual separators
+  // Split content into lines
+  const originalLines = originalContent.split('\n');
+  const suggestedLines = suggestedContent.split('\n');
+  
   return (
     <div className="border rounded-md overflow-hidden">
       <ScrollArea className="h-[400px]">
         <div className="font-mono text-sm p-1">
-          {contextWithChanges.map((line, index) => (
-            <DiffLine
-              key={index}
-              line={line}
-              previousLine={index > 0 ? contextWithChanges[index - 1] : undefined}
-            />
+          {diffChanges.map((change, index) => (
+            <div key={index} className="mb-4">
+              <div className="py-1 px-2 bg-slate-100 border-b text-xs">
+                Line {change.lineNumber}
+              </div>
+              {change.type === 'delete' || change.type === 'modify' ? (
+                <div className="flex">
+                  <div className="w-10 text-gray-400 select-none tabular-nums border-r px-2">-</div>
+                  <div className="whitespace-pre-wrap flex-1 px-2 bg-red-50 text-red-800 line-through">
+                    {change.originalText || ''}
+                  </div>
+                </div>
+              ) : null}
+              {change.type === 'add' || change.type === 'modify' ? (
+                <div className="flex">
+                  <div className="w-10 text-gray-400 select-none tabular-nums border-r px-2">+</div>
+                  <div className="whitespace-pre-wrap flex-1 px-2 bg-green-50 text-green-800">
+                    {change.text}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           ))}
         </div>
       </ScrollArea>

@@ -1,4 +1,3 @@
-
 /**
  * Utilities for content diffing
  */
