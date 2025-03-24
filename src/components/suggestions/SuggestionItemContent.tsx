@@ -8,8 +8,8 @@ import { DiffEditor } from '@/components/DiffEditor';
 import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
 
 interface SuggestionItemContentProps {
-  originalContent: string;
-  suggestedContent: string;
+  originalContent: any;
+  suggestedContent: any;
 }
 
 export const SuggestionItemContent: React.FC<SuggestionItemContentProps> = ({

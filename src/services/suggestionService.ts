@@ -96,14 +96,26 @@ export const approveSuggestion = async (
     diff = safeToDelta(data.delta_diff);
   }
   
+  console.log('Original content:', JSON.stringify(originalContent));
+  console.log('Suggestion diff:', JSON.stringify(diff));
+  
   // Apply the diff to the original content
-  const newContent = originalContent.compose(diff!);
+  // Create proper Delta instances to ensure compose works correctly
+  const originalDelta = new Delta(originalContent.ops || []);
+  const diffDeltaObj = new Delta(diff?.ops || []);
+  
+  // Compose the deltas to get the new content
+  const newContent = originalDelta.compose(diffDeltaObj);
+  console.log('New composed content:', JSON.stringify(newContent));
+  
+  // Convert to plain object for storage
+  const newContentObj = JSON.parse(JSON.stringify(newContent));
   
   // Update the scripts table with the new content
   const { error: updateError } = await supabase
     .from('scripts')
     .update({ 
-      content: JSON.parse(JSON.stringify(newContent)),
+      content: newContentObj,
       updated_at: new Date().toISOString()
     })
     .eq('id', scriptId);
@@ -116,7 +128,7 @@ export const approveSuggestion = async (
     .insert({
       script_id: scriptId,
       version_number: 1, // Start with version 1 since we don't track versions in content anymore
-      content_delta: JSON.parse(JSON.stringify(newContent)),
+      content_delta: newContentObj,
       created_at: new Date().toISOString()
     });
 

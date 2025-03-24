@@ -16,6 +16,7 @@ import { SuggestionDiffView } from '@/components/editor/SuggestionDiffView';
 import { DiffEditor } from '@/components/DiffEditor';
 import { extractPlainTextFromDelta } from '@/utils/editor';
 import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
+import Delta from 'quill-delta';
 
 interface SuggestionPreviewProps {
   open: boolean;
@@ -48,12 +49,20 @@ export const SuggestionPreview: React.FC<SuggestionPreviewProps> = ({
   // Analyze differences when suggestion changes
   useEffect(() => {
     if (suggestion && originalContent) {
-      // Extract text content
+      // Extract text content from original
       const originalText = extractPlainTextFromDelta(originalContent);
       
-      // Apply suggestion delta to get the new content
-      const suggestedContent = originalContent.compose(suggestion.deltaDiff);
+      // Apply suggestion delta to get the suggested content
+      // Create proper Delta instances to ensure compose works correctly
+      const originalDelta = new Delta(originalContent.ops || []);
+      const diffDeltaObj = new Delta(suggestion.deltaDiff.ops || []);
+      
+      // Compose to get the suggested content
+      const suggestedContent = originalDelta.compose(diffDeltaObj);
       const suggestedText = extractPlainTextFromDelta(suggestedContent);
+      
+      console.log('Preview - Original text:', originalText);
+      console.log('Preview - Suggested text:', suggestedText);
       
       // Analyze the differences to get ALL changes
       const { changes } = analyzeDeltaDifferences(originalText, suggestedText);

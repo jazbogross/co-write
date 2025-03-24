@@ -13,6 +13,8 @@ import { safeToDelta } from '@/utils/delta/safeDeltaOperations';
 import { RejectionDialog } from '../suggestions/RejectionDialog';
 import { extractPlainTextFromDelta } from '@/utils/editor';
 import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
+import { fetchOriginalContent } from '@/services/suggestionService';
+import Delta from 'quill-delta';
 
 interface SuggestionsPanelProps {
   scriptId: string;
@@ -27,10 +29,23 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [currentSuggestionId, setCurrentSuggestionId] = useState<string | null>(null);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
+  const [originalContent, setOriginalContent] = useState<DeltaStatic | null>(null);
+  const [diffData, setDiffData] = useState<Record<string, { original: string, suggested: string, changes: any[] }>>({});
 
   useEffect(() => {
     loadSuggestions();
+    loadOriginalContent();
   }, [scriptId]);
+
+  const loadOriginalContent = async () => {
+    try {
+      const content = await fetchOriginalContent(scriptId);
+      setOriginalContent(content);
+    } catch (error) {
+      console.error('Error loading original content:', error);
+      toast.error('Failed to load original script content');
+    }
+  };
 
   const loadSuggestions = async () => {
     try {
@@ -85,8 +100,51 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
     }
   };
 
-  const handleAccept = async (suggestionId: string, deltaDiff: DeltaStatic) => {
+  // Calculate diff data for a suggestion
+  useEffect(() => {
+    if (originalContent && suggestions.length > 0) {
+      const newDiffData: Record<string, { original: string, suggested: string, changes: any[] }> = {};
+
+      suggestions.forEach(suggestion => {
+        try {
+          // Convert original content and delta_diff to proper Delta objects
+          const originalDelta = new Delta(originalContent.ops || []);
+          const diffDelta = safeToDelta(suggestion.delta_diff);
+          
+          // Combine to get suggested content
+          const suggestedDelta = originalDelta.compose(diffDelta);
+          
+          // Convert to plain text for diffing
+          const originalText = extractPlainTextFromDelta(originalDelta);
+          const suggestedText = extractPlainTextFromDelta(suggestedDelta);
+          
+          // Generate diff changes
+          const { changes } = analyzeDeltaDifferences(originalText, suggestedText);
+          
+          newDiffData[suggestion.id] = {
+            original: originalText,
+            suggested: suggestedText,
+            changes
+          };
+        } catch (error) {
+          console.error(`Error calculating diff for suggestion ${suggestion.id}:`, error);
+        }
+      });
+
+      setDiffData(newDiffData);
+    }
+  }, [originalContent, suggestions]);
+
+  const handleAccept = async (suggestionId: string, deltaDiff: any) => {
     try {
+      if (!originalContent) {
+        toast.error('Original content not loaded');
+        return;
+      }
+
+      // Convert to proper Delta objects
+      const diffObj = safeToDelta(deltaDiff);
+      
       // Update suggestion status to accepted
       const { error } = await supabase
         .from('script_suggestions')
@@ -95,11 +153,12 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
       
       if (error) throw error;
       
+      // Apply the delta diff to the original content and update the script
+      // This is handled in the onAccept callback
+      onAccept(suggestionId, diffObj);
+      
       // Remove from local state
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
-      
-      // Notify parent component
-      onAccept(suggestionId, deltaDiff);
       
       toast.success('Suggestion approved');
     } catch (err) {
@@ -123,24 +182,6 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
     setIsRejectionDialogOpen(false);
   };
 
-  // Generate diff data for SuggestionDiffView
-  const generateDiffData = (deltaDiff: any) => {
-    // Convert Delta to plain text for diffing
-    const diffDelta = safeToDelta(deltaDiff);
-    const diffText = extractPlainTextFromDelta(diffDelta);
-    // Use empty string as original for now (we'll need actual original content later)
-    const originalText = '';
-    
-    // Generate diff changes (this would normally compare two texts)
-    const { changes } = analyzeDeltaDifferences(originalText, diffText);
-    
-    return {
-      originalContent: originalText,
-      suggestedContent: diffText,
-      diffChanges: changes
-    };
-  };
-
   return (
     <Card className="w-full max-w-4xl">
       <CardHeader>
@@ -160,7 +201,11 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
         ) : (
           <Accordion type="single" collapsible>
             {suggestions.map((suggestion) => {
-              const diffData = generateDiffData(suggestion.delta_diff);
+              const diff = diffData[suggestion.id] || { 
+                original: '', 
+                suggested: '', 
+                changes: [] 
+              };
               
               return (
                 <AccordionItem key={suggestion.id} value={suggestion.id}>
@@ -179,11 +224,13 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="pt-2 pb-4">
-                      <SuggestionDiffView 
-                        originalContent={diffData.originalContent}
-                        suggestedContent={diffData.suggestedContent}
-                        diffChanges={diffData.diffChanges}
-                      />
+                      <div className="mb-4">
+                        <SuggestionDiffView 
+                          originalContent={diff.original}
+                          suggestedContent={diff.suggested}
+                          diffChanges={diff.changes}
+                        />
+                      </div>
                       
                       <div className="flex justify-end gap-2 mt-4">
                         <Button 
@@ -197,7 +244,7 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
                         </Button>
                         <Button 
                           size="sm"
-                          onClick={() => handleAccept(suggestion.id, safeToDelta(suggestion.delta_diff))}
+                          onClick={() => handleAccept(suggestion.id, suggestion.delta_diff)}
                           className="flex items-center gap-1"
                         >
                           <CheckCircle size={16} />
@@ -213,7 +260,6 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
         )}
       </CardContent>
 
-      {/* Fix the RejectionDialog props */}
       <RejectionDialog
         open={isRejectionDialogOpen}
         onOpenChange={setIsRejectionDialogOpen}

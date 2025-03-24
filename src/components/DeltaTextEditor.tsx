@@ -156,11 +156,44 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     }
   };
 
-  const handleSaveVersion = () => {
+  const handleSaveVersion = async () => {
     if (!onSaveVersion || !quillRef.current) return;
     
     const delta = quillRef.current.getEditor().getContents();
     onSaveVersion(JSON.stringify(delta));
+  };
+
+  const handleAcceptSuggestion = async (suggestionId: string, deltaDiff: DeltaStatic) => {
+    if (!userId) {
+      toast.error('You must be logged in to accept suggestions');
+      return;
+    }
+
+    try {
+      if (isAdmin && editorContent) {
+        // Apply the delta diff to current content
+        const originalDelta = new Delta(editorContent.ops || []);
+        const diffDelta = new Delta(deltaDiff.ops || []);
+        
+        // Compose deltas to get new content
+        const newContent = originalDelta.compose(diffDelta);
+        
+        // Update editor content and save
+        setEditorContent(newContent as unknown as DeltaStatic);
+        
+        // Save changes to database
+        const success = await submitEdits(newContent as unknown as DeltaStatic);
+        
+        if (success && onCommitToGithub) {
+          await onCommitToGithub(JSON.stringify(newContent));
+        }
+        
+        toast.success('Suggestion applied successfully');
+      }
+    } catch (error) {
+      console.error('Error accepting suggestion:', error);
+      toast.error('Failed to apply suggestion');
+    }
   };
 
   if (isLoading) {
