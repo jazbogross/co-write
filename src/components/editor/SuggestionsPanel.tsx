@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -101,12 +100,11 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
 
       suggestions.forEach(suggestion => {
         try {
-          // Create proper Delta objects with the correct type
           const originalDelta = new Delta(originalContent.ops || []);
-          const diffDelta = safeToDelta(suggestion.delta_diff);
           
-          // Create a new DeltaStatic to compose with the original
-          // This is important for the types to be compatible
+          const diffDeltaOps = suggestion.delta_diff.ops || [];
+          const diffDelta = new Delta(diffDeltaOps);
+          
           const suggestedDelta = originalDelta.compose(diffDelta);
           
           const originalText = extractPlainTextFromDelta(originalDelta);
