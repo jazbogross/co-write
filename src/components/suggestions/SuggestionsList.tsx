@@ -163,7 +163,7 @@ export const ScriptSuggestions: React.FC<ScriptSuggestionsProps> = ({
                   
                   <div className="flex items-center space-x-2">
                     <span 
-                      className={`text-sm px-2 py-1   ${
+                      className={`text-sm px-2 py-1 ${
                         suggestion.status === 'pending' 
                           ? 'bg-yellow-100 text-yellow-800' 
                           : suggestion.status === 'approved' 
