@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Dialog, 
@@ -136,7 +135,6 @@ export const SuggestionPreview: React.FC<SuggestionPreviewProps> = ({
             originalContent={diffData.original}
             suggestedContent={diffData.suggested}
             diffChanges={diffData.changes}
-            lineNumber={diffData.lineNumbers[0]}
           />
         )}
         
@@ -155,3 +153,4 @@ export const SuggestionPreview: React.FC<SuggestionPreviewProps> = ({
     </Dialog>
   );
 };
+

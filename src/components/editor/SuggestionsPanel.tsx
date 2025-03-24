@@ -101,12 +101,13 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
 
       suggestions.forEach(suggestion => {
         try {
-          const originalDelta = new Delta(originalContent.ops || []) as unknown as DeltaStatic;
+          // Create proper Delta objects with the correct type
+          const originalDelta = new Delta(originalContent.ops || []);
           const diffDelta = safeToDelta(suggestion.delta_diff);
           
-          // This fixes the type error by casting to the appropriate type
-          const deltaForCompose = new Delta(diffDelta.ops || []) as unknown as Delta;
-          const suggestedDelta = originalDelta.compose(deltaForCompose);
+          // Create a new DeltaStatic to compose with the original
+          // This is important for the types to be compatible
+          const suggestedDelta = originalDelta.compose(diffDelta);
           
           const originalText = extractPlainTextFromDelta(originalDelta);
           const suggestedText = extractPlainTextFromDelta(suggestedDelta);
