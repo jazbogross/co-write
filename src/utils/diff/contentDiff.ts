@@ -69,26 +69,8 @@ export function generateContentDiff(original: any, suggested: any): LineDiff {
 }
 
 /**
- * Finds lines that are truly changed between original and suggested text
- * using a more accurate line-by-line comparison
- */
-function findChangedLines(originalLines: string[], suggestedLines: string[]): number[] {
-  const changedLineIndices: number[] = [];
-  
-  // Find all lines that differ
-  for (let i = 0; i < Math.max(originalLines.length, suggestedLines.length); i++) {
-    if (i >= originalLines.length || i >= suggestedLines.length || 
-        originalLines[i] !== suggestedLines[i]) {
-      changedLineIndices.push(i);
-    }
-  }
-  
-  return changedLineIndices;
-}
-
-/**
  * Analyzes differences between two text contents and returns structured change data
- * with line number estimation for ALL changes
+ * with accurate line number for each change
  */
 export function analyzeDeltaDifferences(
   originalText: string, 
@@ -103,66 +85,50 @@ export function analyzeDeltaDifferences(
   const originalLines = originalText.split('\n');
   const suggestedLines = suggestedText.split('\n');
   
-  // Find all changed line indices
-  const changedLineIndices = findChangedLines(originalLines, suggestedLines);
-  
-  if (changedLineIndices.length === 0) {
-    return { changes: [] };
-  }
-  
-  // Create change objects for each changed line
   const changes: DiffChange[] = [];
-  let lineOffset = 0; // Track line number adjustments as we go
   
-  changedLineIndices.forEach((lineIndex, index) => {
-    const originalLine = lineIndex < originalLines.length ? originalLines[lineIndex] : '';
-    const suggestedLine = lineIndex < suggestedLines.length ? suggestedLines[lineIndex] : '';
-    const currentLineNumber = lineIndex + 1;
+  // Find exact line-by-line differences
+  const maxLines = Math.max(originalLines.length, suggestedLines.length);
+  
+  for (let i = 0; i < maxLines; i++) {
+    const originalLine = i < originalLines.length ? originalLines[i] : '';
+    const suggestedLine = i < suggestedLines.length ? suggestedLines[i] : '';
     
-    // Apply current line offset when calculating line numbers
-    const adjustedOriginalLineNumber = currentLineNumber;
-    const adjustedSuggestedLineNumber = currentLineNumber + lineOffset;
-    
-    if (!originalLine && suggestedLine) {
-      // Line added
-      changes.push({
-        type: 'add',
-        text: suggestedLine,
-        lineNumber: currentLineNumber,
-        index: index, // Store index for tracking in diff viewer
-        originalLineNumber: adjustedOriginalLineNumber,
-        suggestedLineNumber: adjustedSuggestedLineNumber
-      });
-      lineOffset += 1; // Increment offset when a line is added
-    } else if (originalLine && !suggestedLine) {
-      // Line deleted
-      changes.push({
-        type: 'delete',
-        text: '',
-        originalText: originalLine,
-        lineNumber: currentLineNumber,
-        index: index, // Store index for tracking in diff viewer
-        originalLineNumber: adjustedOriginalLineNumber,
-        suggestedLineNumber: adjustedSuggestedLineNumber
-      });
-      lineOffset -= 1; // Decrement offset when a line is deleted
-    } else {
-      // Line modified
-      changes.push({
-        type: 'modify',
-        text: suggestedLine,
-        originalText: originalLine,
-        lineNumber: currentLineNumber,
-        index: index, // Store index for tracking in diff viewer
-        originalLineNumber: adjustedOriginalLineNumber,
-        suggestedLineNumber: adjustedSuggestedLineNumber
-      });
+    // Only create change objects for lines that actually differ
+    if (originalLine !== suggestedLine) {
+      if (!originalLine && suggestedLine) {
+        // Line added
+        changes.push({
+          type: 'add',
+          text: suggestedLine,
+          lineNumber: i + 1,
+          index: i
+        });
+      } else if (originalLine && !suggestedLine) {
+        // Line deleted
+        changes.push({
+          type: 'delete',
+          text: '',
+          originalText: originalLine,
+          lineNumber: i + 1,
+          index: i
+        });
+      } else {
+        // Line modified
+        changes.push({
+          type: 'modify',
+          text: suggestedLine,
+          originalText: originalLine,
+          lineNumber: i + 1,
+          index: i
+        });
+      }
     }
-  });
+  }
   
   return { 
     changes,
-    lineNumber: changedLineIndices[0] + 1  // Return the first changed line for backward compatibility
+    lineNumber: changes.length > 0 ? changes[0].lineNumber : undefined
   };
 }
 
