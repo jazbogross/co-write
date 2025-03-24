@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { DeltaStatic } from 'quill';
 import { safeToDelta } from '@/utils/delta/safeDeltaOperations';
-import Delta from 'quill-delta';
+import Delta from 'quill-delta'; // Properly import Delta
 
 /**
  * Fetch all suggestions for a script

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -51,7 +50,6 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
     try {
       setIsLoading(true);
       
-      // First, fetch suggestions without joining profiles
       const { data, error } = await supabase
         .from('script_suggestions')
         .select(`
@@ -69,10 +67,8 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
       if (error) throw error;
       
       if (data && data.length > 0) {
-        // Get unique user IDs
         const userIds = [...new Set(data.map(item => item.user_id))];
         
-        // Fetch usernames in a separate query
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
           .select('id, username')
@@ -80,7 +76,6 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
           
         if (profilesError) throw profilesError;
         
-        // Create a map of user IDs to usernames
         const usernameMap: Record<string, string> = {};
         if (profilesData) {
           profilesData.forEach(profile => {
@@ -100,25 +95,20 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
     }
   };
 
-  // Calculate diff data for a suggestion
   useEffect(() => {
     if (originalContent && suggestions.length > 0) {
       const newDiffData: Record<string, { original: string, suggested: string, changes: any[] }> = {};
 
       suggestions.forEach(suggestion => {
         try {
-          // Convert original content and delta_diff to proper Delta objects
           const originalDelta = new Delta(originalContent.ops || []);
           const diffDelta = safeToDelta(suggestion.delta_diff);
           
-          // Combine to get suggested content
           const suggestedDelta = originalDelta.compose(diffDelta);
           
-          // Convert to plain text for diffing
           const originalText = extractPlainTextFromDelta(originalDelta);
           const suggestedText = extractPlainTextFromDelta(suggestedDelta);
           
-          // Generate diff changes
           const { changes } = analyzeDeltaDifferences(originalText, suggestedText);
           
           newDiffData[suggestion.id] = {
@@ -142,10 +132,8 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
         return;
       }
 
-      // Convert to proper Delta objects
       const diffObj = safeToDelta(deltaDiff);
       
-      // Update suggestion status to accepted
       const { error } = await supabase
         .from('script_suggestions')
         .update({ status: 'approved', updated_at: new Date().toISOString() })
@@ -153,11 +141,8 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
       
       if (error) throw error;
       
-      // Apply the delta diff to the original content and update the script
-      // This is handled in the onAccept callback
       onAccept(suggestionId, diffObj);
       
-      // Remove from local state
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
       
       toast.success('Suggestion approved');
@@ -173,7 +158,6 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
   };
 
   const handleRejectSuccess = () => {
-    // Remove rejected suggestion from local state
     if (currentSuggestionId) {
       setSuggestions(prev => prev.filter(s => s.id !== currentSuggestionId));
     }

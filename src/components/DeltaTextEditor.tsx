@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { useTextEditor } from '@/hooks/useTextEditor';
 import { toDelta } from '@/utils/deltaUtils';
+import Delta from 'quill-delta';
 
 interface DeltaTextEditorProps {
   scriptId: string;
@@ -171,17 +172,13 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
 
     try {
       if (isAdmin && editorContent) {
-        // Apply the delta diff to current content
         const originalDelta = new Delta(editorContent.ops || []);
         const diffDelta = new Delta(deltaDiff.ops || []);
         
-        // Compose deltas to get new content
         const newContent = originalDelta.compose(diffDelta);
         
-        // Update editor content and save
         setEditorContent(newContent as unknown as DeltaStatic);
         
-        // Save changes to database
         const success = await submitEdits(newContent as unknown as DeltaStatic);
         
         if (success && onCommitToGithub) {
