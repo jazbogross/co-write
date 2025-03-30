@@ -13,7 +13,7 @@ import { safeToDelta } from '@/utils/delta/safeDeltaOperations';
 import { RejectionDialog } from '../suggestions/RejectionDialog';
 import { extractPlainTextFromDelta } from '@/utils/editor';
 import { analyzeDeltaDifferences } from '@/utils/diff/contentDiff';
-import { fetchOriginalContent } from '@/services/suggestionService';
+import { fetchOriginalContent, approveSuggestion } from '@/services/suggestionService';
 import Delta from 'quill-delta';
 
 interface SuggestionsPanelProps {
@@ -25,6 +25,7 @@ interface SuggestionsPanelProps {
 export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPanelProps) {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [currentSuggestionId, setCurrentSuggestionId] = useState<string | null>(null);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
@@ -131,6 +132,8 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
 
   const handleAccept = async (suggestionId: string, deltaDiff: any) => {
     try {
+      setIsProcessing(true);
+      
       if (!originalContent) {
         toast.error('Original content not loaded');
         return;
@@ -138,21 +141,28 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
 
       const diffObj = safeToDelta(deltaDiff);
       
-      const { error } = await supabase
-        .from('script_suggestions')
-        .update({ status: 'approved', updated_at: new Date().toISOString() })
-        .eq('id', suggestionId);
+      // Call the suggestionService to approve the suggestion
+      const success = await approveSuggestion(
+        scriptId,
+        suggestionId,
+        originalContent,
+        diffObj
+      );
       
-      if (error) throw error;
+      if (!success) {
+        throw new Error('Failed to approve suggestion');
+      }
       
+      // Update the UI and notify the parent component
+      setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
       onAccept(suggestionId, diffObj);
       
-      setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
-      
-      toast.success('Suggestion approved');
+      toast.success('Suggestion approved and applied');
     } catch (err) {
       console.error('Error accepting suggestion:', err);
       toast.error('Failed to approve suggestion');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -226,6 +236,7 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
                           size="sm"
                           onClick={() => openRejectionDialog(suggestion.id)}
                           className="flex items-center gap-1"
+                          disabled={isProcessing}
                         >
                           <XCircle size={16} />
                           Reject
@@ -234,9 +245,10 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
                           size="sm"
                           onClick={() => handleAccept(suggestion.id, suggestion.delta_diff)}
                           className="flex items-center gap-1"
+                          disabled={isProcessing}
                         >
                           <CheckCircle size={16} />
-                          Accept
+                          {isProcessing ? 'Processing...' : 'Accept'}
                         </Button>
                       </div>
                     </div>

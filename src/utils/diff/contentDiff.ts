@@ -88,48 +88,105 @@ export function analyzeDeltaDifferences(
   
   const changes: DiffChange[] = [];
   
-  // Find exact line-by-line differences
-  const maxLines = Math.max(originalLines.length, suggestedLines.length);
+  // Improved algorithm that better handles line insertions
+  // Use Longest Common Subsequence (LCS) approach
+  let i = 0, j = 0;
+  const maxOriginalLines = originalLines.length;
+  const maxSuggestedLines = suggestedLines.length;
   
-  // Map to track actual line numbers in final document
-  // This prevents showing all original content as deleted and all new content as added
-  for (let i = 0; i < maxLines; i++) {
-    const originalLine = i < originalLines.length ? originalLines[i] : '';
-    const suggestedLine = i < suggestedLines.length ? suggestedLines[i] : '';
+  // Compare line by line with improved tracking of line numbers
+  while (i < maxOriginalLines || j < maxSuggestedLines) {
+    const originalLine = i < maxOriginalLines ? originalLines[i] : '';
+    const suggestedLine = j < maxSuggestedLines ? suggestedLines[j] : '';
     
-    // Skip completely identical lines
-    if (originalLine === suggestedLine) {
+    // Skip empty lines at the end
+    if (i >= maxOriginalLines && !suggestedLine.trim()) {
+      j++;
       continue;
     }
     
-    // Only create change objects for lines that actually differ
-    if (!originalLine && suggestedLine) {
-      // Line added
-      changes.push({
-        type: 'add',
-        text: suggestedLine,
-        lineNumber: i + 1, // 1-based line numbers for display
-        index: i
-      });
-    } else if (originalLine && !suggestedLine) {
-      // Line deleted
-      changes.push({
-        type: 'delete',
-        text: '',
-        originalText: originalLine,
-        lineNumber: i + 1,
-        index: i
-      });
-    } else if (originalLine !== suggestedLine) {
-      // Line modified
-      changes.push({
-        type: 'modify',
-        text: suggestedLine,
-        originalText: originalLine,
-        lineNumber: i + 1,
-        index: i
-      });
+    if (j >= maxSuggestedLines && !originalLine.trim()) {
+      i++;
+      continue;
     }
+    
+    // Case 1: Lines are identical - nothing to report, move both counters
+    if (originalLine === suggestedLine) {
+      i++;
+      j++;
+      continue;
+    }
+    
+    // Case 2: Check if the current line in original exists later in suggested
+    // This would indicate new lines were added before
+    let foundLater = false;
+    if (originalLine.trim() !== '') {
+      for (let lookAhead = j + 1; lookAhead < Math.min(j + 5, maxSuggestedLines); lookAhead++) {
+        if (originalLines[i] === suggestedLines[lookAhead]) {
+          // Found the line later - these are added lines
+          for (let k = j; k < lookAhead; k++) {
+            changes.push({
+              type: 'add',
+              text: suggestedLines[k],
+              lineNumber: k + 1,
+              index: k
+            });
+          }
+          
+          j = lookAhead + 1;
+          i++;
+          foundLater = true;
+          break;
+        }
+      }
+    }
+    
+    if (foundLater) {
+      continue;
+    }
+    
+    // Case 3: Check if current line in suggested exists later in original
+    // This would indicate lines were deleted
+    let foundInOriginal = false;
+    if (suggestedLine.trim() !== '') {
+      for (let lookAhead = i + 1; lookAhead < Math.min(i + 5, maxOriginalLines); lookAhead++) {
+        if (suggestedLines[j] === originalLines[lookAhead]) {
+          // Found the line later in original - deleted lines
+          for (let k = i; k < lookAhead; k++) {
+            changes.push({
+              type: 'delete',
+              text: '',
+              originalText: originalLines[k],
+              lineNumber: j + 1, // Report at the current position in suggested
+              originalLineNumber: k + 1,
+              index: k
+            });
+          }
+          
+          i = lookAhead + 1;
+          j++;
+          foundInOriginal = true;
+          break;
+        }
+      }
+    }
+    
+    if (foundInOriginal) {
+      continue;
+    }
+    
+    // Case 4: Line is modified
+    changes.push({
+      type: 'modify',
+      text: suggestedLine,
+      originalText: originalLine,
+      lineNumber: j + 1,
+      originalLineNumber: i + 1,
+      index: Math.min(i, j)
+    });
+    
+    i++;
+    j++;
   }
   
   return { 

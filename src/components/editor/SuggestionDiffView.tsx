@@ -19,19 +19,26 @@ export const SuggestionDiffView: React.FC<SuggestionDiffViewProps> = ({
     change.type === 'add' || change.type === 'delete' || change.type === 'modify'
   );
   
+  // Sort changes by line number to ensure they appear in the correct order
+  const sortedChanges = [...actualChanges].sort((a, b) => {
+    const lineA = a.lineNumber || 0;
+    const lineB = b.lineNumber || 0;
+    return lineA - lineB;
+  });
+  
   return (
     <div className="border rounded-md overflow-hidden">
       <ScrollArea className="h-[400px]">
         <div className="font-mono text-sm p-1">
-          {actualChanges.length === 0 ? (
+          {sortedChanges.length === 0 ? (
             <div className="p-4 text-center text-muted-foreground">
               No changes detected
             </div>
           ) : (
-            actualChanges.map((change, index) => (
+            sortedChanges.map((change, index) => (
               <div key={index} className="mb-4">
                 <div className="py-1 px-2 bg-slate-100 border-b text-xs font-medium">
-                  Line {change.lineNumber}
+                  Line {change.originalLineNumber || change.lineNumber || '?'}
                 </div>
                 {change.type === 'delete' || change.type === 'modify' ? (
                   <div className="flex">
