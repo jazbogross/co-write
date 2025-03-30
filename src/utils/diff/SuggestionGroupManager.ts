@@ -41,37 +41,12 @@ export class SuggestionGroupManager {
   }
   
   /**
-   * Get the summary text for a suggestion
-   * @param suggestion The suggestion to summarize
-   * @returns A text summary of the suggestion
+   * Get metadata for a suggestion
+   * @param suggestionId The suggestion ID to look up
+   * @param suggestions Array of all suggestions
+   * @returns The suggestion metadata or null if not found
    */
-  static getSuggestionSummary(suggestion: Suggestion): string {
-    if (!suggestion.deltaDiff) {
-      return 'No changes';
-    }
-    
-    try {
-      const ops = suggestion.deltaDiff.ops || [];
-      let summary = '';
-      let charCount = 0;
-      
-      for (const op of ops) {
-        if (op.insert) {
-          const text = typeof op.insert === 'string' ? op.insert : JSON.stringify(op.insert);
-          summary += text;
-          charCount += text.length;
-          
-          if (charCount > 100) {
-            summary = summary.substring(0, 100) + '...';
-            break;
-          }
-        }
-      }
-      
-      return summary || 'No text content';
-    } catch (error) {
-      console.error('Error creating suggestion summary:', error);
-      return 'Error parsing suggestion';
-    }
+  static getSuggestionMetadata(suggestionId: string, suggestions: Suggestion[]): Suggestion | null {
+    return suggestions.find(s => s.id === suggestionId) || null;
   }
 }
