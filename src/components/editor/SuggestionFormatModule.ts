@@ -8,7 +8,8 @@ export const SuggestionFormatModule = {
   name: 'suggestionFormat',
   register: function (Quill: any) {
     try {
-      if ((Quill as any)._suggestionFormatModuleRegistered) {
+      // Avoid double registration
+      if (Quill._suggestionFormatModuleRegistered) {
         return;
       }
       
@@ -89,13 +90,13 @@ export const SuggestionFormatModule = {
       Quill.register(SuggestionAddFormat);
       Quill.register(SuggestionRemoveFormat);
       
-      // Register the module
-      Quill.register('modules/suggestionFormat', function() {
-        return { initialized: true };
-      });
+      // Mark as registered to avoid double registration
+      Quill._suggestionFormatModuleRegistered = true;
       
-      // Mark as registered
-      (Quill as any)._suggestionFormatModuleRegistered = true;
+      // Register a dummy module since Quill expects a constructor or an object with an init method
+      Quill.register('modules/suggestionFormat', {
+        init: function() {}
+      }, true);
       
       return true;
     } catch (error) {

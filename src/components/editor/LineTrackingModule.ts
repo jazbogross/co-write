@@ -23,7 +23,6 @@ export const LineTrackingModule = {
       // Register the suggestion format module FIRST if it hasn't been registered
       if (!(ReactQuill.Quill as any)._suggestionFormatModuleRegistered) {
         SuggestionFormatModule.register(Quill);
-        (ReactQuill.Quill as any)._suggestionFormatModuleRegistered = true;
       }
       
       // Mark as registered

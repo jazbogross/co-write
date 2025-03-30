@@ -1,66 +1,56 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronRight } from 'lucide-react';
-import { extractPlainTextFromDelta, isDeltaObject } from '@/utils/editor';
+import { SuggestionItem } from './SuggestionItem';
+import { Suggestion } from './types';
 import { GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 
 interface SuggestionGroupItemProps {
-  suggestion: GroupedSuggestion;
-  onExpand: () => void;
+  group: { userId: string; username: string; suggestions: Suggestion[] };
+  onApprove: (ids: string[]) => void;
+  onReject: (id: string) => void;
+  isAdmin: boolean;
+  disabled?: boolean;
 }
 
-export const SuggestionGroupItem: React.FC<SuggestionGroupItemProps> = ({ suggestion, onExpand }) => {
-  // Get preview of content
-  const getContentPreview = (content: any): string => {
-    let textContent: string;
-    
-    if (typeof content === 'string') {
-      try {
-        // Try to parse as JSON Delta
-        const parsed = JSON.parse(content);
-        if (parsed && 'ops' in parsed) {
-          textContent = extractPlainTextFromDelta(parsed);
-        } else {
-          textContent = content;
-        }
-      } catch {
-        textContent = content;
-      }
-    } else if (isDeltaObject(content)) {
-      textContent = extractPlainTextFromDelta(content);
-    } else {
-      textContent = String(content);
-    }
-    
-    // Truncate and add ellipsis if too long
-    return textContent.length > 100
-      ? textContent.substring(0, 100) + '...'
-      : textContent;
+export const SuggestionGroupItem: React.FC<SuggestionGroupItemProps> = ({
+  group,
+  onApprove,
+  onReject,
+  isAdmin,
+  disabled = false
+}) => {
+  const handleApproveAll = () => {
+    const ids = group.suggestions.map(s => s.id);
+    onApprove(ids);
   };
   
   return (
-    <div className="flex items-start space-x-3 p-3 border bg-gray-50">
-      <div className="flex-1">
-        <div className="flex items-center mb-1">
-          <span className={`text-xs font-medium px-2 py-0.5   ${
-            suggestion.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-            suggestion.status === 'approved' ? 'bg-green-100 text-green-800' :
-            'bg-red-100 text-red-800'
-          }`}>
-            {suggestion.status}
-          </span>
-        </div>
-        <p className="text-sm whitespace-pre-wrap">{getContentPreview(suggestion.content)}</p>
+    <div className="border rounded-md p-4 mb-4">
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-lg font-medium">{group.username}</h3>
+        {isAdmin && group.suggestions.length > 1 && (
+          <Button 
+            size="sm" 
+            onClick={handleApproveAll}
+            disabled={disabled}
+          >
+            Approve All ({group.suggestions.length})
+          </Button>
+        )}
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onExpand}
-        className="flex-shrink-0"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </Button>
+      <div className="space-y-2">
+        {group.suggestions.map(suggestion => (
+          <SuggestionItem 
+            key={suggestion.id}
+            suggestion={suggestion}
+            onApprove={() => onApprove([suggestion.id])}
+            onReject={() => onReject(suggestion.id)}
+            isAdmin={isAdmin}
+            disabled={disabled}
+          />
+        ))}
+      </div>
     </div>
   );
 };
