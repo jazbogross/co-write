@@ -4,32 +4,52 @@ import ReactQuill from 'react-quill';
 import { DeltaStatic } from 'quill';
 
 interface EditorContentProps {
-  content: DeltaStatic;
+  editorContent: DeltaStatic | null;
   quillRef: React.RefObject<ReactQuill>;
-  handleChange: (value: any) => void;
+  handleChange: (value: string, delta: DeltaStatic, source: string, editor: any) => void;
+  handleChangeSelection: (range: any, source: string, editor: any) => void;
+  handleEditorClick: (event: React.MouseEvent) => void;
 }
 
-export const EditorContent: React.FC<EditorContentProps> = ({ 
-  content, 
-  quillRef, 
-  handleChange 
+export const EditorContent: React.FC<EditorContentProps> = ({
+  editorContent,
+  quillRef,
+  handleChange,
+  handleChangeSelection,
+  handleEditorClick
 }) => {
-  const modules = {
-    toolbar: [
-      ['bold', 'italic'],
-      [{ 'direction': 'rtl' }],
-      [{ 'align': ['', 'center', 'right'] }]
-    ]
-  };
-
   return (
-    <div className="quill-editor-container bg-white">
-      <ReactQuill 
+    <div onClick={handleEditorClick}>
+      <ReactQuill
         ref={quillRef}
-        defaultValue={content}
-        onChange={handleChange}
         theme="snow"
-        modules={modules}
+        value={editorContent || { ops: [{ insert: '\n' }] }}
+        onChange={handleChange}
+        onChangeSelection={handleChangeSelection}
+        modules={{
+          toolbar: false,
+          suggestionFormat: true
+        }}
+        formats={[
+          'header',
+          'bold',
+          'italic',
+          'underline',
+          'strike',
+          'blockquote',
+          'list',
+          'bullet',
+          'indent',
+          'link',
+          'image',
+          'code-block',
+          'background',
+          'color',
+          'align',
+          'direction',
+          'suggestion-add',
+          'suggestion-remove'
+        ]}
       />
     </div>
   );
