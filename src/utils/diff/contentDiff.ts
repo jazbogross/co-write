@@ -1,3 +1,4 @@
+
 /**
  * Utilities for content diffing
  */
@@ -90,39 +91,44 @@ export function analyzeDeltaDifferences(
   // Find exact line-by-line differences
   const maxLines = Math.max(originalLines.length, suggestedLines.length);
   
+  // Map to track actual line numbers in final document
+  // This prevents showing all original content as deleted and all new content as added
   for (let i = 0; i < maxLines; i++) {
     const originalLine = i < originalLines.length ? originalLines[i] : '';
     const suggestedLine = i < suggestedLines.length ? suggestedLines[i] : '';
     
+    // Skip completely identical lines
+    if (originalLine === suggestedLine) {
+      continue;
+    }
+    
     // Only create change objects for lines that actually differ
-    if (originalLine !== suggestedLine) {
-      if (!originalLine && suggestedLine) {
-        // Line added
-        changes.push({
-          type: 'add',
-          text: suggestedLine,
-          lineNumber: i + 1,
-          index: i
-        });
-      } else if (originalLine && !suggestedLine) {
-        // Line deleted
-        changes.push({
-          type: 'delete',
-          text: '',
-          originalText: originalLine,
-          lineNumber: i + 1,
-          index: i
-        });
-      } else {
-        // Line modified
-        changes.push({
-          type: 'modify',
-          text: suggestedLine,
-          originalText: originalLine,
-          lineNumber: i + 1,
-          index: i
-        });
-      }
+    if (!originalLine && suggestedLine) {
+      // Line added
+      changes.push({
+        type: 'add',
+        text: suggestedLine,
+        lineNumber: i + 1, // 1-based line numbers for display
+        index: i
+      });
+    } else if (originalLine && !suggestedLine) {
+      // Line deleted
+      changes.push({
+        type: 'delete',
+        text: '',
+        originalText: originalLine,
+        lineNumber: i + 1,
+        index: i
+      });
+    } else if (originalLine !== suggestedLine) {
+      // Line modified
+      changes.push({
+        type: 'modify',
+        text: suggestedLine,
+        originalText: originalLine,
+        lineNumber: i + 1,
+        index: i
+      });
     }
   }
   

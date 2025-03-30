@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -100,16 +101,18 @@ export function SuggestionsPanel({ scriptId, onAccept, onClose }: SuggestionsPan
 
       suggestions.forEach(suggestion => {
         try {
-          const originalDelta = new Delta(originalContent.ops || []);
+          // Create proper Delta instances for composition
+          const originalDelta = new Delta(originalContent?.ops || []);
+          const diffDelta = new Delta(suggestion.delta_diff?.ops || []);
           
-          const diffDeltaOps = suggestion.delta_diff.ops || [];
-          const diffDelta = new Delta(diffDeltaOps);
-          
+          // Compose to get the suggested content
           const suggestedDelta = originalDelta.compose(diffDelta);
           
+          // Extract plain text for comparison
           const originalText = extractPlainTextFromDelta(originalDelta);
           const suggestedText = extractPlainTextFromDelta(suggestedDelta);
           
+          // Calculate line-by-line differences
           const { changes } = analyzeDeltaDifferences(originalText, suggestedText);
           
           newDiffData[suggestion.id] = {
