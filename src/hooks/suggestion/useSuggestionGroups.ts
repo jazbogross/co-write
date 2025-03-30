@@ -2,24 +2,10 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { fetchUserProfiles } from '@/services/suggestionService';
-
-interface GroupedSuggestion {
-  id: string;
-  user_id: string;
-  username: string;
-  delta_diff: any;
-  created_at: string;
-  status: string;
-}
-
-interface UserGroup {
-  userId: string;
-  username: string;
-  suggestions: GroupedSuggestion[];
-}
+import { GroupedSuggestion, SuggestionGroupManager } from '@/utils/diff/SuggestionGroupManager';
 
 export function useSuggestionGroups(suggestions: any[]) {
-  const [groupedSuggestions, setGroupedSuggestions] = useState<UserGroup[]>([]);
+  const [groupedSuggestions, setGroupedSuggestions] = useState<{ userId: string; username: string; suggestions: GroupedSuggestion[] }[]>([]);
   const [expandedSuggestion, setExpandedSuggestion] = useState<GroupedSuggestion | null>(null);
 
   const groupSuggestions = async (suggestions: any[]) => {
@@ -36,7 +22,7 @@ export function useSuggestionGroups(suggestions: any[]) {
       const usernameMap = await fetchUserProfiles(userIds);
       
       // Group suggestions by user
-      const groupedByUser: Record<string, UserGroup> = {};
+      const groupedByUser: Record<string, { userId: string; username: string; suggestions: GroupedSuggestion[] }> = {};
       
       suggestions.forEach(suggestion => {
         const userId = suggestion.user_id;
@@ -52,11 +38,11 @@ export function useSuggestionGroups(suggestions: any[]) {
         
         groupedByUser[userId].suggestions.push({
           id: suggestion.id,
-          user_id: suggestion.user_id,
+          userId: suggestion.user_id,
           username,
-          delta_diff: suggestion.delta_diff,
-          created_at: suggestion.created_at,
-          status: suggestion.status
+          content: suggestion.delta_diff,
+          status: suggestion.status,
+          created_at: suggestion.created_at
         });
       });
       
