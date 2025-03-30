@@ -13,7 +13,7 @@ export const useSuggestionLoader = (
   const [isLoading, setIsLoading] = useState(false);
 
   const loadSuggestions = useCallback(async () => {
-    if (!isAdmin || !scriptId) return [];
+    if (!isAdmin || !scriptId) return;
     
     setIsLoading(true);
     
@@ -59,11 +59,9 @@ export const useSuggestionLoader = (
       }));
       
       setSuggestions(formattedSuggestions);
-      return formattedSuggestions;
     } catch (error) {
       console.error('Error loading suggestions:', error);
       toast.error('Failed to load suggestions');
-      return [];
     } finally {
       setIsLoading(false);
     }

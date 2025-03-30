@@ -46,6 +46,14 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     // This is intentionally empty as changes are captured by the quill reference
   };
   
+  const handleChangeSelection = (range: any, source: string, editor: any) => {
+    // Handle selection changes if needed
+  };
+  
+  const handleEditorClick = (event: React.MouseEvent) => {
+    // Handle editor clicks if needed
+  };
+  
   const handleSave = async () => {
     if (!quillRef.current || !userId) return;
     
@@ -153,9 +161,11 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
       />
 
       <EditorContent 
-        content={content} 
+        editorContent={content} 
         quillRef={quillRef} 
-        handleChange={handleChange} 
+        handleChange={handleChange}
+        handleChangeSelection={handleChangeSelection}
+        handleEditorClick={handleEditorClick}
       />
       
       <SaveVersionDialog

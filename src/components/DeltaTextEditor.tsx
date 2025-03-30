@@ -16,6 +16,7 @@ import { useEditorFormat } from '@/hooks/editor/useEditorFormat';
 import { useEditorEvents } from '@/hooks/editor/useEditorEvents';
 import { useEditorSubmitHandlers } from '@/hooks/editor/useEditorSubmitHandlers';
 import { EditorContent } from '@/components/editor/EditorContent';
+import { toDelta } from '@/utils/deltaUtils';
 
 interface DeltaTextEditorProps {
   scriptId: string;
@@ -152,7 +153,8 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
 
   useEffect(() => {
     if (!isLoading && content) {
-      setEditorContent(content);
+      // Make sure we convert content to DeltaStatic first
+      setEditorContent(toDelta(content));
     }
   }, [content, isLoading]);
 
