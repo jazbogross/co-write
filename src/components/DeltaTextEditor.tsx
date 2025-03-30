@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { TextEditorActions } from '@/components/editor/TextEditorActions';
@@ -35,9 +35,10 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   pendingSuggestionsCount = 0,
   hasPendingSuggestions = false
 }) => {
-  const [editorContent, setEditorContent] = React.useState<DeltaStatic | null>(null);
+  const [editorContent, setEditorContent] = useState<DeltaStatic | null>(null);
   const quillRef = useRef<ReactQuill>(null);
-  const [showRejectDialog, setShowRejectDialog] = React.useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [lastChangeSource, setLastChangeSource] = useState<string | null>(null);
   
   // Initialize hooks
   const { content, isLoading, userId } = useTextEditor(scriptId, isAdmin);
@@ -61,13 +62,19 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     resetRejectDialog
   } = useActiveSuggestion();
   const { currentFormat, handleChangeSelection, handleFormat } = useEditorFormat(quillRef);
-  const { handleChange, handleEditorClick } = useEditorEvents(
-    quillRef, 
-    suggestions, 
-    isAdmin, 
-    openSuggestionPopover,
-    setEditorContent
-  );
+  
+  // Modify the event handlers to prevent infinite loops
+  const handleChange = useCallback((value: string, delta: any, source: string, editor: any) => {
+    if (source === 'user') {
+      setLastChangeSource('user');
+      // Don't update state on every change, which can cause loops
+    }
+  }, []);
+  
+  const handleEditorClick = useCallback((event: React.MouseEvent) => {
+    // Handle editor clicks if needed
+  }, []);
+  
   const { 
     handleSubmit, 
     handleSaveDraft, 
@@ -92,16 +99,19 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     loadSuggestions
   );
   
-  // Load suggestions when component mounts or scriptId changes
+  // Only load suggestions when component mounts or scriptId changes - not on every render
   useEffect(() => {
     if (isAdmin) {
       loadSuggestions();
     }
   }, [loadSuggestions, isAdmin]);
   
-  // Apply suggestions to content when suggestions change
+  // Apply suggestions to content - but make sure to prevent infinite loops
   useEffect(() => {
     if (!quillRef.current || !editorContent || suggestions.length === 0) return;
+    
+    // Skip processing if the last change wasn't user-initiated
+    if (lastChangeSource !== 'user' && lastChangeSource !== null) return;
     
     const editor = quillRef.current.getEditor();
     
@@ -111,52 +121,55 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
       'suggestion-remove': false
     });
     
-    // Apply each suggestion's formatting
-    suggestions.forEach(suggestion => {
-      if (suggestion.deltaDiff && suggestion.deltaDiff.ops) {
-        let index = 0;
-        
-        suggestion.deltaDiff.ops.forEach(op => {
-          if (op.retain) {
-            index += op.retain;
-          } else if (op.delete) {
-            // For deletions, we need to highlight text that would be deleted
-            // Find the text at this position in the original content
-            const textToDelete = editor.getText(index, op.delete);
-            if (textToDelete) {
-              // Format this text as a deletion suggestion
+    // Apply each suggestion's formatting - but we'll use a more careful approach
+    // to avoid reflow issues
+    try {
+      suggestions.forEach(suggestion => {
+        if (suggestion.deltaDiff && suggestion.deltaDiff.ops) {
+          let index = 0;
+          
+          suggestion.deltaDiff.ops.forEach(op => {
+            if (op.retain) {
+              index += op.retain;
+            } else if (op.delete) {
+              // For deletions, we need to highlight text that would be deleted
               editor.formatText(index, op.delete, {
                 'suggestion-remove': { 
                   suggestionId: suggestion.id,
                   userId: suggestion.userId
                 }
               });
+            } else if (op.insert) {
+              // Format inserted text as an addition suggestion
+              const insertLength = typeof op.insert === 'string' ? op.insert.length : 1;
+              
+              editor.insertText(index, op.insert, {
+                'suggestion-add': { 
+                  suggestionId: suggestion.id,
+                  userId: suggestion.userId
+                }
+              });
+              
+              index += insertLength;
             }
-          } else if (op.insert) {
-            // Format inserted text as an addition suggestion
-            const insertLength = typeof op.insert === 'string' ? op.insert.length : 1;
-            
-            // Insert the suggested text
-            editor.insertText(index, op.insert, {
-              'suggestion-add': { 
-                suggestionId: suggestion.id,
-                userId: suggestion.userId
-              }
-            });
-            
-            index += insertLength;
-          }
-        });
-      }
-    });
-  }, [suggestions, editorContent]);
+          });
+        }
+      });
+      
+      // Reset the change source to prevent further processing
+      setLastChangeSource(null);
+    } catch (error) {
+      console.error('Error applying suggestions to editor:', error);
+    }
+  }, [suggestions, editorContent, lastChangeSource]);
 
+  // Load initial content - but only once
   useEffect(() => {
-    if (!isLoading && content) {
+    if (!isLoading && content && !editorContent) {
       // Make sure we convert content to DeltaStatic first
       setEditorContent(toDelta(content));
     }
-  }, [content, isLoading]);
+  }, [content, isLoading, editorContent]);
 
   const handleApproveClick = async (suggestionId: string) => {
     closeSuggestionPopover();

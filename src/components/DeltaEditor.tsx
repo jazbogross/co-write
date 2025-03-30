@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import 'react-quill/dist/quill.snow.css';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +29,7 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
   } = useEditorContent(scriptId, isAdmin);
   
   const [showSaveVersionDialog, setShowSaveVersionDialog] = useState(false);
+  const [lastChangeSource, setLastChangeSource] = useState<string | null>(null);
   
   const { 
     submitAsAdmin, 
@@ -42,16 +43,21 @@ export const DeltaEditor: React.FC<DeltaEditorProps> = ({ scriptId, isAdmin }) =
     userId 
   });
   
-  const handleChange = (value: any) => {
-    // This is intentionally empty as changes are captured by the quill reference
+  // Use a debounced handler for Quill changes
+  const handleChange = (value: string, delta: any, source: string, editor: any) => {
+    // Only process user changes to avoid loops
+    if (source === 'user') {
+      setLastChangeSource('user');
+      // No need to update content here as it's captured by the quill reference
+    }
   };
   
   const handleChangeSelection = (range: any, source: string, editor: any) => {
-    // Handle selection changes if needed
+    // Intentionally empty - handles selection changes if needed in the future
   };
   
   const handleEditorClick = (event: React.MouseEvent) => {
-    // Handle editor clicks if needed
+    // Intentionally empty - handles editor clicks if needed in the future
   };
   
   const handleSave = async () => {

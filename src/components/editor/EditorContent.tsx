@@ -18,6 +18,7 @@ export const EditorContent: React.FC<EditorContentProps> = ({
   handleChangeSelection,
   handleEditorClick
 }) => {
+  // Use React.memo to prevent unnecessary re-renders
   return (
     <div onClick={handleEditorClick}>
       <ReactQuill
@@ -28,7 +29,7 @@ export const EditorContent: React.FC<EditorContentProps> = ({
         onChangeSelection={handleChangeSelection}
         modules={{
           toolbar: false,
-          suggestionFormat: true
+          // Remove the suggestion format module since it's causing issues
         }}
         formats={[
           'header',
@@ -54,3 +55,6 @@ export const EditorContent: React.FC<EditorContentProps> = ({
     </div>
   );
 };
+
+// Use React.memo to prevent unnecessary re-renders
+export default React.memo(EditorContent);
