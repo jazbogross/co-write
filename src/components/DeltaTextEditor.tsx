@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -71,7 +70,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     
     const Quill = ReactQuill.Quill;
     // Register the suggestion format module
-    if (!Quill._suggestionFormatModuleRegistered) {
+    if (!(Quill as any)._suggestionFormatModuleRegistered) {
       SuggestionFormatModule.register(Quill);
     }
   }, [isLoading]);
