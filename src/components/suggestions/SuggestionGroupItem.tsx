@@ -3,7 +3,6 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { SuggestionItem } from './SuggestionItem';
 import { Suggestion } from './types';
-import { GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 
 interface SuggestionGroupItemProps {
   group: { userId: string; username: string; suggestions: Suggestion[] };

@@ -93,10 +93,16 @@ export const SuggestionFormatModule = {
       // Mark as registered to avoid double registration
       Quill._suggestionFormatModuleRegistered = true;
       
-      // Register a dummy module since Quill expects a constructor or an object with an init method
-      Quill.register('modules/suggestionFormat', {
-        init: function() {}
-      }, true);
+      // Define the module constructor function
+      function SuggestionFormatModuleFunc() {
+        this.initialize = function() {
+          // Module initialization logic
+          console.log('SuggestionFormat module initialized');
+        };
+      }
+      
+      // Register the module with Quill
+      Quill.register('modules/suggestionFormat', SuggestionFormatModuleFunc, true);
       
       return true;
     } catch (error) {

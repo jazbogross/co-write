@@ -53,6 +53,15 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     userId
   });
 
+  // Register Quill formats and modules
+  useEffect(() => {
+    // Register the suggestion format module before ReactQuill tries to use it
+    const Quill = ReactQuill.Quill;
+    if (!(Quill as any)._suggestionFormatModuleRegistered) {
+      SuggestionFormatModule.register(Quill);
+    }
+  }, []);
+
   // Add styles to the head
   useEffect(() => {
     const styleElement = document.createElement('style');
@@ -63,17 +72,6 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
       document.head.removeChild(styleElement);
     };
   }, []);
-
-  // Register Quill modules/formats on mount
-  useEffect(() => {
-    if (!quillRef.current || isLoading) return;
-    
-    const Quill = ReactQuill.Quill;
-    // Register the suggestion format module
-    if (!(Quill as any)._suggestionFormatModuleRegistered) {
-      SuggestionFormatModule.register(Quill);
-    }
-  }, [isLoading]);
 
   // Load suggestions
   const loadSuggestions = useCallback(async () => {
@@ -433,7 +431,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
           onChangeSelection={handleChangeSelection}
           modules={{
             toolbar: false,
-            suggestionFormat: {}
+            suggestionFormat: true
           }}
           formats={[
             'header',
