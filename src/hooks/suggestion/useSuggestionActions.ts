@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { approveSuggestion, rejectSuggestion } from '@/services/suggestionService';
 import { DeltaStatic } from 'quill';
-import { SuggestionGroupManager } from '@/utils/diff/SuggestionGroupManager';
 
 export function useSuggestionActions(
   scriptId: string, 
@@ -19,9 +18,6 @@ export function useSuggestionActions(
     setIsProcessing(true);
     try {
       for (const id of ids) {
-        // Find the suggestion in our local state
-        // We'll need to get suggestions from outer scope
-        // This will be fixed in the refactored useSuggestionManager
         await approveSuggestion(
           scriptId,
           id,

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -15,7 +16,6 @@ interface DeltaTextEditorProps {
   isAdmin: boolean;
   onCommitToGithub?: (content: string) => Promise<boolean>;
   onSaveVersion?: (content: string) => void;
-  onToggleSuggestions?: () => void;
   pendingSuggestionsCount?: number;
   hasPendingSuggestions?: boolean;
 }
@@ -25,7 +25,6 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   isAdmin,
   onCommitToGithub,
   onSaveVersion,
-  onToggleSuggestions,
   pendingSuggestionsCount = 0,
   hasPendingSuggestions = false
 }) => {
@@ -164,35 +163,6 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     onSaveVersion(JSON.stringify(delta));
   };
 
-  const handleAcceptSuggestion = async (suggestionId: string, deltaDiff: DeltaStatic) => {
-    if (!userId) {
-      toast.error('You must be logged in to accept suggestions');
-      return;
-    }
-
-    try {
-      if (isAdmin && editorContent) {
-        const originalDelta = new Delta(editorContent.ops || []);
-        const diffDelta = new Delta(deltaDiff.ops || []);
-        
-        const newContent = originalDelta.compose(diffDelta);
-        
-        setEditorContent(newContent as unknown as DeltaStatic);
-        
-        const success = await submitEdits(newContent as unknown as DeltaStatic);
-        
-        if (success && onCommitToGithub) {
-          await onCommitToGithub(JSON.stringify(newContent));
-        }
-        
-        toast.success('Suggestion applied successfully');
-      }
-    } catch (error) {
-      console.error('Error accepting suggestion:', error);
-      toast.error('Failed to apply suggestion');
-    }
-  };
-
   if (isLoading) {
     return <div>Loading editor...</div>;
   }
@@ -208,7 +178,6 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
         onSave={!isAdmin ? handleSaveDraft : undefined}
         onSaveVersion={isAdmin ? handleSaveVersion : undefined}
         onSubmitSuggestion={!isAdmin ? handleSubmitSuggestion : undefined}
-        onToggleSuggestions={isAdmin ? onToggleSuggestions : undefined}
         pendingSuggestionsCount={pendingSuggestionsCount}
         hasPendingSuggestions={hasPendingSuggestions}
       />

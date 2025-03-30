@@ -10,3 +10,9 @@ export interface Suggestion {
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
 }
+
+export interface GroupedSuggestion {
+  userId: string;
+  username: string;
+  suggestions: Suggestion[];
+}

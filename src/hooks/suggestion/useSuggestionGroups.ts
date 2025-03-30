@@ -1,8 +1,22 @@
 
 import { useState } from 'react';
-import { SuggestionGroupManager, UserGroup, GroupedSuggestion } from '@/utils/diff/SuggestionGroupManager';
 import { toast } from 'sonner';
 import { fetchUserProfiles } from '@/services/suggestionService';
+
+interface GroupedSuggestion {
+  id: string;
+  user_id: string;
+  username: string;
+  delta_diff: any;
+  created_at: string;
+  status: string;
+}
+
+interface UserGroup {
+  userId: string;
+  username: string;
+  suggestions: GroupedSuggestion[];
+}
 
 export function useSuggestionGroups(suggestions: any[]) {
   const [groupedSuggestions, setGroupedSuggestions] = useState<UserGroup[]>([]);
@@ -21,15 +35,32 @@ export function useSuggestionGroups(suggestions: any[]) {
       // Fetch user profiles for these IDs
       const usernameMap = await fetchUserProfiles(userIds);
       
-      // Enhance suggestion data with username information
-      const enhancedData = suggestions.map(suggestion => ({
-        ...suggestion,
-        profiles: { username: usernameMap[suggestion.user_id] || 'Unknown user' }
-      }));
-      
       // Group suggestions by user
-      const grouped = SuggestionGroupManager.groupByUser(enhancedData);
-      setGroupedSuggestions(grouped);
+      const groupedByUser: Record<string, UserGroup> = {};
+      
+      suggestions.forEach(suggestion => {
+        const userId = suggestion.user_id;
+        const username = usernameMap[userId] || 'Unknown user';
+        
+        if (!groupedByUser[userId]) {
+          groupedByUser[userId] = {
+            userId,
+            username,
+            suggestions: []
+          };
+        }
+        
+        groupedByUser[userId].suggestions.push({
+          id: suggestion.id,
+          user_id: suggestion.user_id,
+          username,
+          delta_diff: suggestion.delta_diff,
+          created_at: suggestion.created_at,
+          status: suggestion.status
+        });
+      });
+      
+      setGroupedSuggestions(Object.values(groupedByUser));
     } catch (error) {
       console.error('Error grouping suggestions:', error);
       toast.error("Failed to group suggestions");
