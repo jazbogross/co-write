@@ -7,17 +7,12 @@ import { DeltaStatic } from 'quill';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { useTextEditor } from '@/hooks/useTextEditor';
 import { useEditorInitializer } from '@/hooks/editor/useEditorInitializer';
-import { useSuggestionLoader } from '@/hooks/suggestion/useSuggestionLoader';
-import { useActiveSuggestion } from '@/hooks/suggestion/useActiveSuggestion';
 import { useEditorFormat } from '@/hooks/editor/useEditorFormat';
-import { useSuggestionActions } from '@/hooks/suggestion/useSuggestionActions';
 import { EditorContent } from '@/components/editor/EditorContent';
 import { toDelta } from '@/utils/deltaUtils';
-import { useSuggestionsApplier } from '@/hooks/suggestion/useSuggestionsApplier';
-import { useEditorEventHandlers } from '@/hooks/editor/useEditorEventHandlers';
-import { useSuggestionHandlers } from '@/hooks/suggestion/useSuggestionHandlers';
 import { EditorDialogs } from '@/components/editor/EditorDialogs';
 import { useEditorSubmitHandlers } from '@/hooks/editor/useEditorSubmitHandlers';
+import { useSuggestionManager } from '@/hooks/suggestion/useSuggestionManager';
 
 interface DeltaTextEditorProps {
   scriptId: string;
@@ -46,56 +41,43 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     isAdmin,
     userId
   });
-  const { initialized } = useEditorInitializer();
-  const { suggestions, setSuggestions, loadSuggestions } = useSuggestionLoader(scriptId, isAdmin);
+  
+  useEditorInitializer();
   const { currentFormat, handleChangeSelection, handleFormat } = useEditorFormat(quillRef);
   
-  // Suggestion-related hooks
-  const { 
-    activeSuggestion, 
-    popoverPosition, 
-    isPopoverOpen, 
-    selectedSuggestionId, 
-    rejectionReason, 
-    setRejectionReason,
-    openSuggestionPopover,
-    closeSuggestionPopover,
-    prepareRejectSuggestion,
-    resetRejectDialog
-  } = useActiveSuggestion();
-  
-  const { isProcessing, handleApprove, handleReject } = useSuggestionActions(
-    scriptId, 
-    editorContent,
-    setSuggestions,
-    loadSuggestions
-  );
-  
-  const { markAsUserChange } = useSuggestionsApplier(quillRef, editorContent, suggestions);
-  
-  const { handleChange, handleEditorClick } = useEditorEventHandlers({
-    quillRef,
-    setEditorContent,
-    markAsUserChange,
-    isAdmin,
-    suggestions,
-    openSuggestionPopover
-  });
-  
-  const { 
+  // Suggestion management
+  const {
+    activeSuggestion,
+    popoverPosition,
+    isPopoverOpen,
     showRejectDialog,
     setShowRejectDialog,
+    selectedSuggestionId,
+    rejectionReason,
+    setRejectionReason,
+    isProcessing,
     handleApproveClick,
     handleRejectClick,
-    handleRejectConfirm
-  } = useSuggestionHandlers(
-    handleApprove,
-    handleReject,
-    closeSuggestionPopover,
-    prepareRejectSuggestion,
-    resetRejectDialog
-  );
+    handleRejectConfirm,
+    handleEditorClick,
+    closeSuggestionPopover
+  } = useSuggestionManager({
+    scriptId,
+    isAdmin,
+    editorContent,
+    quillRef
+  });
+  
+  // Editor content handling
+  const handleChange = (value: string, delta: DeltaStatic, source: string, editor: any) => {
+    if (source === 'user') {
+      // Only update content on user changes to avoid loops
+      const contentDelta = editor.getContents();
+      setEditorContent(contentDelta);
+    }
+  };
 
+  // Submit handlers
   const { 
     handleSubmit, 
     handleSaveDraft, 
@@ -112,25 +94,12 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     onSaveVersion
   });
 
-  // Only load suggestions when component mounts or scriptId changes
-  useEffect(() => {
-    if (isAdmin) {
-      loadSuggestions();
-    }
-  }, [loadSuggestions, isAdmin]);
-  
   // Load initial content - but only once
   useEffect(() => {
     if (!isLoading && content && !editorContent) {
       setEditorContent(toDelta(content));
     }
   }, [content, isLoading, editorContent]);
-
-  const handleRejectConfirmWrapper = async () => {
-    if (selectedSuggestionId) {
-      await handleRejectConfirm(selectedSuggestionId, rejectionReason);
-    }
-  };
 
   if (isLoading) {
     return <div>Loading editor...</div>;
@@ -173,7 +142,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
         onApprove={handleApproveClick}
         onReject={handleRejectClick}
         onPopoverClose={closeSuggestionPopover}
-        onRejectConfirm={handleRejectConfirmWrapper}
+        onRejectConfirm={handleRejectConfirm}
       />
     </div>
   );
