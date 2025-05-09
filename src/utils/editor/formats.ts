@@ -1,13 +1,26 @@
 
-export const suggestionFormatCSS = `
-.ql-suggestion-add {
-  background-color: rgba(0, 128, 0, 0.2);
-  color: darkgreen;
-}
+import { suggestionFormatCSS } from '@/components/editor/SuggestionFormatModule';
 
-.ql-suggestion-remove {
-  background-color: rgba(255, 0, 0, 0.2);
-  color: darkred;
-  text-decoration: line-through;
-}
-`;
+export { suggestionFormatCSS };
+
+// Re-export for backwards compatibility
+export const quillFormats = [
+  'header',
+  'bold',
+  'italic',
+  'underline',
+  'strike',
+  'blockquote',
+  'list',
+  'bullet',
+  'indent',
+  'link',
+  'image',
+  'code-block',
+  'background',
+  'color',
+  'align',
+  'direction',
+  'suggestion-add',
+  'suggestion-remove'
+];

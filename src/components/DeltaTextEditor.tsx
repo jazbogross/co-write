@@ -9,7 +9,7 @@ import { useTextEditor } from '@/hooks/useTextEditor';
 import { useEditorInitializer } from '@/hooks/editor/useEditorInitializer';
 import { useEditorFormat } from '@/hooks/editor/useEditorFormat';
 import { EditorContent } from '@/components/editor/EditorContent';
-import { toDelta } from '@/utils/deltaUtils';
+import { toDelta } from '@/utils/delta/deltaUtils';
 import { EditorDialogs } from '@/components/editor/EditorDialogs';
 import { useEditorSubmitHandlers } from '@/hooks/editor/useEditorSubmitHandlers';
 import { useSuggestionManager } from '@/hooks/suggestion/useSuggestionManager';

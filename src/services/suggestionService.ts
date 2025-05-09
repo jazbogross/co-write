@@ -1,77 +1,121 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { DeltaStatic } from 'quill';
-import { safeToDelta } from '@/utils/delta/safeDeltaOperations';
-import Delta from 'quill-delta'; // Properly import Delta
+import Delta from 'quill-delta';
+import { normalizeContentForStorage, toDelta, toJSON } from '@/utils/delta/deltaUtils';
+import { ScriptSuggestion } from '@/types/lineTypes';
 
 /**
  * Fetch all suggestions for a script
  */
-export const fetchSuggestions = async (scriptId: string) => {
-  // Fetch suggestions
-  const { data, error } = await supabase
-    .from('script_suggestions')
-    .select(`
-      id,
-      delta_diff,
-      status,
-      rejection_reason,
-      script_id,
-      user_id,
-      created_at,
-      updated_at
-    `)
-    .eq('script_id', scriptId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data || [];
-};
-
-/**
- * Fetch user profiles for a set of user IDs
- */
-export const fetchUserProfiles = async (userIds: string[]) => {
-  if (userIds.length === 0) return {};
+export const fetchSuggestions = async (scriptId: string): Promise<ScriptSuggestion[]> => {
+  try {
+    // Fetch suggestions
+    const { data, error } = await supabase
+      .from('script_suggestions')
+      .select(`
+        id,
+        script_id,
+        user_id,
+        delta_diff,
+        status,
+        rejection_reason,
+        created_at,
+        updated_at,
+        profiles:user_id(username)
+      `)
+      .eq('script_id', scriptId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
   
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .in('id', userIds);
+    if (error) throw error;
     
-  if (error) throw error;
-  
-  // Create a mapping of user IDs to usernames
-  const usernameMap: Record<string, string> = {};
-  if (data) {
-    data.forEach(profile => {
-      usernameMap[profile.id] = profile.username || 'Unknown user';
-    });
+    if (!data || data.length === 0) {
+      return [];
+    }
+    
+    return data.map(suggestion => ({
+      id: suggestion.id,
+      scriptId: suggestion.script_id,
+      userId: suggestion.user_id,
+      deltaDiff: toDelta(suggestion.delta_diff),
+      status: suggestion.status as 'pending' | 'approved' | 'rejected' | 'draft',
+      rejectionReason: suggestion.rejection_reason,
+      createdAt: suggestion.created_at,
+      updatedAt: suggestion.updated_at
+    }));
+  } catch (error) {
+    console.error('Error fetching suggestions:', error);
+    return [];
   }
-  
-  return usernameMap;
 };
 
 /**
  * Fetch original content for a script
  */
 export const fetchOriginalContent = async (scriptId: string): Promise<DeltaStatic> => {
-  const { data, error } = await supabase
-    .from('scripts')
-    .select('content')
-    .eq('id', scriptId)
-    .single();
-  
-  if (error) throw error;
-  
-  // Create a proper Delta object from content
-  if (data?.content) {
-    return safeToDelta(data.content);
+  try {
+    const { data, error } = await supabase
+      .from('scripts')
+      .select('content')
+      .eq('id', scriptId)
+      .single();
+    
+    if (error) throw error;
+    
+    // Create a proper Delta object from content
+    if (data?.content) {
+      return toDelta(data.content);
+    }
+    
+    // Default to empty content with newline
+    return toDelta({ ops: [{ insert: '\n' }] });
+  } catch (error) {
+    console.error('Error fetching original content:', error);
+    // Default to empty content with newline
+    return toDelta({ ops: [{ insert: '\n' }] });
   }
-  
-  // Default to empty content with newline
-  return safeToDelta({ ops: [{ insert: '\n' }] });
+};
+
+/**
+ * Create a suggestion
+ */
+export const createSuggestion = async (
+  scriptId: string,
+  originalDelta: DeltaStatic,
+  suggestedDelta: DeltaStatic
+): Promise<string | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    
+    // Create a diff between original and suggested deltas
+    const deltaOps = originalDelta.diff(suggestedDelta);
+    const deltaJson = toJSON(deltaOps);
+    
+    // Save the suggestion
+    const { data, error } = await supabase
+      .from('script_suggestions')
+      .insert({
+        script_id: scriptId,
+        user_id: user.id,
+        delta_diff: deltaJson,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      })
+      .select('id')
+      .single();
+      
+    if (error) {
+      console.error('Error creating suggestion:', error);
+      return null;
+    }
+    
+    return data.id;
+  } catch (error) {
+    console.error('Error creating suggestion:', error);
+    return null;
+  }
 };
 
 /**
@@ -80,70 +124,65 @@ export const fetchOriginalContent = async (scriptId: string): Promise<DeltaStati
 export const approveSuggestion = async (
   scriptId: string,
   suggestionId: string,
-  originalContent: DeltaStatic,
-  diffDelta?: DeltaStatic
-) => {
-  // If diffDelta is not provided, fetch it
-  let diff = diffDelta;
-  if (!diff) {
-    const { data, error } = await supabase
+  originalContent: DeltaStatic
+): Promise<boolean> => {
+  try {
+    // Get the suggestion diff
+    const { data: suggestion, error: suggestionError } = await supabase
       .from('script_suggestions')
       .select('delta_diff')
       .eq('id', suggestionId)
       .single();
       
-    if (error) throw error;
-    diff = safeToDelta(data.delta_diff);
+    if (suggestionError) throw suggestionError;
+    
+    // Create proper Delta instances to ensure compose works correctly
+    const originalDelta = new Delta(originalContent.ops || []);
+    const diffDelta = new Delta(suggestion.delta_diff.ops || []);
+    
+    // Compose the deltas to get the new content
+    const newContent = originalDelta.compose(diffDelta);
+    
+    // Convert to plain object for storage
+    const newContentObj = toJSON(newContent);
+    
+    // Update the scripts table with the new content
+    const { error: updateError } = await supabase
+      .from('scripts')
+      .update({ 
+        content: newContentObj,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', scriptId);
+  
+    if (updateError) throw updateError;
+    
+    // Save version history
+    await supabase
+      .from('script_versions')
+      .insert({
+        script_id: scriptId,
+        version_number: 1,
+        content_delta: newContentObj,
+        created_at: new Date().toISOString()
+      });
+  
+    // Update suggestion status
+    const { error: statusError } = await supabase
+      .from('script_suggestions')
+      .update({ 
+        status: 'approved',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', suggestionId);
+  
+    if (statusError) throw statusError;
+    
+    return true;
+  } catch (error) {
+    console.error('Error approving suggestion:', error);
+    return false;
   }
-  
-  console.log('Original content:', JSON.stringify(originalContent));
-  console.log('Suggestion diff:', JSON.stringify(diff));
-  
-  // Apply the diff to the original content
-  // Create proper Delta instances to ensure compose works correctly
-  const originalDelta = new Delta(originalContent.ops || []);
-  const diffDeltaObj = new Delta(diff?.ops || []);
-  
-  // Compose the deltas to get the new content
-  const newContent = originalDelta.compose(diffDeltaObj);
-  console.log('New composed content:', JSON.stringify(newContent));
-  
-  // Convert to plain object for storage
-  const newContentObj = JSON.parse(JSON.stringify(newContent));
-  
-  // Update the scripts table with the new content
-  const { error: updateError } = await supabase
-    .from('scripts')
-    .update({ 
-      content: newContentObj,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', scriptId);
-
-  if (updateError) throw updateError;
-  
-  // Save version history
-  await supabase
-    .from('script_versions')
-    .insert({
-      script_id: scriptId,
-      version_number: 1, // Start with version 1 since we don't track versions in content anymore
-      content_delta: newContentObj,
-      created_at: new Date().toISOString()
-    });
-
-  // Update suggestion status
-  const { error: statusError } = await supabase
-    .from('script_suggestions')
-    .update({ 
-      status: 'approved',
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', suggestionId);
-
-  if (statusError) throw statusError;
-  
-  return true;
 };
 
 /**
@@ -152,16 +191,93 @@ export const approveSuggestion = async (
 export const rejectSuggestion = async (
   suggestionId: string,
   reason: string
-) => {
-  const { error } = await supabase
-    .from('script_suggestions')
-    .update({ 
-      status: 'rejected',
-      rejection_reason: reason,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', suggestionId);
+): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('script_suggestions')
+      .update({ 
+        status: 'rejected',
+        rejection_reason: reason,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', suggestionId);
+  
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error rejecting suggestion:', error);
+    return false;
+  }
+};
 
-  if (error) throw error;
-  return true;
+/**
+ * Save a draft
+ */
+export const saveDraft = async (
+  scriptId: string,
+  content: DeltaStatic
+): Promise<boolean> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    
+    // Normalize content for storage
+    const normalizedContent = normalizeContentForStorage(content);
+    
+    // Update or insert the draft
+    const { error } = await supabase
+      .from('script_drafts')
+      .upsert({
+        script_id: scriptId,
+        user_id: user.id,
+        draft_content: normalizedContent,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'script_id,user_id'
+      });
+      
+    if (error) {
+      console.error('Error saving draft:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error saving draft:', error);
+    return false;
+  }
+};
+
+/**
+ * Load a draft
+ */
+export const loadDraft = async (
+  scriptId: string
+): Promise<DeltaStatic | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    
+    const { data, error } = await supabase
+      .from('script_drafts')
+      .select('draft_content')
+      .eq('script_id', scriptId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+      
+    if (error) {
+      // If no draft exists, that's not an error for us
+      if (error.code === 'PGRST116') return null;
+      
+      console.error('Error loading draft:', error);
+      return null;
+    }
+    
+    if (!data || !data.draft_content) return null;
+    
+    return toDelta(data.draft_content);
+  } catch (error) {
+    console.error('Error loading draft:', error);
+    return null;
+  }
 };

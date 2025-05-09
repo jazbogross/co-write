@@ -48,8 +48,6 @@ export const SuggestionFormatModule = {
           return undefined;
         }
       }
-      SuggestionAddFormat.blotName = 'suggestion-add';
-      SuggestionAddFormat.tagName = 'span';
       
       // Create suggestion-remove format with metadata
       class SuggestionRemoveFormat extends Inline {
@@ -83,8 +81,6 @@ export const SuggestionFormatModule = {
           return undefined;
         }
       }
-      SuggestionRemoveFormat.blotName = 'suggestion-remove';
-      SuggestionRemoveFormat.tagName = 'span';
       
       // Register formats with Quill
       Quill.register(SuggestionAddFormat);
@@ -93,17 +89,7 @@ export const SuggestionFormatModule = {
       // Mark as registered to avoid double registration
       Quill._suggestionFormatModuleRegistered = true;
       
-      // Define the module constructor function
-      function SuggestionFormatModuleFunc() {
-        this.initialize = function() {
-          // Module initialization logic
-          console.log('SuggestionFormat module initialized');
-        };
-      }
-      
-      // Register the module with Quill
-      Quill.register('modules/suggestionFormat', SuggestionFormatModuleFunc, true);
-      
+      console.log('SuggestionFormat module initialized');
       return true;
     } catch (error) {
       console.error('Error registering suggestion formats:', error);
@@ -111,3 +97,17 @@ export const SuggestionFormatModule = {
     }
   }
 };
+
+// CSS for suggestion formats - can be used by other components
+export const suggestionFormatCSS = `
+.ql-suggestion-add {
+  background-color: rgba(0, 128, 0, 0.2);
+  color: darkgreen;
+}
+
+.ql-suggestion-remove {
+  background-color: rgba(255, 0, 0, 0.2);
+  color: darkred;
+  text-decoration: line-through;
+}
+`;

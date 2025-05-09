@@ -21,7 +21,7 @@ export function useSuggestionManager({
   quillRef
 }: UseSuggestionManagerProps) {
   // Load suggestions
-  const { suggestions, setSuggestions, loadSuggestions, isLoading: isSuggestionsLoading } = 
+  const { suggestions, loadSuggestions, isLoading: isSuggestionsLoading } = 
     useSuggestionLoader(scriptId, isAdmin);
   
   // Suggestion popover state
@@ -79,8 +79,7 @@ export function useSuggestionManager({
         await approveSuggestion(
           scriptId,
           id,
-          editorContent,
-          null // The diff will be fetched inside the approveSuggestion function
+          editorContent
         );
       }
 

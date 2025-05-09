@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { DeltaStatic } from 'quill';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,59 +33,6 @@ export const toJSON = (delta: DeltaStatic | any): Record<string, any> => {
   
   // Return a plain object copy for JSON serialization
   return JSON.parse(JSON.stringify(delta));
-};
-
-/**
- * Load content from scripts table
- */
-export const loadContent = async (scriptId: string): Promise<DeltaStatic | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('scripts')
-      .select('content')
-      .eq('id', scriptId)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    if (!data || !data.content) {
-      console.log('No content found for script:', scriptId);
-      return null;
-    }
-
-    const deltaContent = data.content;
-    
-    // Convert the content to a proper Delta object
-    return toDelta(deltaContent);
-  } catch (error) {
-    console.error('Error loading content:', error);
-    return null;
-  }
-};
-
-/**
- * Save content to scripts table
- */
-export const saveContent = async (scriptId: string, content: DeltaStatic | any): Promise<boolean> => {
-  try {
-    // Convert content to proper format if needed
-    const normalizedContent = normalizeContentForStorage(content);
-
-    // Update scripts table
-    const { error: updateError } = await supabase
-      .from('scripts')
-      .update({ 
-        content: normalizedContent,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', scriptId);
-
-    if (updateError) throw updateError;
-    return true;
-  } catch (error) {
-    console.error('Error saving content:', error);
-    return false;
-  }
 };
 
 /**
@@ -190,35 +138,163 @@ export const normalizeContentForStorage = (content: any): Record<string, any> =>
 };
 
 /**
- * Save a suggestion to script_suggestions table
+ * Load content from scripts table
  */
-export const saveSuggestion = async (
-  scriptId: string,
-  userId: string,
-  deltaContent: DeltaStatic | DeltaContent
-): Promise<boolean> => {
+export const loadContent = async (scriptId: string): Promise<DeltaStatic | null> => {
   try {
-    // Normalize content for storage
-    const normalizedContent = normalizeContentForStorage(deltaContent);
-    
-    const { error } = await supabase
-      .from('script_suggestions')
-      .insert({
-        script_id: scriptId,
-        user_id: userId,
-        delta_diff: normalizedContent,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      });
-      
+    const { data, error } = await supabase
+      .from('scripts')
+      .select('content')
+      .eq('id', scriptId)
+      .maybeSingle();
+
     if (error) throw error;
+
+    if (!data || !data.content) {
+      console.log('No content found for script:', scriptId);
+      return null;
+    }
+
+    const deltaContent = data.content;
     
+    // Convert the content to a proper Delta object
+    return toDelta(deltaContent);
+  } catch (error) {
+    console.error('Error loading content:', error);
+    return null;
+  }
+};
+
+/**
+ * Save content to scripts table
+ */
+export const saveContent = async (scriptId: string, content: DeltaStatic | any): Promise<boolean> => {
+  try {
+    // Convert content to proper format if needed
+    const normalizedContent = normalizeContentForStorage(content);
+
+    // Update scripts table
+    const { error: updateError } = await supabase
+      .from('scripts')
+      .update({ 
+        content: normalizedContent,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', scriptId);
+
+    if (updateError) throw updateError;
     return true;
   } catch (error) {
-    console.error('Error saving suggestion:', error);
+    console.error('Error saving content:', error);
     return false;
   }
 };
 
-// Adding alias for createSuggestion to fix import reference
-export const createSuggestion = saveSuggestion;
+/**
+ * Create a suggestion by comparing with the original Delta
+ */
+export const createSuggestion = async (
+  scriptId: string, 
+  originalDelta: DeltaStatic, 
+  suggestedDelta: DeltaStatic
+): Promise<string | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Create a diff between original and suggested deltas
+    const deltaOps = originalDelta.diff(suggestedDelta);
+    const deltaJson = toJSON(deltaOps);
+    
+    const { data, error } = await supabase
+      .from('script_suggestions')
+      .insert({
+        script_id: scriptId,
+        user_id: user.id,
+        delta_diff: deltaJson,
+        status: 'pending'
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Error creating suggestion:', error);
+      return null;
+    }
+
+    return data.id;
+  } catch (error) {
+    console.error('Error in createSuggestion:', error);
+    return null;
+  }
+};
+
+/**
+ * Check if current content is empty
+ */
+export const isContentEmpty = (content: any): boolean => {
+  // For null/undefined content
+  if (!content) return true;
+  
+  // If it's a string, check if it's empty after trimming
+  if (typeof content === 'string') return content.trim() === '';
+  
+  // Check if it's a Delta object with empty content
+  if (content && typeof content === 'object' && 'ops' in content) {
+    // Check if it only has a newline or empty insert
+    if (content.ops.length === 0) return true;
+    
+    if (content.ops.length === 1) {
+      const op = content.ops[0];
+      return op.insert === '\n' || op.insert === '';
+    }
+    
+    // Extract text content to check if it's empty
+    let text = '';
+    content.ops.forEach((op: any) => {
+      if (typeof op.insert === 'string') {
+        text += op.insert;
+      }
+    });
+    return text.trim() === '';
+  }
+  
+  return false;
+};
+
+/**
+ * Extract plain text from a Delta object
+ */
+export const extractPlainText = (content: any): string => {
+  // For null/undefined content
+  if (!content) return '';
+  
+  // If it's a string, return it directly
+  if (typeof content === 'string') return content;
+  
+  // Check if it has ops array (Delta object)
+  if (content && Array.isArray(content.ops)) {
+    let text = '';
+    
+    // Process each op to extract text
+    content.ops.forEach((op: any) => {
+      if (op.insert) {
+        if (typeof op.insert === 'string') {
+          text += op.insert;
+        } else if (typeof op.insert === 'object') {
+          // Handle embeds like images
+          text += ' ';
+        }
+      }
+    });
+    
+    return text;
+  }
+  
+  // Fallback: stringify the object
+  try {
+    return JSON.stringify(content);
+  } catch (e) {
+    return String(content);
+  }
+};
