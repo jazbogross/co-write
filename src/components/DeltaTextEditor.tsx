@@ -63,18 +63,53 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
   } = useActiveSuggestion();
   const { currentFormat, handleChangeSelection, handleFormat } = useEditorFormat(quillRef);
   
-  // Modify the event handlers to prevent infinite loops
+  // Fix the handleChange function to properly update content
   const handleChange = useCallback((value: string, delta: any, source: string, editor: any) => {
+    // Always update content on user changes
     if (source === 'user') {
       setLastChangeSource('user');
-      // Don't update state on every change, which can cause loops
+      
+      // Capture current content from editor - this is what was missing before
+      if (editor && editor.getContents) {
+        const contentDelta = editor.getContents();
+        setEditorContent(contentDelta);
+      }
     }
   }, []);
   
   const handleEditorClick = useCallback((event: React.MouseEvent) => {
-    // Handle editor clicks if needed
-  }, []);
-  
+    if (!quillRef.current || !isAdmin) return;
+    
+    const editor = quillRef.current.getEditor();
+    const editorBounds = editor.root.getBoundingClientRect();
+    
+    // Check if clicked element has suggestion class
+    const element = event.target as HTMLElement;
+    const isSuggestionAdd = element.classList.contains('ql-suggestion-add');
+    const isSuggestionRemove = element.classList.contains('ql-suggestion-remove');
+    
+    if ((isSuggestionAdd || isSuggestionRemove) && isAdmin) {
+      const suggestionId = element.getAttribute('data-suggestion-id');
+      
+      if (suggestionId) {
+        const suggestion = suggestions.find(s => s.id === suggestionId);
+        
+        if (suggestion) {
+          // Position popover next to the clicked element
+          openSuggestionPopover(
+            suggestion, 
+            {
+              x: event.clientX - editorBounds.left + editorBounds.width / 2,
+              y: event.clientY - editorBounds.top
+            }
+          );
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }
+    }
+  }, [quillRef, isAdmin, suggestions, openSuggestionPopover]);
+
   const { 
     handleSubmit, 
     handleSaveDraft, 
@@ -106,7 +141,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
     }
   }, [loadSuggestions, isAdmin]);
   
-  // Apply suggestions to content - but make sure to prevent infinite loops
+  // Apply suggestions to content but prevent infinite loops
   useEffect(() => {
     if (!quillRef.current || !editorContent || suggestions.length === 0) return;
     
@@ -121,7 +156,7 @@ export const DeltaTextEditor: React.FC<DeltaTextEditorProps> = ({
       'suggestion-remove': false
     });
     
-    // Apply each suggestion's formatting - but we'll use a more careful approach
+    // Apply each suggestion's formatting with a careful approach
     // to avoid reflow issues
     try {
       suggestions.forEach(suggestion => {

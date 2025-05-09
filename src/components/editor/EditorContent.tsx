@@ -18,7 +18,6 @@ export const EditorContent: React.FC<EditorContentProps> = ({
   handleChangeSelection,
   handleEditorClick
 }) => {
-  // Use React.memo to prevent unnecessary re-renders
   return (
     <div onClick={handleEditorClick}>
       <ReactQuill
