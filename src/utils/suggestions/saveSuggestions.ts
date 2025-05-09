@@ -1,9 +1,8 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { DeltaContent } from '@/utils/editor/types';
-import { LineData } from '@/types/lineTypes';
-import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
 import { DeltaStatic } from 'quill';
+import { LineData } from '@/types/lineTypes';
+import { toDelta } from '@/utils/deltaUtils';
+import { normalizeContentForStorage } from '@/utils/deltaUtils';
 
 /**
  * Interface for suggestion submission
@@ -11,7 +10,7 @@ import { DeltaStatic } from 'quill';
 interface SuggestionSubmission {
   scriptId: string;
   userId: string;
-  deltaDiff: DeltaContent | DeltaStatic;
+  deltaDiff: DeltaStatic;
 }
 
 /**

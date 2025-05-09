@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { DeltaStatic } from 'quill';
 import Delta from 'quill-delta';
-import { normalizeContentForStorage, toDelta, toJSON } from '@/utils/delta/deltaUtils';
+import { normalizeContentForStorage, toDelta, toJSON } from '@/utils/deltaUtils';
 import { ScriptSuggestion } from '@/types/lineTypes';
 
 /**
@@ -138,7 +138,15 @@ export const approveSuggestion = async (
     
     // Create proper Delta instances to ensure compose works correctly
     const originalDelta = new Delta(originalContent.ops || []);
-    const diffDelta = new Delta(suggestion.delta_diff.ops || []);
+    
+    // Handle suggestion delta_diff properly
+    const diffOps = suggestion.delta_diff && 
+                    typeof suggestion.delta_diff === 'object' &&
+                    suggestion.delta_diff.ops ? 
+                    suggestion.delta_diff.ops : 
+                    [{ insert: '\n' }];
+                    
+    const diffDelta = new Delta(diffOps);
     
     // Compose the deltas to get the new content
     const newContent = originalDelta.compose(diffDelta);

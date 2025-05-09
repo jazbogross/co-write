@@ -1,67 +1,92 @@
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { approveSuggestion, rejectSuggestion } from '@/services/suggestionService';
-import { DeltaStatic } from 'quill';
+import { useQueryClient } from '@tanstack/react-query';
 
-export function useSuggestionActions(
-  scriptId: string, 
-  originalContent: DeltaStatic | null,
-  setSuggestions: React.Dispatch<React.SetStateAction<any[]>>,
-  loadSuggestions: () => Promise<void>
-) {
+export const useSuggestionActions = (scriptId: string, onSuggestionUpdated?: () => void) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const queryClient = useQueryClient();
 
-  const handleApprove = async (ids: string[]) => {
-    if (ids.length === 0 || !originalContent) return;
-    
+  const handleApproveSuggestion = useCallback(async (
+    suggestionId: string,
+    originalContent: any
+  ) => {
     setIsProcessing(true);
+    
     try {
-      for (const id of ids) {
-        await approveSuggestion(
-          scriptId,
-          id,
-          originalContent,
-          null // The diff will be fetched inside the approveSuggestion function
-        );
-      }
-
-      toast.success(ids.length > 1 
-        ? `${ids.length} suggestions approved` 
-        : "Suggestion approved and changes applied");
+      const success = await approveSuggestion(scriptId, suggestionId, originalContent);
       
-      // Reload suggestions to get fresh data
-      loadSuggestions();
+      if (success) {
+        toast.success('Suggestion approved successfully');
+        
+        // Invalidate relevant queries
+        queryClient.invalidateQueries({
+          queryKey: ['suggestions', scriptId]
+        });
+        
+        queryClient.invalidateQueries({
+          queryKey: ['scriptContent', scriptId]
+        });
+        
+        // Call the callback if provided
+        if (onSuggestionUpdated) {
+          onSuggestionUpdated();
+        }
+        
+        return true;
+      } else {
+        toast.error('Failed to approve suggestion');
+        return false;
+      }
     } catch (error) {
       console.error('Error approving suggestion:', error);
-      toast.error("Failed to approve suggestion");
+      toast.error('An error occurred while approving suggestion');
+      return false;
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [scriptId, queryClient, onSuggestionUpdated]);
 
-  const handleReject = async (id: string, reason: string) => {
-    if (!id) return;
-
+  const handleRejectSuggestion = useCallback(async (
+    suggestionId: string,
+    reason: string
+  ) => {
     setIsProcessing(true);
+    
     try {
-      await rejectSuggestion(id, reason);
-
-      toast.success("Suggestion rejected");
+      const success = await rejectSuggestion(suggestionId, reason);
       
-      // Reload suggestions to get fresh data
-      loadSuggestions();
+      if (success) {
+        toast.success('Suggestion rejected successfully');
+        
+        // Invalidate suggestions query
+        queryClient.invalidateQueries({
+          queryKey: ['suggestions', scriptId]
+        });
+        
+        // Call the callback if provided
+        if (onSuggestionUpdated) {
+          onSuggestionUpdated();
+        }
+        
+        return true;
+      } else {
+        toast.error('Failed to reject suggestion');
+        return false;
+      }
     } catch (error) {
       console.error('Error rejecting suggestion:', error);
-      toast.error("Failed to reject suggestion");
+      toast.error('An error occurred while rejecting suggestion');
+      return false;
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [scriptId, queryClient, onSuggestionUpdated]);
 
   return {
-    isProcessing,
-    handleApprove,
-    handleReject
+    handleApproveSuggestion,
+    handleRejectSuggestion,
+    isProcessing
   };
-}
+};

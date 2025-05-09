@@ -1,7 +1,8 @@
+
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
+import { normalizeContentForStorage } from '@/utils/deltaUtils';
 import { saveSuggestions } from '@/utils/suggestions/saveSuggestions';
 import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';

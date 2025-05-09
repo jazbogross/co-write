@@ -1,8 +1,8 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { DeltaStatic } from 'quill';
 import { LineData } from '@/types/lineTypes';
-import { DeltaContent, DeltaStatic } from '@/utils/editor/types';
-import { normalizeContentForStorage } from '@/utils/suggestions/contentUtils';
+import { DeltaContent } from '@/utils/editor/types';
+import { normalizeContentForStorage } from '@/utils/deltaUtils';
 
 /**
  * Saves content to the database as a full Delta
