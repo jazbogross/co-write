@@ -6,7 +6,7 @@ import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from './types';
 import { combineDeltaContents } from './operations/deltaCombination';
 import { createEmptyDelta } from './operations/deltaOperations';
-import { isDeltaObject } from './deltaUtils';
+import { isDeltaObject } from '@/utils/deltaUtils';
 
 /**
  * Reconstructs a single delta content from line data

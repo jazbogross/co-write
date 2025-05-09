@@ -140,12 +140,21 @@ export const approveSuggestion = async (
     const originalDelta = new Delta(originalContent.ops || []);
     
     // Handle suggestion delta_diff properly
-    const diffOps = suggestion.delta_diff && 
-                    typeof suggestion.delta_diff === 'object' &&
-                    suggestion.delta_diff.ops ? 
-                    suggestion.delta_diff.ops : 
-                    [{ insert: '\n' }];
-                    
+    let diffOps;
+    
+    // Safely extract ops from delta_diff, handling various possible formats
+    if (suggestion.delta_diff && typeof suggestion.delta_diff === 'object') {
+      if ('ops' in suggestion.delta_diff && Array.isArray(suggestion.delta_diff.ops)) {
+        diffOps = suggestion.delta_diff.ops;
+      } else {
+        console.warn('delta_diff does not have expected ops array, using default');
+        diffOps = [{ insert: '\n' }];
+      }
+    } else {
+      console.warn('Invalid delta_diff format, using default');
+      diffOps = [{ insert: '\n' }];
+    }
+    
     const diffDelta = new Delta(diffOps);
     
     // Compose the deltas to get the new content

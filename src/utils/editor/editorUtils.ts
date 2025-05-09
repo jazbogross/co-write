@@ -2,7 +2,7 @@
 /**
  * Utilities for working with Quill Editor
  */
-import { isDeltaObject } from './deltaUtils';
+import { isDeltaObject } from '@/utils/deltaUtils';
 import { extractPlainTextFromDelta } from './content/textExtraction';
 
 /**
