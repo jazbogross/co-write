@@ -11,7 +11,7 @@ export type Sources = 'api' | 'user' | 'silent';
 export interface DeltaOperation {
   insert?: string | Record<string, any>;
   delete?: number;
-  retain?: number;
+  retain?: number | Record<string, unknown>;
   attributes?: Record<string, any>;
 }
 
@@ -19,3 +19,4 @@ export interface DeltaOperation {
 export interface DeltaContent {
   ops: DeltaOperation[];
 }
+
