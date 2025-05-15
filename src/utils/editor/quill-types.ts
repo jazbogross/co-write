@@ -19,4 +19,3 @@ export interface DeltaOperation {
 export interface DeltaContent {
   ops: DeltaOperation[];
 }
-

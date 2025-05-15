@@ -24,9 +24,9 @@ export const EditorContent: React.FC<EditorContentProps> = ({
       <ReactQuill
         ref={quillRef}
         theme="snow"
-        value={editorContent || { ops: [{ insert: '\n' }] } as unknown as DeltaStatic}
+        value={editorContent || { ops: [{ insert: '\n' }] } as any as DeltaStatic}
         onChange={(value, delta, source, editor) => {
-          handleChange(value, delta as unknown as DeltaStatic, source as Sources, editor);
+          handleChange(value, delta as any as DeltaStatic, source as Sources, editor);
         }}
         onChangeSelection={handleChangeSelection}
         modules={{
