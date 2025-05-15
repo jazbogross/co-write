@@ -5,7 +5,10 @@ import ReactQuill from 'react-quill';
 import { LineTracker } from './trackers/LineTracker';
 import { SuggestionFormatModule } from './SuggestionFormatModule';
 
-const Quill = ReactQuill.Quill;
+interface QuillWithCustomProperties extends typeof ReactQuill.Quill {
+  _lineTrackingModuleRegistered?: boolean;
+  _suggestionFormatModuleRegistered?: boolean;
+}
 
 /**
  * Singleton module definition for line tracking. We mark
@@ -15,18 +18,19 @@ export const LineTrackingModule = {
   name: 'lineTracking',
   register: function (Quill: any) {
     // If we've already registered, skip
-    if ((ReactQuill.Quill as any)._lineTrackingModuleRegistered) {
+    const QuillWithProps = ReactQuill.Quill as QuillWithCustomProperties;
+    if (QuillWithProps._lineTrackingModuleRegistered) {
       return;
     }
 
     try {
       // Register the suggestion format module FIRST if it hasn't been registered
-      if (!(ReactQuill.Quill as any)._suggestionFormatModuleRegistered) {
+      if (!QuillWithProps._suggestionFormatModuleRegistered) {
         SuggestionFormatModule.register(Quill);
       }
       
       // Mark as registered
-      (ReactQuill.Quill as any)._lineTrackingModuleRegistered = true;
+      QuillWithProps._lineTrackingModuleRegistered = true;
 
       // Register as a Quill module named 'lineTracking'
       ReactQuill.Quill.register('modules/lineTracking', function (quill: any) {

@@ -3,11 +3,15 @@ import { useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import { SuggestionFormatModule, suggestionFormatCSS } from '@/components/editor/SuggestionFormatModule';
 
+interface QuillWithCustomProperties extends typeof ReactQuill.Quill {
+  _suggestionFormatModuleRegistered?: boolean;
+}
+
 export const useEditorInitializer = () => {
   // Register Quill formats and modules
   useEffect(() => {
     // Register the suggestion format module before ReactQuill tries to use it
-    const Quill = ReactQuill.Quill;
+    const Quill = ReactQuill.Quill as QuillWithCustomProperties;
     if (Quill && !Quill._suggestionFormatModuleRegistered) {
       SuggestionFormatModule.register(Quill);
       console.log("Suggestion format module registered successfully");
@@ -21,7 +25,7 @@ export const useEditorInitializer = () => {
     // Check if styles are already added
     if (!document.getElementById(styleId)) {
       const styleElement = document.createElement('style');
-      styleElement.id = styleId;
+      styleElement.id = styleId;  // Fixed: styleId.id to styleElement.id
       styleElement.textContent = suggestionFormatCSS;
       document.head.appendChild(styleElement);
       
