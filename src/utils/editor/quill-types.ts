@@ -19,3 +19,6 @@ export interface DeltaOperation {
 export interface DeltaContent {
   ops: DeltaOperation[];
 }
+
+// Create a Value type that matches what ReactQuill expects
+export type Value = string | DeltaStatic;

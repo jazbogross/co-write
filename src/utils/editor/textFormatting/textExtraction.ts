@@ -2,7 +2,7 @@
 /**
  * Utilities for extracting plain text from Delta objects
  */
-import { DeltaContent, DeltaOp } from '../types';
+import { DeltaContent, DeltaOperation } from '../quill-types';
 import { validateDelta } from '../validation/deltaValidation';
 
 /**
@@ -29,7 +29,7 @@ export const extractPlainTextFromDelta = (content: any): string => {
     
     if (result.valid && result.parsed) {
       console.log('🔷 extractPlainTextFromDelta: Content is valid Delta, extracting text');
-      const text = extractTextFromDeltaOps(result.parsed.ops as DeltaOp[]);
+      const text = extractTextFromDeltaOps(result.parsed.ops);
       return text;
     }
     
@@ -55,7 +55,7 @@ export const extractPlainTextFromDelta = (content: any): string => {
 /**
  * Extracts text from Delta ops array
  */
-export const extractTextFromDeltaOps = (ops: DeltaOp[]): string => {
+export const extractTextFromDeltaOps = (ops: DeltaOperation[]): string => {
   console.log('🔷 extractTextFromDeltaOps: Processing', ops?.length, 'ops');
   
   if (!ops || !Array.isArray(ops)) {

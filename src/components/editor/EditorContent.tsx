@@ -1,7 +1,7 @@
 
 import React from 'react';
 import ReactQuill from 'react-quill';
-import { DeltaStatic, Sources } from '@/utils/editor/quill-types';
+import { DeltaStatic, Sources, Value } from '@/utils/editor/quill-types';
 import { modules, formats } from './EditorConfig';
 import { UnprivilegedEditor } from 'react-quill';
 
@@ -25,9 +25,9 @@ export const EditorContent: React.FC<EditorContentProps> = ({
       <ReactQuill
         ref={quillRef}
         theme="snow"
-        value={editorContent || { ops: [{ insert: '\n' }] } as any as DeltaStatic}
+        value={editorContent || { ops: [{ insert: '\n' }] } as Value}
         onChange={(value, delta, source, editor) => {
-          handleChange(value, delta as any as DeltaStatic, source as Sources, editor);
+          handleChange(value, delta as DeltaStatic, source as Sources, editor);
         }}
         onChangeSelection={handleChangeSelection}
         modules={modules}
