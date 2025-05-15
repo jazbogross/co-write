@@ -1,12 +1,13 @@
 
 import React from 'react';
 import ReactQuill from 'react-quill';
-import { DeltaStatic } from '@/utils/editor/quill-types';
+import { DeltaStatic, Sources } from '@/utils/editor/quill-types';
+import { UnprivilegedEditor } from 'react-quill';
 
 interface EditorContentProps {
   editorContent: DeltaStatic | null;
   quillRef: React.RefObject<ReactQuill>;
-  handleChange: (value: string, delta: DeltaStatic, source: string, editor: any) => void;
+  handleChange: (value: string, delta: DeltaStatic, source: Sources, editor: UnprivilegedEditor) => void;
   handleChangeSelection: (range: any, source: string, editor: any) => void;
   handleEditorClick: (event: React.MouseEvent) => void;
 }
@@ -23,8 +24,10 @@ export const EditorContent: React.FC<EditorContentProps> = ({
       <ReactQuill
         ref={quillRef}
         theme="snow"
-        value={editorContent || { ops: [{ insert: '\n' }] } as DeltaStatic}
-        onChange={handleChange}
+        value={editorContent || { ops: [{ insert: '\n' }] } as unknown as DeltaStatic}
+        onChange={(value, delta, source, editor) => {
+          handleChange(value, delta as unknown as DeltaStatic, source as Sources, editor);
+        }}
         onChangeSelection={handleChangeSelection}
         modules={{
           toolbar: false,

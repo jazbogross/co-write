@@ -5,6 +5,7 @@
 import { DeltaContent, DeltaOp } from '../types';
 import { createEmptyDelta, sanitizeDeltaOps } from './deltaOperations';
 import { validateDelta } from '../validation/deltaValidation';
+import { DeltaOperation } from '../quill-types';
 
 /**
  * Combines multiple Delta contents into a single Delta
@@ -30,7 +31,8 @@ export const combineDeltaContents = (contents: any[]): DeltaContent | null => {
         // Add ops from valid Delta
         if (validation.parsed.ops && Array.isArray(validation.parsed.ops)) {
           console.log('🔶 combineDeltaContents: Added', validation.parsed.ops.length, 'ops from valid Delta');
-          combinedOps.push(...validation.parsed.ops);
+          // Cast to DeltaOp[] to ensure type compatibility
+          combinedOps.push(...(validation.parsed.ops as DeltaOp[]));
         }
       } else if (typeof content === 'string') {
         // Convert string content to Delta op

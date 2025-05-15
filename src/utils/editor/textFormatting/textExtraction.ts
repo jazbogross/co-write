@@ -29,7 +29,7 @@ export const extractPlainTextFromDelta = (content: any): string => {
     
     if (result.valid && result.parsed) {
       console.log('🔷 extractPlainTextFromDelta: Content is valid Delta, extracting text');
-      const text = extractTextFromDeltaOps(result.parsed.ops);
+      const text = extractTextFromDeltaOps(result.parsed.ops as DeltaOp[]);
       return text;
     }
     
