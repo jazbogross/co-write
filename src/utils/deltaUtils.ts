@@ -1,9 +1,11 @@
+
 /**
  * Consolidated utilities for working with Delta objects
  */
 import { createClient } from '@supabase/supabase-js';
-import { DeltaStatic, DeltaContent } from '@/utils/editor/quill-types';
+import { DeltaStatic } from 'quill';
 import { supabase } from '@/integrations/supabase/client';
+import { DeltaContent } from '@/utils/editor/types';
 import Delta from 'quill-delta';
 
 /**

@@ -6,7 +6,6 @@ const Block = Quill.import('blots/block');
 class LineBlot extends Block {
   static blotName = 'line';
   static tagName = 'p';
-  domNode!: HTMLElement; // Explicitly define domNode property
 
   // When a new line is created, attach the UUID if provided.
   static create(value: string) {
@@ -27,11 +26,11 @@ class LineBlot extends Block {
   format(name: string, value: any) {
     if (name === 'line-uuid') {
       if (value) {
-        (this.domNode as HTMLElement).setAttribute('data-line-uuid', value);
-        (this.domNode as HTMLElement).setAttribute('line-uuid', value);
+        this.domNode.setAttribute('data-line-uuid', value);
+        this.domNode.setAttribute('line-uuid', value);
       } else {
-        (this.domNode as HTMLElement).removeAttribute('data-line-uuid');
-        (this.domNode as HTMLElement).removeAttribute('line-uuid');
+        this.domNode.removeAttribute('data-line-uuid');
+        this.domNode.removeAttribute('line-uuid');
       }
     } else {
       super.format(name, value);

@@ -1,5 +1,5 @@
 
-import { DeltaStatic } from '@/utils/editor/quill-types';
+import { DeltaStatic } from 'quill';
 import { supabase } from '@/integrations/supabase/client';
 import { LineData } from '@/types/lineTypes';
 

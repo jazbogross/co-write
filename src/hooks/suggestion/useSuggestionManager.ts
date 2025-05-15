@@ -1,6 +1,7 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import ReactQuill from 'react-quill';
-import { DeltaStatic } from '@/utils/editor/quill-types';
+import { DeltaStatic } from 'quill';
 import { Suggestion } from '@/components/suggestions/types';
 import { toast } from 'sonner';
 import { useSuggestionLoader } from '@/hooks/suggestion/useSuggestionLoader';
@@ -192,10 +193,7 @@ export function useSuggestionManager({
           
           suggestion.deltaDiff.ops.forEach(op => {
             if (op.retain) {
-              // Safely handle retain when it could be either a number or a Record
-              if (typeof op.retain === 'number') {
-                index += op.retain;
-              }
+              index += op.retain;
             } else if (op.delete) {
               // For deletions, we need to highlight text that would be deleted
               editor.formatText(index, op.delete, {
@@ -206,21 +204,16 @@ export function useSuggestionManager({
               });
             } else if (op.insert) {
               // Format inserted text as an addition suggestion
-              const insertContent = op.insert;
-              // Only process strings, not objects like images
-              if (typeof insertContent === 'string') {
-                editor.insertText(index, insertContent, {
-                  'suggestion-add': { 
-                    suggestionId: suggestion.id,
-                    userId: suggestion.userId
-                  }
-                });
-                
-                index += insertContent.length;
-              } else {
-                // For non-string inserts like embeds, just increment by 1
-                index += 1;
-              }
+              const insertLength = typeof op.insert === 'string' ? op.insert.length : 1;
+              
+              editor.insertText(index, op.insert, {
+                'suggestion-add': { 
+                  suggestionId: suggestion.id,
+                  userId: suggestion.userId
+                }
+              });
+              
+              index += insertLength;
             }
           });
         }

@@ -1,10 +1,9 @@
+
 import { useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import { toast } from 'sonner';
-import { extractQuillContent } from '@/utils/saveDraftUtils';
-import { LineData } from '@/types/lineTypes';
-import { DeltaStatic } from '@/utils/editor/quill-types';
 import { supabase } from '@/integrations/supabase/client';
+import { DeltaStatic } from 'quill';
 
 interface UseEditorSubmitHandlersProps {
   quillRef: React.RefObject<ReactQuill>;
@@ -36,7 +35,7 @@ export const useEditorSubmitHandlers = ({
     try {
       if (isAdmin && quillRef.current) {
         const delta = quillRef.current.getEditor().getContents();
-        const success = await submitEdits(delta as unknown as DeltaStatic);
+        const success = await submitEdits(delta);
         
         if (success && onCommitToGithub) {
           await onCommitToGithub(JSON.stringify(delta));
@@ -53,7 +52,7 @@ export const useEditorSubmitHandlers = ({
     
     try {
       const delta = quillRef.current.getEditor().getContents();
-      await submitEdits(delta as unknown as DeltaStatic, { asDraft: true });
+      await submitEdits(delta, { asDraft: true });
       toast.success('Draft saved successfully');
     } catch (error) {
       console.error('Error saving draft:', error);
@@ -67,7 +66,7 @@ export const useEditorSubmitHandlers = ({
     try {
       const delta = quillRef.current.getEditor().getContents();
       
-      const lineData: LineData[] = [{
+      const lineData = [{
         uuid: scriptId,
         lineNumber: 1,
         content: delta,

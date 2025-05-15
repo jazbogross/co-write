@@ -1,7 +1,7 @@
 
 import { useMemo } from 'react';
 import { Suggestion } from '@/components/suggestions/types';
-import { DeltaStatic } from '@/utils/editor/quill-types';
+import { DeltaStatic } from 'quill';
 // The fetchUserProfiles function doesn't exist, removing import
 // import { fetchUserProfiles } from '@/services/suggestionService';
 

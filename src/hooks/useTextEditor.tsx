@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { isDeltaObject } from '@/utils/editor';
 import { DeltaContent } from '@/utils/editor/types';
-import { DeltaStatic } from '@/utils/editor/quill-types';
+import { DeltaStatic } from 'quill';
 import { ensureDeltaContent, toDelta } from '@/utils/deltaUtils';
 
 export const useTextEditor = (

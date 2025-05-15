@@ -1,12 +1,15 @@
 
-import type { Sources } from 'quill';
-import type { DeltaStatic, DeltaOperation, DeltaContent } from './quill-types';
+import type { DeltaStatic, Sources } from 'quill';
 
 export interface DeltaOp {
   insert?: string | object;
   delete?: number;
-  retain?: number | Record<string, unknown>;
+  retain?: number;
   attributes?: Record<string, any>;
+}
+
+export interface DeltaContent {
+  ops: DeltaOp[];
 }
 
 export interface DeltaValidationResult {
@@ -22,5 +25,4 @@ export interface EditorChangeData {
   source: Sources;
 }
 
-// Use export type to fix isolation module errors
-export type { DeltaStatic, DeltaContent, DeltaOperation };
+export { DeltaStatic };

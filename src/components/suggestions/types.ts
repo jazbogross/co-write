@@ -1,5 +1,5 @@
 
-import { DeltaStatic } from '@/utils/editor/quill-types';
+import { DeltaStatic } from 'quill';
 
 export interface Suggestion {
   id: string;

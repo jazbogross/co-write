@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { SuggestionForm } from './SuggestionForm';
-import { DeltaStatic } from '@/utils/editor/quill-types';
+import { DeltaStatic } from 'quill';
 import { useSession } from '@supabase/auth-helpers-react';
 
 interface Suggestion {

@@ -3,17 +3,10 @@
  * SuggestionFormatModule - Registers suggestion formats with Quill
  */
 
-// Fix the interface definition to use proper TypeScript syntax
-interface QuillInstance {
-  import: (path: string) => any;
-  register: (format: any) => void;
-  _suggestionFormatModuleRegistered?: boolean;
-}
-
 // Simple module to register suggestion formatting in Quill
 export const SuggestionFormatModule = {
   name: 'suggestionFormat',
-  register: function (Quill: QuillInstance) {
+  register: function (Quill: any) {
     try {
       // Avoid double registration
       if (Quill._suggestionFormatModuleRegistered) {
