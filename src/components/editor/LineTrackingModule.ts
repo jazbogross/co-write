@@ -5,7 +5,8 @@ import ReactQuill from 'react-quill';
 import { LineTracker } from './trackers/LineTracker';
 import { SuggestionFormatModule } from './SuggestionFormatModule';
 
-interface QuillWithCustomProperties extends typeof ReactQuill.Quill {
+// Fix the interface definition to use proper TypeScript syntax
+interface QuillWithCustomProperties {
   _lineTrackingModuleRegistered?: boolean;
   _suggestionFormatModuleRegistered?: boolean;
 }
@@ -18,7 +19,7 @@ export const LineTrackingModule = {
   name: 'lineTracking',
   register: function (Quill: any) {
     // If we've already registered, skip
-    const QuillWithProps = ReactQuill.Quill as QuillWithCustomProperties;
+    const QuillWithProps = ReactQuill.Quill as any as QuillWithCustomProperties;
     if (QuillWithProps._lineTrackingModuleRegistered) {
       return;
     }

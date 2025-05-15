@@ -3,6 +3,7 @@
  * SuggestionFormatModule - Registers suggestion formats with Quill
  */
 
+// Fix the interface definition to use proper TypeScript syntax
 interface QuillInstance {
   import: (path: string) => any;
   register: (format: any) => void;
