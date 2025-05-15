@@ -8,7 +8,10 @@ export const useEditorInitializer = () => {
   useEffect(() => {
     // Register the suggestion format module before ReactQuill tries to use it
     const Quill = ReactQuill.Quill;
-    SuggestionFormatModule.register(Quill);
+    if (Quill && !Quill._suggestionFormatModuleRegistered) {
+      SuggestionFormatModule.register(Quill);
+      console.log("Suggestion format module registered successfully");
+    }
   }, []);
 
   // Add styles to the head

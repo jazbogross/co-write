@@ -2,6 +2,7 @@
 import React from 'react';
 import ReactQuill from 'react-quill';
 import { DeltaStatic } from 'quill';
+import { modules, formats } from './EditorConfig';
 
 interface EditorContentProps {
   editorContent: DeltaStatic | null;
@@ -26,30 +27,8 @@ export const EditorContent: React.FC<EditorContentProps> = ({
         value={editorContent || { ops: [{ insert: '\n' }] } as DeltaStatic}
         onChange={handleChange}
         onChangeSelection={handleChangeSelection}
-        modules={{
-          toolbar: false,
-          // Remove the suggestion format module since it's causing issues
-        }}
-        formats={[
-          'header',
-          'bold',
-          'italic',
-          'underline',
-          'strike',
-          'blockquote',
-          'list',
-          'bullet',
-          'indent',
-          'link',
-          'image',
-          'code-block',
-          'background',
-          'color',
-          'align',
-          'direction',
-          'suggestion-add',
-          'suggestion-remove'
-        ]}
+        modules={modules}
+        formats={formats}
       />
     </div>
   );
