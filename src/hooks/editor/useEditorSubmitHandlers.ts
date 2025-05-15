@@ -36,7 +36,7 @@ export const useEditorSubmitHandlers = ({
     try {
       if (isAdmin && quillRef.current) {
         const delta = quillRef.current.getEditor().getContents();
-        const success = await submitEdits(delta);
+        const success = await submitEdits(delta as unknown as DeltaStatic);
         
         if (success && onCommitToGithub) {
           await onCommitToGithub(JSON.stringify(delta));
@@ -53,7 +53,7 @@ export const useEditorSubmitHandlers = ({
     
     try {
       const delta = quillRef.current.getEditor().getContents();
-      await submitEdits(delta, { asDraft: true });
+      await submitEdits(delta as unknown as DeltaStatic, { asDraft: true });
       toast.success('Draft saved successfully');
     } catch (error) {
       console.error('Error saving draft:', error);

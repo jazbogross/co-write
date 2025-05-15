@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import { DeltaStatic } from '@/utils/editor/quill-types';
@@ -193,7 +192,10 @@ export function useSuggestionManager({
           
           suggestion.deltaDiff.ops.forEach(op => {
             if (op.retain) {
-              index += op.retain;
+              // Safely handle retain when it could be either a number or a Record
+              if (typeof op.retain === 'number') {
+                index += op.retain;
+              }
             } else if (op.delete) {
               // For deletions, we need to highlight text that would be deleted
               editor.formatText(index, op.delete, {
@@ -204,16 +206,21 @@ export function useSuggestionManager({
               });
             } else if (op.insert) {
               // Format inserted text as an addition suggestion
-              const insertLength = typeof op.insert === 'string' ? op.insert.length : 1;
-              
-              editor.insertText(index, op.insert, {
-                'suggestion-add': { 
-                  suggestionId: suggestion.id,
-                  userId: suggestion.userId
-                }
-              });
-              
-              index += insertLength;
+              const insertContent = op.insert;
+              // Only process strings, not objects like images
+              if (typeof insertContent === 'string') {
+                editor.insertText(index, insertContent, {
+                  'suggestion-add': { 
+                    suggestionId: suggestion.id,
+                    userId: suggestion.userId
+                  }
+                });
+                
+                index += insertContent.length;
+              } else {
+                // For non-string inserts like embeds, just increment by 1
+                index += 1;
+              }
             }
           });
         }
