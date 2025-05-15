@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 import Delta from 'quill-delta';
 import { 
   ScriptContent,

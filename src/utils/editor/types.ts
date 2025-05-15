@@ -1,15 +1,12 @@
 
-import type { DeltaStatic, Sources } from 'quill';
+import type { Sources } from 'quill';
+import { DeltaStatic, DeltaOperation, DeltaContent } from './quill-types';
 
 export interface DeltaOp {
   insert?: string | object;
   delete?: number;
   retain?: number;
   attributes?: Record<string, any>;
-}
-
-export interface DeltaContent {
-  ops: DeltaOp[];
 }
 
 export interface DeltaValidationResult {
@@ -25,4 +22,4 @@ export interface EditorChangeData {
   source: Sources;
 }
 
-export { DeltaStatic };
+export { DeltaStatic, DeltaContent, DeltaOperation };

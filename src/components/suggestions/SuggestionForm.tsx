@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 import Delta from 'quill-delta';
 import { useAuth } from '@/hooks/useAuth';
 

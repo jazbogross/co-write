@@ -1,5 +1,5 @@
 
-import type { DeltaStatic } from 'quill';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 
 // Main script content Delta type
 export interface ScriptContent {

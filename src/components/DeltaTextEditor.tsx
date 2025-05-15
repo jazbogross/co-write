@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { TextEditorActions } from '@/components/editor/TextEditorActions';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 import { useSubmitEdits } from '@/hooks/useSubmitEdits';
 import { useTextEditor } from '@/hooks/useTextEditor';
 import { useEditorInitializer } from '@/hooks/editor/useEditorInitializer';

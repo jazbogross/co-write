@@ -1,9 +1,10 @@
-
 import { useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import { toast } from 'sonner';
+import { extractQuillContent } from '@/utils/saveDraftUtils';
+import { LineData } from '@/types/lineTypes';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 import { supabase } from '@/integrations/supabase/client';
-import { DeltaStatic } from 'quill';
 
 interface UseEditorSubmitHandlersProps {
   quillRef: React.RefObject<ReactQuill>;
@@ -66,7 +67,7 @@ export const useEditorSubmitHandlers = ({
     try {
       const delta = quillRef.current.getEditor().getContents();
       
-      const lineData = [{
+      const lineData: LineData[] = [{
         uuid: scriptId,
         lineNumber: 1,
         content: delta,

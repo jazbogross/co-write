@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import ReactQuill from 'react-quill';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 import { Suggestion } from '@/components/suggestions/types';
 import { toast } from 'sonner';
 import { useSuggestionLoader } from '@/hooks/suggestion/useSuggestionLoader';

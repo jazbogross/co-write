@@ -1,5 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
 import { normalizeContentForStorage } from '@/utils/deltaUtils';

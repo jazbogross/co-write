@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 import { supabase } from '@/integrations/supabase/client';
 import ReactQuill from 'react-quill';
 import { DeltaContent } from '@/utils/editor/types';

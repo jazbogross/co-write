@@ -1,6 +1,5 @@
-
 import Delta from 'quill-delta';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 
 /**
  * Safely converts any value to a Delta object

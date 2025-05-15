@@ -1,7 +1,7 @@
 
 import React from 'react';
 import ReactQuill from 'react-quill';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic } from '@/utils/editor/quill-types';
 import { modules, formats } from './EditorConfig';
 
 interface EditorContentProps {

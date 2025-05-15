@@ -1,8 +1,6 @@
-
 import { createClient } from '@supabase/supabase-js';
-import { DeltaStatic } from 'quill';
+import { DeltaStatic, DeltaContent } from '@/utils/editor/quill-types';
 import { supabase } from '@/integrations/supabase/client';
-import { DeltaContent } from '@/utils/editor/types';
 import Delta from 'quill-delta';
 
 /**
