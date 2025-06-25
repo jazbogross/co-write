@@ -19,9 +19,8 @@ interface SuggestionSubmission {
 export const saveSuggestions = async (
   scriptId: string,
   userId: string | null,
-  lineData: LineData[],
-  originalContent: any
-): Promise<{ success: boolean; id?: string; error?: any }> => {
+  lineData: LineData[]
+): Promise<{ success: boolean; id?: string; error?: unknown }> => {
   if (!userId) {
     console.error('Cannot save suggestions without a user ID');
     return { success: false, error: 'No user ID provided' };

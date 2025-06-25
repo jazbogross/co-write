@@ -225,7 +225,7 @@ serve(async (req) => {
 });
 
 // Helper function to get the SHA of an existing file (needed for updates)
-async function getSHA(octokit: any, owner: string, repo: string, path: string): Promise<string | null> {
+async function getSHA(octokit: Octokit, owner: string, repo: string, path: string): Promise<string | null> {
   try {
     const { data } = await octokit.rest.repos.getContent({
       owner,
