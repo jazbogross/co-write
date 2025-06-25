@@ -28,7 +28,7 @@ export const EditorContent: React.FC<EditorContentProps> = ({
         onChangeSelection={handleChangeSelection}
         modules={{
           toolbar: false,
-          // Remove the suggestion format module since it's causing issues
+          suggestionFormat: true
         }}
         formats={[
           'header',
