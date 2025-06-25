@@ -85,7 +85,17 @@ export const SuggestionFormatModule = {
       // Register formats with Quill
       Quill.register(SuggestionAddFormat);
       Quill.register(SuggestionRemoveFormat);
-      
+
+      // Register a no-op module so Quill doesn't error when loading
+      class SuggestionFormat {
+        quill: any;
+        constructor(quill: any) {
+          this.quill = quill;
+        }
+      }
+
+      Quill.register('modules/suggestionFormat', SuggestionFormat);
+
       // Mark as registered to avoid double registration
       Quill._suggestionFormatModuleRegistered = true;
       
