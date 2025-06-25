@@ -12,7 +12,7 @@ interface RequestBody {
   scriptId: string;
   scriptTitle: string;
   userId: string;
-  content: any;
+  content: string | Record<string, unknown>;
   versionName: string;
   githubAccessToken: string;
 }

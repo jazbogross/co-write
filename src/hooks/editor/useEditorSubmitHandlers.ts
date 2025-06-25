@@ -11,7 +11,7 @@ interface UseEditorSubmitHandlersProps {
   scriptId: string;
   isAdmin: boolean;
   submitEdits: (delta: DeltaStatic, options?: { asDraft?: boolean }) => Promise<boolean>;
-  submitAsSuggestion: (lineData: any[], originalContent: any) => Promise<{ success: boolean }>;
+  submitAsSuggestion: (delta: DeltaStatic) => Promise<{ success: boolean }>;
   onCommitToGithub?: (content: string) => Promise<boolean>;
   onSaveVersion?: (content: string) => void;
 }
@@ -66,24 +66,7 @@ export const useEditorSubmitHandlers = ({
     try {
       const delta = quillRef.current.getEditor().getContents();
       
-      const lineData = [{
-        uuid: scriptId,
-        lineNumber: 1,
-        content: delta,
-        originalAuthor: userId,
-        editedBy: [],
-        hasDraft: false
-      }];
-      
-      const { data } = await supabase
-        .from('scripts')
-        .select('content')
-        .eq('id', scriptId)
-        .single();
-        
-      const originalContent = data?.content || { ops: [{ insert: '\n' }] };
-      
-      const result = await submitAsSuggestion(lineData, originalContent);
+      const result = await submitAsSuggestion(delta);
       
       if (result.success) {
         toast.success('Suggestion submitted successfully');

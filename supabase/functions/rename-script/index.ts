@@ -3,6 +3,11 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { Octokit } from 'https://esm.sh/@octokit/rest'
 
+interface SuggestionStat {
+  status: string
+  count: string
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -106,9 +111,10 @@ serve(async (req) => {
           .eq('script_id', scriptId)
           .group('status');
         
-        const totalSuggestions = suggestions ? suggestions.reduce((acc: number, item: any) => acc + parseInt(item.count), 0) : 0;
-        const acceptedSuggestions = suggestions ? 
-          suggestions.find((item: any) => item.status === 'approved')?.count || 0 : 0;
+        const totalSuggestions = suggestions ?
+          suggestions.reduce((acc: number, item: SuggestionStat) => acc + parseInt(item.count, 10), 0) : 0;
+        const acceptedSuggestions = suggestions ?
+          (suggestions.find((item: SuggestionStat) => item.status === 'approved')?.count ?? 0) : 0;
 
         // Create updated README with the new title
         const updatedReadme = 

@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { normalizeContentForStorage } from '@/utils/deltaUtils';
 import { saveSuggestions } from '@/utils/suggestions/saveSuggestions';
-import { LineData } from '@/types/lineTypes';
 import { DeltaContent } from '@/utils/editor/types';
 import { saveNamedVersion } from '@/utils/saveLineUtils';
 import { DeltaStatic } from 'quill';
@@ -146,8 +145,7 @@ export const useSubmitEdits = ({
   }, [scriptId, userId]);
   
   const submitAsSuggestion = useCallback(async (
-    lineData: LineData[],
-    originalContent: any,
+    delta: DeltaStatic,
     options: SubmitOptions = { showToast: true }
   ): Promise<{ success: boolean; id?: string }> => {
     if (!userId) return { success: false };
@@ -155,8 +153,8 @@ export const useSubmitEdits = ({
     try {
       setIsSaving(true);
       
-      // Convert lineData to string if needed
-      const result = await saveSuggestions(scriptId, userId, lineData, originalContent);
+      const lineData = [{ uuid: scriptId, lineNumber: 1, content: delta }];
+      const result = await saveSuggestions(scriptId, userId, lineData);
       
       if (result.success) {
         setLastSavedTime(new Date());
