@@ -1,0 +1,324 @@
+{
+  "App.css": [],
+  "App.tsx": [
+    "components/ui/toaster.tsx",
+    "hooks/useAuth.tsx",
+    "integrations/supabase/client.ts",
+    "pages/Auth.tsx",
+    "pages/GitHubCallback.tsx",
+    "pages/Index.tsx",
+    "pages/NotFound.tsx",
+    "pages/Profile.tsx",
+    "pages/ScriptEdit.tsx"
+  ],
+  "components/DeltaTextEditor.tsx": [
+    "components/editor/EditorContent.tsx",
+    "components/editor/EditorDialogs.tsx",
+    "components/editor/TextEditorActions.tsx",
+    "components/suggestions/InlineSuggestionControls.tsx",
+    "hooks/editor/useEditorFormat.ts",
+    "hooks/editor/useEditorInitializer.ts",
+    "hooks/editor/useEditorSubmitHandlers.ts",
+    "hooks/suggestion/useSuggestionManager.ts",
+    "hooks/useSubmitEdits.ts",
+    "hooks/useTextEditor.tsx",
+    "utils/deltaUtils.ts"
+  ],
+  "components/auth/AuthContainer.tsx": [
+    "components/auth/GitHubAuthButton.tsx",
+    "components/auth/LoginForm.tsx",
+    "components/auth/SignupForm.tsx",
+    "components/ui/card.tsx",
+    "components/ui/separator.tsx",
+    "components/ui/tabs.tsx",
+    "integrations/supabase/client.ts"
+  ],
+  "components/auth/GitHubAuthButton.tsx": [
+    "components/ui/button.tsx",
+    "integrations/supabase/client.ts"
+  ],
+  "components/auth/LoginForm.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/input.tsx"
+  ],
+  "components/auth/SignupForm.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/input.tsx"
+  ],
+  "components/editor/EditorContent.tsx": [],
+  "components/editor/EditorDialogs.tsx": [
+    "components/suggestions/RejectSuggestionDialog.tsx",
+    "components/suggestions/SuggestionPopover.tsx",
+    "components/suggestions/types.ts"
+  ],
+  "components/editor/EditorToolbar.tsx": [
+    "components/ui/button.tsx"
+  ],
+  "components/editor/SaveVersionDialog.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/input.tsx",
+    "components/ui/label.tsx"
+  ],
+  "components/editor/SuggestionFormatModule.ts": [],
+  "components/editor/TextEditorActions.tsx": [
+    "components/editor/EditorToolbar.tsx",
+    "components/ui/button.tsx"
+  ],
+  "components/profile/CreateScriptDialog.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/input.tsx",
+    "components/ui/label.tsx",
+    "components/ui/switch.tsx",
+    "hooks/use-toast.ts",
+    "hooks/useUserData.tsx",
+    "integrations/supabase/client.ts"
+  ],
+  "components/profile/GitHubConnectionCard.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/card.tsx",
+    "hooks/use-toast.ts",
+    "hooks/useUserData.tsx",
+    "integrations/supabase/client.ts"
+  ],
+  "components/profile/ProfileContent.tsx": [
+    "components/profile/GitHubConnectionCard.tsx",
+    "components/profile/ScriptsCard.tsx",
+    "components/profile/UserProfileCard.tsx",
+    "types/repository.ts"
+  ],
+  "components/profile/ProfileDataLoader.tsx": [
+    "integrations/supabase/client.ts",
+    "types/repository.ts"
+  ],
+  "components/profile/ProfileForm.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/input.tsx",
+    "hooks/useAuth.tsx",
+    "integrations/supabase/client.ts"
+  ],
+  "components/profile/ProfileHeader.tsx": [
+    "components/ui/button.tsx"
+  ],
+  "components/profile/ProfileLoading.tsx": [],
+  "components/profile/RenameScriptDialog.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/input.tsx",
+    "hooks/use-toast.ts",
+    "integrations/supabase/client.ts",
+    "types/repository.ts"
+  ],
+  "components/profile/ScriptItem.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/card.tsx",
+    "components/ui/switch.tsx",
+    "types/repository.ts"
+  ],
+  "components/profile/ScriptsCard.tsx": [
+    "components/profile/ScriptsList.tsx",
+    "components/ui/card.tsx",
+    "types/repository.ts"
+  ],
+  "components/profile/ScriptsList.tsx": [
+    "components/profile/CreateScriptDialog.tsx",
+    "components/profile/RenameScriptDialog.tsx",
+    "components/profile/ScriptItem.tsx",
+    "components/ui/button.tsx",
+    "hooks/use-toast.ts",
+    "integrations/supabase/client.ts",
+    "types/repository.ts"
+  ],
+  "components/profile/UserProfileCard.tsx": [
+    "components/profile/ProfileForm.tsx",
+    "components/ui/card.tsx"
+  ],
+  "components/script/ScriptEditor.tsx": [
+    "components/DeltaTextEditor.tsx",
+    "components/editor/SaveVersionDialog.tsx",
+    "components/ui/card.tsx"
+  ],
+  "components/scripts/LoadingScriptCards.tsx": [
+    "components/ui/skeleton.tsx",
+    "components/ui/table.tsx"
+  ],
+  "components/scripts/NoScriptsFound.tsx": [
+    "components/ui/button.tsx"
+  ],
+  "components/scripts/ScriptsTable.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/table.tsx",
+    "types/repository.ts"
+  ],
+  "components/suggestions/InlineSuggestionControls.tsx": [
+    "components/ui/button.tsx"
+  ],
+  "components/suggestions/RejectSuggestionDialog.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/input.tsx"
+  ],
+  "components/suggestions/SuggestionPopover.tsx": [
+    "components/suggestions/types.ts",
+    "components/ui/button.tsx"
+  ],
+  "components/suggestions/types.ts": [],
+  "components/ui/button.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/card.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/dialog.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/input.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/label.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/separator.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/skeleton.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/switch.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/table.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/tabs.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/toast.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/toaster.tsx": [
+    "components/ui/toast.tsx",
+    "hooks/use-toast.ts"
+  ],
+  "hooks/editor/useEditorFormat.ts": [],
+  "hooks/editor/useEditorInitializer.ts": [
+    "components/editor/SuggestionFormatModule.ts"
+  ],
+  "hooks/editor/useEditorSubmitHandlers.ts": [
+    "integrations/supabase/client.ts"
+  ],
+  "hooks/script/useGithubIntegration.ts": [
+    "integrations/supabase/client.ts"
+  ],
+  "hooks/script/usePendingSuggestions.ts": [
+    "integrations/supabase/client.ts"
+  ],
+  "hooks/script/useScriptData.ts": [
+    "integrations/supabase/client.ts"
+  ],
+  "hooks/suggestion/useSuggestionLoader.ts": [
+    "components/suggestions/types.ts",
+    "integrations/supabase/client.ts",
+    "utils/deltaUtils.ts"
+  ],
+  "hooks/suggestion/useSuggestionManager.ts": [
+    "components/suggestions/types.ts",
+    "hooks/suggestion/useSuggestionLoader.ts",
+    "services/suggestionService.ts"
+  ],
+  "hooks/use-toast.ts": [
+    "components/ui/toast.tsx"
+  ],
+  "hooks/useAuth.tsx": [],
+  "hooks/useOAuthRedirect.ts": [
+    "integrations/supabase/client.ts"
+  ],
+  "hooks/useScripts.ts": [
+    "integrations/supabase/client.ts",
+    "types/repository.ts"
+  ],
+  "hooks/useSubmitEdits.ts": [
+    "integrations/supabase/client.ts",
+    "utils/deltaUtils.ts",
+    "utils/editor/types.ts",
+    "utils/saveLineUtils.ts",
+    "utils/suggestions/saveSuggestions.ts"
+  ],
+  "hooks/useTextEditor.tsx": [
+    "integrations/supabase/client.ts",
+    "utils/deltaUtils.ts",
+    "utils/editor/index.ts",
+    "utils/editor/types.ts"
+  ],
+  "hooks/useUserData.tsx": [],
+  "index.css": [],
+  "integrations/supabase/client.ts": [
+    "integrations/supabase/types.ts"
+  ],
+  "integrations/supabase/types.ts": [],
+  "lib/utils.ts": [],
+  "main.tsx": [
+    "App.tsx",
+    "index.css"
+  ],
+  "pages/Auth.tsx": [
+    "components/auth/AuthContainer.tsx",
+    "hooks/useOAuthRedirect.ts"
+  ],
+  "pages/GitHubCallback.tsx": [
+    "integrations/supabase/client.ts"
+  ],
+  "pages/Index.tsx": [
+    "components/scripts/LoadingScriptCards.tsx",
+    "components/scripts/NoScriptsFound.tsx",
+    "components/scripts/ScriptsTable.tsx",
+    "components/ui/button.tsx",
+    "hooks/useScripts.ts"
+  ],
+  "pages/NotFound.tsx": [],
+  "pages/Profile.tsx": [
+    "components/profile/ProfileContent.tsx",
+    "components/profile/ProfileDataLoader.tsx",
+    "components/profile/ProfileHeader.tsx",
+    "components/profile/ProfileLoading.tsx"
+  ],
+  "pages/ScriptEdit.tsx": [
+    "components/script/ScriptEditor.tsx",
+    "hooks/script/useGithubIntegration.ts",
+    "hooks/script/usePendingSuggestions.ts",
+    "hooks/script/useScriptData.ts"
+  ],
+  "services/suggestionService.ts": [
+    "integrations/supabase/client.ts",
+    "types/lineTypes.ts",
+    "utils/deltaUtils.ts"
+  ],
+  "types/lineTypes.ts": [],
+  "types/repository.ts": [],
+  "utils/deltaUtils.ts": [
+    "integrations/supabase/client.ts",
+    "utils/editor/types.ts"
+  ],
+  "utils/editor/formats.ts": [
+    "components/editor/SuggestionFormatModule.ts"
+  ],
+  "utils/editor/index.ts": [
+    "utils/deltaUtils.ts",
+    "utils/editor/formats.ts",
+    "utils/editor/types.ts"
+  ],
+  "utils/editor/types.ts": [],
+  "utils/saveLineUtils.ts": [
+    "integrations/supabase/client.ts",
+    "types/lineTypes.ts",
+    "utils/deltaUtils.ts",
+    "utils/editor/types.ts"
+  ],
+  "utils/suggestions/saveSuggestions.ts": [
+    "integrations/supabase/client.ts",
+    "types/lineTypes.ts",
+    "utils/deltaUtils.ts"
+  ],
+  "vite-env.d.ts": []
+}

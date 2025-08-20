@@ -1,0 +1,158 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Quill Editor Styles */
+.ql-editor {
+  font-family: "Courier New", monospace !important;
+  font-size: 18px !important;
+  line-height: 34px !important;
+  color: #000000 !important;
+  padding-left: 40px !important; /* make room for toolbar */
+}
+
+.ql-container {
+  border: none !important;
+  font-family: "Courier New", monospace !important;
+}
+
+/* Fix toolbar positioning */
+.ql-toolbar {
+  position: sticky !important;
+  top: 50px !important;
+  left: 0 !important;
+  z-index: 10 !important;
+  background-color: transparent !important; 
+  padding: 8px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  margin-bottom: 0 !important;
+  width: 40px !important; /* make vertical */
+}
+
+/* Ensure editor content has padding to accommodate the toolbar */
+.quill-editor-container {
+  position: relative !important;
+}
+
+.ql-editor {
+  background-color: rgb(228, 222, 216) !important;
+  counter-reset: paragraph;
+}
+
+.ql-editor p {
+  position: relative;
+  padding-left: 2.5em;
+}
+
+/* Force paragraph numbering to stay on the left, ignoring RTL */
+.ql-editor p::before {
+  counter-increment: paragraph;
+  content: counter(paragraph) ". ";
+  
+  /* Position the number physically on the left */
+  position: absolute;
+  left: 0;       /* anchor to the left side */
+  width: 2em;    /* so the text is right-aligned within that space */
+  text-align: right;
+  color: #adadad;
+
+  /* Ensure the numbering itself is displayed LTR even in RTL paragraphs */
+  direction: ltr;
+  unicode-bidi: bidi-override;
+}
+
+/* Show only specific formatting options */
+.ql-toolbar .ql-formats > * {
+  display: none !important;
+}
+
+/* Only show specific formatting buttons */
+.ql-toolbar .ql-bold,
+.ql-toolbar .ql-italic,
+.ql-toolbar .ql-direction,
+.ql-toolbar .ql-align {
+  display: inline-block !important;
+  margin-left: -4px !important;
+  color: white !important;
+}
+
+
+
+.line-number {
+  font-family: "Courier New", monospace;
+  font-size: 18px !important;
+  line-height: 34px !important;
+  color: #dc1919;
+}
+
+.ql-toolbar select.ql-align {
+  display: none !important;
+}
+
+/* Diff editor styles */
+.quill-diff-editor .ql-editor {
+  padding: 12px !important;
+}
+
+.quill-diff-editor .ql-container.ql-snow {
+  border: none !important;
+}
+
+/* Suggestion format styles */
+.suggestion-addition {
+  background-color: rgba(0, 128, 0, 0.15) !important;
+  color: #006400 !important;
+  text-decoration: none !important;
+  padding: 0 2px !important;
+  border-radius: 2px !important;
+}
+
+.suggestion-deletion {
+  background-color: rgba(255, 0, 0, 0.15) !important;
+  color: #8B0000 !important;
+  text-decoration: line-through !important;
+  padding: 0 2px !important;
+  border-radius: 2px !important;
+}
+
+.suggestion-modified {
+  background-color: rgba(255, 165, 0, 0.15) !important;
+  color: #8B4500 !important;
+  padding: 0 2px !important;
+  border-radius: 2px !important;
+}
